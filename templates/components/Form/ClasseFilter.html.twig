@@ -1,0 +1,26 @@
+<div{{ attributes }} data-turbo="true">
+    <turbo-frame id="sfilter_from">
+    {{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+    <div class="row">
+        <div class="col-12-xxxl col-xl-3 col-sm-3 col-12 form-group">
+            {{ form_label(form.evaluation) }}
+            {{ form_widget(form.evaluation) }}
+        </div>
+        <div class="col-12-xxxl col-xl-3 col-sm-3 col-12 form-group">
+            {{ form_label(form.schoolSection) }}
+            {{ form_widget(form.schoolSection) }}
+        </div>
+        {% if form.schoolClassPeriod is defined %}
+        <div class="col-12-xxxl col-xl-3 col-sm-3 col-12 form-group">
+            {{ form_label(form.schoolClassPeriod) }}
+            {{ form_widget(form.schoolClassPeriod) }}
+        </div>
+        {% endif %}
+
+        <div class="col-12-xxxl col-xl-3 col-sm-6 col-12 form-group">
+           {{ form_row(form.submit)}}
+        </div>
+    </div>
+    {{ form_end(form) }}
+    </turbo-frame>
+    </div>

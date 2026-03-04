@@ -1,0 +1,414 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Liste des matières
+{% endblock %}
+
+{% block body %}
+{% for label, messages in app.flashes %}
+{% for message in messages %}
+<div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+	{{ message }}
+	<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+</div>
+{% endfor %}
+{% endfor %}
+<div class="row m-3">
+	<div class="col-md-6">
+		<div class="three">
+			<h1>Liste des matières</h1>
+		</div>
+		<table class="table table-bordered responsive" id="subject-datatable">
+			<thead>
+				<tr>
+					<th>Nom</th>
+					<th>Slug</th>
+					<th>Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% set i = 0 %}
+				{% for subject in subjectsClasses %}
+				<tr>
+					<td>{{ subject.studySubject.name }}</td>
+					<td>{{ subject.studySubject.slug }}</td>
+					<td>
+						<div>
+							{% set page = (i / 10) | round(0, 'floor') + 1 %}
+							<a href="{{ path('app_study_manage', {'id': subject.studySubject.id}) }}"
+								class="btn btn-sm btn-info btn-manage-subject" data-id="{{ subject.studySubject.id }}"
+								title="Gérer"><i class="fa fa-cog"></i></a>
+							<a href="{{ path('app_study_edit', {'id': subject.studySubject.id, 'page': page }) }}"
+								class="btn btn-sm btn-secondary" title="Modifier"><i class="fa fa-pencil-alt"></i></a>
+							{% if is_granted('ROLE_SUPER_ADMIN') %}
+							<form method="post" action="{{ path('app_study_delete', {'id': subject.studySubject.id}) }}"
+								style="display:inline;"
+								onsubmit="return confirm('Supprimer cette matière ?\nCeci aura une implication sur les évaluations et notes, sur les affectations dans les différentes classes.\nCette action est irréversible.');">
+								<input type="hidden" name="_token"
+									value="{{ csrf_token('delete' ~ subject.studySubject.id) }}">
+								<button class="btn btn-sm btn-danger" title="Supprimer"><i
+										class="fa fa-trash"></i></button>
+							</form>
+							{% endif %}
+						</div>
+					</td>
+				</tr>
+				{% set i = i + 1 %}
+				{% endfor %}
+			</tbody>
+		</table>
+	</div>
+	<div class="col-md-3 border rounded p-3">
+		<div class="card mb-3">
+			<div class="card-header">
+				<strong>Créer une matière</strong>
+			</div>
+			<div class="card-body">
+				<form id="new-subject-form" method="post" action="{{ path('app_study_create') }}">
+					<div class="mb-3">
+						<label for="name" class="form-label">Nom</label>
+						<input type="text" id="name" name="name" class="form-control" required>
+					</div>
+					<button type="submit" class="btn btn-success">Créer</button>
+				</form>
+			</div>
+		</div>
+		<div class="card mb-3">
+			<div class="card-header">
+				<strong>Créer un groupe de matières</strong>
+			</div>
+			<div class="card-body">
+				<form id="new-subject-group-form" method="post"
+					action="{{ path('app_school_class_subject_groupe_new') }}">
+					<div class="mb-3">
+						<label for="description" class="form-label">Description</label>
+						<input type="text" id="description" name="description" class="form-control" required>
+					</div>
+					<button type="submit" class="btn btn-success">Créer</button>
+					<button type="button" class="btn btn-secondary" id="show-group-btn" title="Liste des groupes"><i
+							class="fa fa-list"></i></button>
+				</form>
+			</div>
+		</div>
+	</div>
+	<div class="col-md-3 border rounded p-3">
+		<div class="card mb-3">
+			<div class="card-header">
+				<strong>Affecter des matières à des classes</strong>
+			</div>
+			<div class="card-body">
+				<form id="assign-subjects-form" method="post" action="{{ path('app_assign_subjects_to_classes') }}">
+					<div class="mb-3">
+						<label for="subjects" class="form-label">Matières</label>
+						<button type="button" class="btn btn-sm btn-outline-secondary ms-2"
+							id="select-all-subjects">Sélectionner tout</button>
+						<select id="subjects" name="subjects[]" class="form-select select2" multiple required>
+							{% for subject in subjects %}
+							<option value="{{ subject.id }}">{{ subject.name }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="mb-3">
+						<label for="classes" class="form-label">Classes</label>
+						<button type="button" class="btn btn-sm btn-outline-secondary ms-2"
+							id="select-all-classes">Sélectionner tout</button>
+						<select id="classes" name="classes[]" class="form-select select2" multiple required>
+							{% for class in all_school_classes %}
+							<option value="{{ class.id }}">{{ class.name }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="mb-3" id="class-occurence-list">
+						
+					</div>
+					<div class="mb-3">
+						<label for="coefficient" class="form-label">Coefficient (optionnel)</label>
+						<input type="number" id="coefficient" name="coefficient" class="form-control" min="1" value="1">
+					</div>
+					<div class="mb-3">
+						<label for="group" class="form-label">Groupe</label>
+						<select id="group" name="group" class="form-select select2" required>
+							<option value="">Aucun</option>
+							{% for group in all_subject_groups %}
+							<option value="{{ group.id }}">{{ group.description }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="mb-3">
+						<label for="num-order" class="form-label">Ordre d'affichage (optionnel)</label>
+						<input type="number" id="num-order" name="numOrder" class="form-control" min="0" value="0">
+					</div>
+					<div class="mb-3">
+						<label for="awaited-skills" class="form-label">Compétences attendues (optionnel)</label>
+						<textarea id="awaited-skills" name="awaited-skills" class="form-control" rows="3"
+							placeholder="Compétences attendues pour cette matière"></textarea>
+					</div>
+					<button type="submit" class="btn btn-primary">Affecter</button>
+				</form>
+			</div>
+		</div>
+	</div>
+</div>
+<div class="row m-3">
+	<div class="col-md-12">
+		<div id="subject-classes-details"></div>
+	</div>
+</div>
+
+{% endblock %}
+
+{% block javascripts %}
+{{ parent() }}
+<script>
+	$(function () { // Récupère la page depuis Twig (1 par défaut)
+		var page = parseInt("{{ app.request.get('page', 1) }}");
+		// DataTables attend un index à partir de 0
+		var pageIndex = page > 0 ? page - 1 : 0;
+		// Initialise DataTables avec la page courante
+		var subjectTable = $('#subject-datatable').DataTable({
+			"pageLength": 10,
+			"displayStart": pageIndex * 10,// 10 = nombre de lignes par page
+		});
+		$('#new-subject-form').on('submit', function (e) {
+			e.preventDefault();
+			var $form = $(this);
+			var formData = $form.serialize();
+
+			// le bouton de soumission est désactivé pour éviter les doubles envois
+			$('#new-subject-form button[type="submit"]').prop('disabled', true).text('En cours...');
+
+			$.ajax({
+				url: $form.attr('action') || window.location.href,
+				type: 'POST',
+				data: formData,
+				success: function (response) { // Si tu veux recharger la liste ou afficher un message :
+					$.notify(response.message, { className: 'success' });
+					// le bouton de soumission est réactivé
+					$('#new-subject-form button[type="submit"]').prop('disabled', false).text('Créer');
+					// Optionnel : recharger la page ou la liste des matières
+					//location.reload();
+					$('#name').val('');
+					$.ajax({
+						url: "{{ path('app_get_study_subjects')}}",
+					}).done((e) => {
+						$('#subjects').empty().val(null);
+						subjectoptions = "<option value=''></option>";
+						for (i = 0; i < e.length; i++) {
+							subjectoptions += "<option value='" + e[i].id + "'>" + e[i].name + "</option>";
+						}
+						$('#subjects').html(subjectoptions);
+						$('#subjects').select2();
+					})
+				},
+				error: function (xhr) {
+					$.notify('Erreur lors de la création de la matière : ' + (xhr.status == 0 ? 'Vérifiez votre connexion.' : (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Veuillez réessayer.')), { className: 'error' });
+					// le bouton de soumission est réactivé
+					$('#new-subject-form button[type="submit"]').prop('disabled', false).text('Créer');
+				},
+				complete: function () {
+					// le bouton de soumission est réactivé
+					$('#new-subject-form button[type="submit"]').prop('disabled', false).text('Créer');
+				},
+				fail: function (xhr) {
+					$.notify('Erreur lors de la création de la matière : ' + (xhr.status == 0 ? 'Vérifiez votre connexion.' : (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Veuillez réessayer.')), { className: 'error' });
+					// le bouton de soumission est réactivé
+					$('#new-subject-form button[type="submit"]').prop('disabled', false).text('Créer');
+				}
+			});
+		});
+
+		$('.btn-manage-subject').on('click', function (e) {
+			e.preventDefault();
+			var subjectId = $(this).data('id');
+			var url = $(this).attr('href');
+			$('#subject-classes-details').html('<div class="text-center my-3">Chargement...</div>');
+			$.get(url, function (html) {
+				$('#subject-classes-details').html(html);
+			}).fail(function () {
+				$('#subject-classes-details').html('<div class="alert alert-danger">Erreur lors du chargement.</div>');
+			});
+		});
+
+		$('#assign-subjects-form').on('submit', function (e) {
+			e.preventDefault();
+			var $form = $(this);
+			// on désactive le bouton de soumission pour éviter les doubles envois
+			$('#assign-subjects-form button[type="submit"]').prop('disabled', true).text('En cours...');
+
+			// Validation JS des champs obligatoires
+			var subjects = $('#subjects').val();
+			var classes = $('#classes').val();
+			var group = $('#group').val();
+			var errors = [];
+
+			if (!subjects || subjects.length === 0) {
+				errors.push("Veuillez sélectionner au moins une matière.");
+			}
+			if (!classes || classes.length === 0) {
+				errors.push("Veuillez sélectionner au moins une classe.");
+			}
+			if (!group) {
+				errors.push("Veuillez sélectionner un groupe (ou 'Aucun').");
+			}
+
+			if (errors.length > 0) {
+				$.notify(errors.join('\n'));
+				return;
+			}
+
+			var formData = $form.serialize();
+			$.ajax({
+				url: $form.attr('action'),
+				type: 'POST',
+				data: formData,
+				success: function (response) {
+					if (response.status == 'success') {
+						$.notify(response.message || 'Matières affectées avec succès.', 'success');
+						//location.reload();
+						$('#subjects').val(null).select2();
+						$('#group').val(null).select2();
+						//$('#classes').val(null)
+						$.ajax({
+							url: "{{ path('app_get_study_subjects_classes')}}"
+						}).done((e) => {
+							subjectTable.destroy();
+							tbody="";
+							for (i = 0; i < e.length; i++) {
+								tbody += "<tr><td>" + e[i].name + "</td><td>" + e[i].slug + "</td><td>" + '<a href="{{ path('app_study_manage', {'id': '__studyId__'}) }}"	class="btn btn-sm btn-info btn-manage-subject" data-id="__studyId__" title="Gérer"><i class="fa fa-cog"></i></a><a href="{{ path('app_study_edit', {'id': '__studyId__', 'page': page }) }}" class="btn btn-sm btn-secondary" title="Modifier"><i class="fa fa-pencil-alt"></i></a>'.replace(/__studyId__/g,e[i].id);
+								{% if is_granted('ROLE_SUPER_ADMIN') %}
+									tbody += '<form method="post" action="{{ path('app_study_delete', {'id': '__studyId__'}) }}" style="display:inline;" onsubmit="return confirm("Supprimer cette matière ?\nCeci aura une implication sur les évaluations et notes, sur les affectations dans les différentes classes.\nCette action est irréversible.");"><input type="hidden" name="_token"	value="{{ csrf_token('delete ' ~ '__studyId__') }}"><button class="btn btn-sm btn-danger" title="Supprimer"><i	class="fa fa-trash"></i></button></form>'.replace(/__studyId__/g,e[i].id);
+								{% endif %}
+							}
+							$('#subject-datatable tbody').html(tbody);
+							subjectTable = $('#subject-datatable').DataTable({
+								"pageLength": 10,
+								"displayStart": pageIndex * 10,// 10 = nombre de lignes par page
+							});
+						})
+
+					} else {
+						$.notify(response.message);
+						$('#assign-subjects-form button[type="submit"]').prop('disabled', false).text('Affecter');
+					}
+
+				},
+				error: function (xhr) {
+					$.notify('Erreur lors de l\'affectation.' + (xhr.status == 0 ? '\nVérifiez votre connexion internet.' : (xhr.responseJSON && xhr.responseJSON.message ? '\n' + xhr.responseJSON.message : '')), 'error');
+					$('#assign-subjects-form button[type="submit"]').prop('disabled', false).text('Affecter');
+				},
+				complete: function () {
+					$('#assign-subjects-form button[type="submit"]').prop('disabled', false).text('Affecter');
+				},
+				fail: function (xhr) {
+					$.notify('Erreur lors de l\'affectation (fail).' + (xhr.status == 0 ? '\nVérifiez votre connexion internet.' : (xhr.responseJSON && xhr.responseJSON.message ? '\n' + xhr.responseJSON.message : '')), 'error');
+					$('#assign-subjects-form button[type="submit"]').prop('disabled', false).text('Affecter');
+				}
+			});
+		});
+
+		$('#select-all-subjects').on('click', function () {
+			var $select = $('#subjects');
+			if ($select.find('option:selected').length === $select.find('option').length) {
+				$select.val(null);
+			} else {
+				$select.find('option').prop('selected', true);
+			} $select.trigger('change');
+		});
+
+		$('#select-all-classes').on('click', function () {
+			var $select = $('#classes');
+			if ($select.find('option:selected').length === $select.find('option').length) {
+				$select.val(null);
+			} else {
+				$select.find('option').prop('selected', true);
+			} $select.trigger('change');
+		});
+		$('#select-all-classes-group').on('click', function () {
+			var $select = $('#class-group');
+			if ($select.find('option:selected').length === $select.find('option').length) {
+				$select.val(null);
+			} else {
+				$select.find('option').prop('selected', true);
+			} $select.trigger('change');
+		});
+		$('#new-subject-group-form').on('submit', function (e) {
+			e.preventDefault();
+			var $form = $(this);
+			// on désactive le bouton de soumission
+			$('#new-subject-group-form button[type="submit"]').prop('disabled', true).text('En cours...');
+
+			// Validation côté client
+			var description = $('#description').val().trim();
+			var errors = [];
+
+			if (!description) {
+				errors.push("Veuillez saisir une description.");
+			}
+
+			if (errors.length > 0) {
+				$.notify(errors.join('\n'));
+				return;
+			}
+
+			var formData = $form.serialize();
+			$.ajax({
+				url: $(this).attr('action'),
+				type: 'POST',
+				data: formData,
+				success: function (response) {
+					$.notify(response.message || 'Groupe de matières créé avec succès.', { className: 'success' });
+					$('#description').val('');
+					$.ajax({
+						url: "{{ path('app_get_study_subjects_groups')}}"
+					}).done((e) => {
+						$('#group').empty().val(null);
+						groupOptions = "<option value=''>Aucun</option>";
+						for (i = 0; i < e.length; i++) {
+							groupOptions += "<option value='" + e[i].id + "'>" + e[i].name + "</option>";
+						}
+						$('#group').html(groupOptions);
+						$('#group').select2();
+					});
+				},
+				error: function (xhr) {
+					$.notify('Erreur lors de la création du groupe de matières.' + (xhr.status == 0 ? '\nérifiez votre connexion internet' : '\n' + (xhr.responseJSON.message || xhr.message)), { className: 'error' });
+					$('#new-subject-group-form button[type="submit"]').prop('disabled', false).text('Créer');
+				},
+				complete: function () {
+					$('#new-subject-group-form button[type="submit"]').prop('disabled', false).text('Créer');
+				},
+				fail: function (xhr) {
+					$.notify('Erreur lors de la création du groupe de matières.' + (xhr.status == 0 ? '\nérifiez votre connexion internet' : '\n' + (xhr.responseJSON.message || xhr.message)), { className: 'error' });
+					$('#new-subject-group-form button[type="submit"]').prop('disabled', false).text('Créer');
+				}
+			});
+		});
+
+		$('#show-group-btn').on('click', function () {
+			$('#subject-classes-details').html('<div class="text-center my-3">Chargement...</div>');
+			$.ajax({
+				url: "{{ path('app_study_manage_group') }}",
+				success: function (html) {
+					$('#subject-classes-details').html(html);
+				},
+				fail: function () {
+					$('#subject-classes-details').html('<div class="alert alert-danger">Erreur lors du chargement.</div>');
+				}
+			})
+		})
+
+		$('#classes').on('change',function(){
+			var value = $(this).val();
+			$.ajax({
+				url:"{{ path('app_get_class_occurence_from_list',{'class':'__ID'})}}".replace('__ID',value)
+			}).done((e)=>{
+				liste="";
+				for(i=0;i<e.length;i++){
+					liste+="<div class='mb-3'><div class='input-group'><span class='input-group-text' style='min-width:100px'>"+e[i].name+"</span><div class='form-floating'><input class='form-control' value='1' type='number' min='1' id='coef"+e[i].id+"' style='height:65px'><label for='coef"+e[i].id+"'>Coefficient</label></div></div></div>"
+				}
+				console.log(liste);
+				$('#class-occurence-list').html(liste)
+			})
+		})
+	});
+</script>
+{% endblock %}

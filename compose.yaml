@@ -1,0 +1,154 @@
+services:
+  php:
+    user: '${USER_ID}:${GROUP_ID}'
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    volumes:
+      - .:/var/www:delegated
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: 1
+      MESSENGER_TRANSPORT_DSN: redis://redis:6379/messages
+      MEMORY_LIMIT: 4096M
+      PHP_MEMORY_LIMIT: 4096M
+      SYMFONY_MEMORY_LIMIT: 4096M
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "php", "-r", "echo 'PHP OK';"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: >
+      sh -c "
+        php-fpm -D &&
+        php bin/console messenger:consume async --time-limit=3600 --memory-limit=4096M --limit=50 --sleep=1000
+      "
+
+  nginx:
+    build: ./docker/nginx
+    ports:
+      - "8000:80"
+    volumes:
+      - ./public:/var/www/public:delegated
+    depends_on:
+      php:
+        condition: service_healthy
+    networks:
+      - app-network
+
+  database:
+    image: mysql:8.0
+    container_name: mysql_container
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: innovsh
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - database_data:/var/lib/mysql:rw
+    networks:
+      - app-network
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      timeout: 20s
+      retries: 10
+      interval: 10s
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis_container
+    ports:
+      - "6379:6379"
+    networks:
+      - app-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  messenger-worker:
+    user: '${USER_ID}:${GROUP_ID}'
+    build:
+      context: .
+      dockerfile: docker/php/Dockerfile
+    volumes:
+      - .:/var/www:delegated
+    depends_on:
+      database:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      php:
+        condition: service_healthy
+    networks:
+      - app-network
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: 1
+      MESSENGER_TRANSPORT_DSN: redis://redis:6379/messages
+      MEMORY_LIMIT: 4096M
+      PHP_MEMORY_LIMIT: 4096M
+      SYMFONY_MEMORY_LIMIT: 4096M
+    restart: unless-stopped
+    command: php bin/console messenger:consume async --time-limit=3600 --memory-limit=4096M --limit=50 --sleep=1000 -vv
+
+  adminer:
+    image: adminer:latest
+    restart: always
+    container_name: adminer_container
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      APP_ENV: dev
+      ADMINER_DESIGN: pepa-linha
+      ADMINER_DEFAULT_SERVER: mysql_container
+    ports:
+      - "8082:8080"
+    networks:
+      - app-network
+
+  mailer:
+    image: axllent/mailpit
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+    environment:
+      MP_SMTP_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+    networks:
+      - app-network
+
+  worker-monitor:
+    image: rediscommander/redis-commander:latest
+    container_name: redis_commander
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - app-network
+
+volumes:
+  database_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

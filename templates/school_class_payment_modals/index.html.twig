@@ -1,0 +1,657 @@
+{# filepath: templates/school_class_payment_modals/index.html.twig #}
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Classes/Modalités de paiement{% endblock %}
+
+{% block body %}
+    <div class="three"><h1>Classes/Modalités d'admission (frais)</h1></div>
+
+    {% for type, messages in app.flashes %}
+        {% for message in messages %}
+            <div class="alert alert-{{ type }} alert-dismissible fade show" role="alert">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        {% endfor %}
+    {% endfor %}
+
+    <!-- Onglets -->
+    <ul class="nav nav-tabs" id="paymentTabs" role="tablist">
+        <li class="nav-item" role="presentation">
+            <button class="nav-link active" id="standard-tab" data-bs-toggle="tab" data-bs-target="#standard-content" type="button" role="tab" aria-controls="standard-content" aria-selected="true">
+                Standard/Additionnel
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="transport-tab" data-bs-toggle="tab" data-bs-target="#transport-content" type="button" role="tab" aria-controls="transport-content" aria-selected="false">
+                Transport
+            </button>
+        </li>
+    </ul>
+
+    <!-- Contenu des onglets -->
+    <div class="tab-content" id="paymentTabsContent">
+        <!-- Onglet Standard/Additionnel -->
+        <div class="tab-pane fade show active" id="standard-content" role="tabpanel" aria-labelledby="standard-tab">
+            <div class="mt-4">
+                <div class="filters row mb-4">
+    <div class="col-3">
+        <select id="section-select" class="form-control select2">
+            {% for section in sections %}
+                <option value="{{ section.id }}">{{ section.name }}</option>
+            {% endfor %}
+        </select>
+</div>
+<div class="col-3">
+        <select id="class-select" class="form-control select2" disabled>
+            
+        </select>
+        </div>
+        <div class="col-3">
+            <button class="btn btn-primary btn-lg" disabled id="add-button" >Ajouter Modalité de Paiement</button>
+        </div>
+    </div>
+<hr>
+    <table id="payment-modals-table" class="table-bordered display responsive" style="width:100%">
+        <thead>
+            <tr>
+                <th>Libellé</th>
+                <th>Montant</th>
+                <th>Date d'échéance</th>
+                <th>Type</th> <!-- Nouvelle colonne pour modalType -->
+                <th>Priorité</th> <!-- Nouvelle colonne pour la priorité -->
+                <th>Action</th> <!-- Nouvelle colonne pour les actions -->
+            </tr>
+        </thead>
+        <tbody>
+            {# Les données seront chargées dynamiquement via AJAX #}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th colspan="1">Total :</th>
+                <th id="total-amount">0</th>
+                <th colspan="4"></th>
+            </tr>
+            <tr>
+                <th colspan="1">Total Standard :</th>
+                <th id="total-principales">0</th>
+                <th colspan="4"></th>
+            </tr>
+            <tr>
+                <th colspan="1">Total Additionnel :</th>
+                <th id="total-secondaires">0</th>
+                <th colspan="4"></th>
+            </tr>
+        </tfoot>
+    </table>
+
+    <div class="card mt-4 hidden" id="add-payment-form-container">
+        <div class="card-header">
+            <div class="three"><h1>Ajouter une Modalité de Paiement</h1></div>
+        </div>
+        <div class="card-body">
+            <form id="add-payment-form" novalidate>
+            <div class="row">
+                <div class="mb-3 col-6">
+                    <label for="payment-label" class="form-label">
+                        Libellé <span class="text-danger">*</span>
+                    </label>
+                    <input type="text" class="form-control required-field" id="payment-label" name="label" required>
+                    <div class="invalid-feedback">Veuillez entrer un libellé.</div>
+                </div>
+                <div class="mb-3 col-6">
+                    <label for="payment-amount" class="form-label">
+                        Montant <span class="text-danger">*</span>
+                    </label>
+                    <input type="number" class="form-control required-field" id="payment-amount" name="amount" required>
+                    <div class="invalid-feedback">Veuillez entrer un montant valide.</div>
+                </div>
+                <div class="mb-3 col-6">
+                    <label for="payment-due-date" class="form-label">
+                        Date d'échéance <span class="text-danger">*</span>
+                    </label>
+                    <input type="date" class="form-control required-field" id="payment-due-date" name="dueDate" required>
+                    <div class="invalid-feedback">Veuillez entrer une date d'échéance.</div>
+                </div>
+                <div class="mb-3 col-6">
+                    <label for="modal-type" class="form-label">
+                        Type<span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select required-field select2" id="modal-type" name="modalType" required>
+                        <option value="0">Standard (Obligatoire)</option>
+                        <option value="1">Additionnel</option>
+                    </select>
+                    <div class="invalid-feedback">Veuillez sélectionner un type.</div>
+                </div>
+                <div class="mb-3 col-6">
+                    <label for="modal-priority" class="form-label">
+                        Priorité <span class="text-danger">*</span>
+                    </label>
+                    <select class="form-select required-field select2" id="modal-priority" name="modalPriority" required>
+                        
+                    </select>
+                    <div class="invalid-feedback">Veuillez sélectionner une priorité.</div>
+                </div>
+                </div>
+                <input type="hidden" id="selected-section-id" name="sectionId">
+                <input type="hidden" id="selected-class-id" name="classId">
+                <input type="hidden" id="payment-id" name="id">
+                <button type="submit" class="btn btn-primary" id="save-payment-button">Enregistrer</button>
+                <button type="button" class="btn btn-secondary" id="cancel-button">Annuler</button>
+            </form>
+        </div>
+        <div class="card-footer">
+        <p>Les champs marqués d'un astérisque (<span class="text-danger">*</span>) sont obligatoires.</p>
+        <p>Le type de modalité de paiement est important pour le bon fonctionnement de l'application. Les modalités de type <b>standard</b> sont applicables et exigibles à tous les élèves de cette classe tandis que celles de type <b>additionnelles</b> sont applicables après <b>souscription de l'élève</b>. Il s'agit des éléments tels que : 
+        <ul>
+            <li><i>Frais de cantine</i></li>
+            <li><i>Frais de stage</i></li>
+            <li><i>etc.</i></li>
+        </ul>
+        </p>
+        </div>
+    </div>
+            </div>
+        </div>
+
+        <!-- Onglet Transport -->
+        <div class="tab-pane fade" id="transport-content" role="tabpanel" aria-labelledby="transport-tab">
+            <div class="mt-4 row">
+                <!-- Bloc Liste des modalités de transport (70%) -->
+                <div class="col-md-8">
+                    <div class="three"><h1>Liste des modalités de transport</h1></div>
+                    <table id="transport-modals-table" class="display responsive table-bordered" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>Libellé (Itinéraire)</th>
+                                <th>Montant</th>
+                                <th>Date d'échéance</th>
+                                <th>Priorité</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {# Les données seront chargées dynamiquement via AJAX #}
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Bloc Formulaire d'enregistrement des modalités de transport (30%) -->
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="three"><h1>Ajouter une Modalité de Transport</h1></div>
+                        </div>
+                        <div class="card-body">
+                            <form id="add-transport-form" novalidate>
+                                <div class="mb-3">
+                                    <label for="transport-label" class="form-label">
+                                        Libellé (Itinéraire) <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control required-field" id="transport-label" name="label" required>
+                                    <div class="invalid-feedback">Veuillez entrer un libellé.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="transport-amount" class="form-label">
+                                        Montant <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="number" class="form-control required-field" id="transport-amount" name="amount" required min="0" step="500">
+                                    <div class="invalid-feedback">Veuillez entrer un montant valide.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="transport-due-date" class="form-label">
+                                        Date d'échéance <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="date" class="form-control required-field" id="transport-due-date" name="dueDate" required>
+                                    <div class="invalid-feedback">Veuillez entrer une date d'échéance.</div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="transport-priority" class="form-label">
+                                        Priorité <span class="text-danger">*</span>
+                                    </label>
+                                    <select class="form-select required-field select2" id="transport-priority" name="priority" required>
+                                        <option value="1">1</option>
+                                        <option value="2">2</option>
+                                        <option value="3">3</option>
+                                        <option value="4">4</option>
+                                        <option value="5">5</option>
+                                    </select>
+                                    <div class="invalid-feedback">Veuillez sélectionner une priorité.</div>
+                                </div>
+                                <button type="submit" class="btn btn-primary" id="save-transport-button">Enregistrer</button>
+                                <button type="button" class="btn btn-secondary" id="cancel-transport-button">Annuler</button>
+                            </form>
+                        </div>
+                        <div class="card-footer">
+                            <p>Les champs marqués d'un astérisque (<span class="text-danger">*</span>) sont obligatoires.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- jquery -->
+   <script>
+        
+        $(document).ready(function () {
+            // Définir la date du jour par défaut pour le champ payment-due-date
+            const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+            $('#payment-due-date').val(today);
+
+            {# // Initialisation de Select2 pour les champs select
+            $('select').select2({
+                placeholder: "-- Sélectionnez une section --",
+                allowClear: true
+            }); 
+            $('#class-select').select2({
+                placeholder: "-- Sélectionnez une classe --",
+                allowClear: true
+            }); #}
+            
+
+            // Fonction pour activer/désactiver le bouton
+            function toggleAddButton() {
+                const sectionSelected = $('#section-select').val() !== '';
+                const classSelected = $('#class-select').val() !== '';
+                $('#add-button').prop('disabled', !(sectionSelected && classSelected));
+            }
+
+            // Initialisation de DataTable
+            const table = $('#payment-modals-table').DataTable({
+                ajax: {
+                    url: '{{ path("app_payment_modals_data") }}', // Route pour récupérer les données
+                    data: function (d) {
+                        d.section = $('#section-select').val();
+                        d.class = $('#class-select').val();
+                    }
+                },
+                columns: [
+                    { data: 'label' },
+                    { data: 'amount', render: $.fn.dataTable.render.number(',', '.', 2, '') }, // Format des montants
+                    { data: 'dueDate' },
+                    { 
+                        data: 'modalType', // Nouvelle colonne pour modalType
+                        render: function (data) {
+                            return data; // Afficher "Principales" ou "Secondaires"
+                        }
+                    },
+                    { data: 'modalPriority' }, // Nouvelle colonne pour la priorité
+                    { 
+                        data: 'id', // Colonne pour les actions
+                        orderable: false,
+                        render: function (data, type, row) {
+                            return `
+                                <div class="btn-group"><button class="btn btn-sm btn-warning edit-button" data-id="${row.id}">Modifier</button>
+                                <button class="btn btn-sm btn-danger delete-button" data-id="${row.id}">Supprimer</button></div>
+                            `;
+                        }
+                    }
+                ],
+                order: [[3, 'asc']], // Grouper par modalType
+                rowGroup: {
+                    dataSrc: 'modalType', // Grouper les lignes par modalType
+                    startRender: function (rows, group) {
+                        const type = group;
+                        return `<tr class="group"><td colspan="5">${type}</td></tr>`;
+                    }
+                },
+                language: {
+                    emptyTable: "Aucune donnée disponible dans le tableau"
+                },
+                footerCallback: function (row, data, start, end, display) {
+                    // Calculer le total des montants
+                    let total = 0;
+                    let totalPrincipales = 0;
+                    let totalSecondaires = 0;
+                    data.forEach(function (item) {
+                        const amount = parseFloat(item.amount) || 0; // Ajouter le montant ou 0 si invalide
+                        total += amount;
+                        if (item.modalType=='base') {
+                            totalPrincipales += amount;
+                        } else {
+                            totalSecondaires += amount;
+                        }
+                    });
+
+                    // Afficher les totaux dans le pied de tableau
+                    $('#total-amount').html(total.toLocaleString('fr-FR', { minimumFractionDigits: 2 }));
+                    $('#total-principales').html(totalPrincipales.toLocaleString('fr-FR', { minimumFractionDigits: 2 }));
+                    $('#total-secondaires').html(totalSecondaires.toLocaleString('fr-FR', { minimumFractionDigits: 2 }));
+                },
+                createdRow: function (row, data, dataIndex) {
+                    // Appliquer la classe "bold-row" si modalType est "0" (Principales)
+                    if (!data.modalType) {
+                        $(row).addClass('bold-row');
+                    }
+                }
+            });
+
+            // Rafraîchir la DataTable lorsque la section ou la classe est modifiée
+            $('#section-select, #class-select').on('change', function () {
+                table.ajax.reload();
+                toggleAddButton();
+            });
+
+            // Mise à jour des classes en fonction de la section sélectionnée
+            $('#section-select').on('change', function () {
+                const sectionId = $(this).val();
+                $('#class-select').prop('disabled', true).empty().append('<option></option>');
+
+                if (sectionId) {
+                    $.ajax({
+                        url: '{{ path("app_classes_by_section") }}', // Route pour récupérer les classes par section
+                        data: { sectionId: sectionId },
+                        success: function (data) {
+                            data.forEach(function (classItem) {
+                                $('#class-select').append(`<option value="${classItem.id}">${classItem.name}</option>`).trigger('change');
+                            });
+                            $('#class-select').prop('disabled', false);
+                        }
+                    });
+                }
+
+                // Rafraîchir la DataTable
+                table.ajax.reload();
+
+                // Vérifier l'état du bouton
+                toggleAddButton();
+            });
+
+            $('#section-select').trigger('change'); // Déclencher l'événement pour charger les classes de la section par défaut
+
+            // Vérifier l'état du bouton au chargement de la page
+            toggleAddButton();
+
+            // Afficher le formulaire et masquer le tableau lorsque le bouton est cliqué
+            $('#add-button').on('click', function () {
+                const sectionId = $('#section-select').val();
+                const classId = $('#class-select').val();
+
+                // Vérifier que les sections et classes sont sélectionnées
+                if (!sectionId || !classId) {
+                    alert('Veuillez sélectionner une section et une classe avant d\'ajouter une modalité de paiement.');
+                    return;
+                }
+
+                // Remplir les champs cachés avec les valeurs sélectionnées
+                $('#selected-section-id').val(sectionId);
+                $('#selected-class-id').val(classId);
+
+                // Masquer le tableau et afficher le formulaire
+                $('#payment-modals-table').closest('div').addClass('hidden');
+                $('#add-payment-form-container').removeClass('hidden');
+            });
+
+            // Gestion de la soumission du formulaire avec validation
+            $('#add-payment-form').on('submit', function (e) {
+                e.preventDefault();
+                $('#save-payment-button').prop('disabled', true); // Désactiver le bouton pour éviter les soumissions multiples
+                const form = this;
+
+                // Vérifier si le formulaire est valide
+                if (!form.checkValidity()) {
+                    e.stopPropagation();
+                    $(form).addClass('was-validated');
+                    return;
+                }
+
+                const formData = $(form).serialize(); // Inclut automatiquement l'ID si présent
+
+                $.ajax({
+                    url: $('#payment-id').val() ? '{{ path("app_update_payment_modal") }}' : '{{ path("app_add_payment_modal") }}', // Route pour ajouter ou modifier
+                    method: 'POST',
+                    data: formData,
+                    success: function (response) {
+                        // Réinitialiser le formulaire
+                        $(form).trigger('reset');
+                        $('#payment-id').val(''); // Réinitialiser l'ID de la modalité
+
+                        // Afficher le tableau et masquer le formulaire
+                        $('#add-payment-form-container').addClass('hidden');
+                        $('#payment-modals-table').closest('div').removeClass('hidden');
+                        const today = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
+                        $('#payment-due-date').val(today);
+
+                        // Rafraîchir la DataTable
+                        table.ajax.reload();
+
+                        // Afficher un message de succès
+                        $.notify('Opération réussie.', 'success');
+                        $('#save-payment-button').prop('disabled', false); // Réactiver le bouton
+
+                    },
+                    error: function (xhr) {
+                        const error = 'Error : ' + (xhr.responseJSON?.error || 'Une erreur est survenue.'+(xhr.status==0 ? '\n(Vérifiez votre connexion Internet)' : xhr.statusText));
+                        $.notify(error, 'error');
+                        $('#save-payment-button').prop('disabled', false); // Réactiver le bouton
+                    },
+                    complete: function () {
+                        $('#save-payment-button').prop('disabled', false); // Réactiver le bouton
+                    },
+                    fail: function (xhr) {
+                        const error = 'Fail : ' + (xhr.responseJSON?.error || 'Une erreur est survenue.'+(xhr.status==0 ? '\n(Vérifiez votre connexion Internet)' : xhr.statusText));
+                        $.notify(error, 'error');
+                        $('#save-payment-button').prop('disabled', false); // Réactiver le bouton
+                    }
+                });
+            });
+
+            // Gestion du bouton Annuler
+            $('#cancel-button').on('click', function () {
+                // Réinitialiser le formulaire
+                $('#add-payment-form').trigger('reset');
+                //$('#class-select').prop('disabled', true).empty().append('<option value="">-- Sélectionnez une classe --</option>');
+
+                // Afficher le tableau et masquer le formulaire
+                $('#add-payment-form-container').addClass('hidden');
+                $('#payment-modals-table').closest('div').removeClass('hidden');
+                //$('#add-button').prop('disabled', true); // Désactiver le bouton "Ajouter Modalité de Paiement
+            });
+
+            // Gestion des boutons Modifier et Supprimer
+            $('#payment-modals-table').on('click', '.edit-button', function () {
+                const id = $(this).data('id');
+
+                // Récupérer les données de la modalité via une requête AJAX
+                $.ajax({
+                    url: '{{ path("app_get_payment_modal") }}', // Route pour récupérer les données d'une modalité
+                    method: 'GET',
+                    data: { id: id },
+                    success: function (data) {
+                        // Remplir le formulaire avec les données récupérées
+                        $('#payment-id').val(data.id);
+                        $('#payment-label').val(data.label);
+                        $('#payment-amount').val(data.amount);
+                        $('#payment-due-date').val(data.dueDate);
+                        $('#modal-type').val(data.modalType);
+                        $('#modal-priority').val(data.modalPriority); // Pré-remplir la priorité
+
+                        // Masquer le tableau et afficher le formulaire
+                        $('#payment-modals-table').closest('div').addClass('hidden');
+                        $('#add-payment-form-container').removeClass('hidden');
+                    },
+                    error: function () {
+                        alert('Une erreur est survenue lors de la récupération des données.');
+                    }
+                });
+
+                
+            });
+
+            $('#payment-modals-table').on('click', '.delete-button', function () {
+                const id = $(this).data('id');
+                if (confirm('Êtes-vous sûr de vouloir supprimer cette modalité ?')) {
+                    $.ajax({
+                        url: '{{ path("app_delete_payment_modal") }}', // Route pour supprimer une modalité
+                        method: 'POST',
+                        data: { id: id },
+                        success: function () {
+                            table.ajax.reload();
+                            alert('Modalité supprimée avec succès.');
+                        },
+                        error: function () {
+                            alert('Une erreur est survenue lors de la suppression.');
+                        }
+                    });
+                }
+            });
+
+            $('#class-select').on('change', function () {
+                const sectionId = $('#section-select').val();
+                const classId = $(this).val();
+
+                if (sectionId && classId) {
+                    $.ajax({
+                        url: '{{ path("app_get_available_priorities") }}', // Route pour récupérer les priorités disponibles
+                        method: 'GET',
+                        data: { sectionId: sectionId, classId: classId },
+                        success: function (response) {
+                            const priorities = response.availablePriorities;
+                            // Réinitialiser le champ modalPriority
+                            const $prioritySelect = $('#modal-priority');
+                            $prioritySelect.empty().append('<option></option>');
+
+                            if (Object.keys(priorities).length > 0) {
+                                // Ajouter les priorités disponibles
+                                for(const priority in priorities) {
+                                    $prioritySelect.append(`<option value="${priority}">${priority}</option>`);
+                                };
+                            } else {
+                                // Ajouter l'option 0 si aucune priorité n'est disponible
+                                $prioritySelect.append('<option value="0">0 (Toutes les priorités sont utilisées)</option>');
+                            }
+                        },
+                        error: function () {
+                            alert('Une erreur est survenue lors du chargement des priorités.');
+                        }
+                    });
+                }
+            });
+
+                    // Initialisation de DataTable pour les modalités de transport
+    const transportTable = $('#transport-modals-table').DataTable({
+        ajax: {
+            url: '{{ path("app_transport_modals_data") }}', // Route pour récupérer les données
+            method: 'GET'
+        },
+        columns: [
+            { data: 'label' },
+            { data: 'amount', render: $.fn.dataTable.render.number(',', '.', 2, '') },
+            { data: 'dueDate' },
+            { data: 'priority' },
+            {
+                data: 'id',
+                orderable: false,
+                render: function (data, type, row) {
+                    return `
+                        <div class="btn-group">
+                            <button class="btn btn-sm btn-warning edit-transport-button" data-id="${row.id}">Modifier</button>
+                            <button class="btn btn-sm btn-danger delete-transport-button" data-id="${row.id}">Supprimer</button>
+                        </div>
+                    `;
+                }
+            }
+        ],
+        language: {
+            emptyTable: "Aucune modalité de transport disponible."
+        }
+    });
+
+    // Gestion de la soumission du formulaire
+    $('#add-transport-form').on('submit', function (e) {
+        e.preventDefault();
+$('#save-transport-button').prop('disabled', true); // Désactiver le bouton pour éviter les soumissions multiples           
+        const id = $(this).data('id'); // Récupérer l'ID stocké dans le formulaire
+    const formData = $(this).serialize();
+
+    const url = id
+        ? '{{ path("app_update_transport_modal", { id: "__ID__" }) }}'.replace('__ID__', id) // Route pour modifier
+        : '{{ path("app_add_transport_modal") }}'; // Route pour ajouter
+
+    $.ajax({
+        url: url,
+        method: 'POST',
+        data: formData,
+        success: function () {
+            transportTable.ajax.reload();
+            $.notify(id ? 'Modalité de transport mise à jour avec succès.' : 'Modalité de transport ajoutée avec succès.', 'success');
+            $('#add-transport-form').trigger('reset').removeData('id'); // Réinitialiser le formulaire
+            $('#save-transport-button').prop('disabled', false); // Réactiver le bouton
+        },
+        error: function (xhr) {
+            const error = 'Error : ' + (xhr.responseJSON?.error || 'Une erreur est survenue.'+(xhr.status==0 ? '\n(Vérifiez votre connexion Internet)' : xhr.statusText));
+            $.notify(error, 'error');
+            $('#save-transport-button').prop('disabled', false); // Réactiver le bouton
+        },
+        complete: function() {
+            $('#save-transport-button').prop('disabled', false); // Réactiver le bouton
+        },
+        fail: function(xhr) {
+            const error = 'Fail : ' + (xhr.responseJSON?.error || 'Une erreur est survenue.'+(xhr.status==0 ? '\n(Vérifiez votre connexion Internet)' : xhr.statusText));
+            $.notify(error, 'error');
+            $('#save-transport-button').prop('disabled', false); // Réactiver le bouton
+        }
+    });
+    });
+
+    // Gestion des boutons Modifier et Supprimer
+    $('#transport-modals-table').on('click', '.edit-transport-button', function () {
+        const id = $(this).data('id');
+        // Logique pour modifier une modalité de transport
+         // Récupérer les données de la modalité via une requête AJAX
+    $.ajax({
+        url: '{{ path("app_get_transport_modal", { id: "__ID__" }) }}'.replace('__ID__', id), // Route pour récupérer les données
+        method: 'GET',
+        success: function (data) {
+            console.log(data)
+            // Remplir le formulaire avec les données récupérées
+            $('#transport-label').val(data.label); // Remplacer les underscores par des espaces
+            $('#transport-amount').val(data.amount);
+            $('#transport-due-date').val(data.dueDate);
+            $('#transport-priority').val(data.priority);
+            $('#add-transport-form').data('id', id); // Stocker l'ID dans le formulaire
+        },
+        error: function () {
+            $.notify('Une erreur est survenue lors de la récupération des données.', 'error');
+        }
+    });
+    });
+
+    $('#transport-modals-table').on('click', '.delete-transport-button', function () {
+        const id = $(this).data('id');
+        if (confirm('Êtes-vous sûr de vouloir supprimer cette modalité ?')) {
+            $.ajax({
+                url: '{{ path("app_delete_transport_modal") }}', // Route pour supprimer une modalité
+                method: 'POST',
+                data: { id: id },
+                success: function () {
+                    transportTable.ajax.reload();
+                    $.notify('Modalité de transport supprimée avec succès.','success');
+                },
+                error: function () {
+                    $.notify('Une erreur est survenue lors de la suppression.','error');
+                }
+            });
+        }
+    });
+
+    // Gestion du bouton Annuler
+    $('#cancel-transport-button').on('click', function () {
+        $('#add-transport-form').trigger('reset');
+    });
+        });
+
+
+
+    </script>
+    <style>
+        .hidden {
+            display: none;
+        }
+        .bold-row {
+            font-weight: bold;
+        }
+    </style>
+{% endblock %}

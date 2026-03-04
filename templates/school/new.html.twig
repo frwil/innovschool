@@ -1,0 +1,72 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Nouvel établissement{% endblock %}
+
+{% block body %}
+    <h1>Créer un nouvel établissement</h1>
+
+    <form id="new-school-form" method="post" action="{{ path('app_school_new') }}" enctype="multipart/form-data">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="name" class="form-label">Nom de l'établissement</label>
+                    <input type="text" id="name" name="name" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="acronym" class="form-label">Sigle</label>
+                    <input type="text" id="acronym" name="acronym" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="address" class="form-label">Adresse</label>
+                    <input type="text" id="address" name="address" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="logo" class="form-label">Logo (optionnel)</label>
+                    <input type="file" id="logo" name="logo" class="form-control">
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="mb-3">
+                    <label for="contactName" class="form-label">Nom du responsable</label>
+                    <input type="text" id="contactName" name="contactName" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="contactEmail" class="form-label">Email du responsable</label>
+                    <input type="email" id="contactEmail" name="contactEmail" class="form-control" required>
+                </div>
+                <div class="mb-3">
+                    <label for="contactPhone" class="form-label">Téléphone du responsable</label>
+                    <input type="text" id="contactPhone" name="contactPhone" class="form-control" required>
+                </div>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Créer</button>
+        <a href="{{ path('app_school_index') }}" class="btn btn-secondary">Retour à la liste</a>
+    </form>
+
+    <script>
+    $('#new-school-form').on('submit', function(e) {
+        e.preventDefault();
+        var formData = new FormData(this);
+
+        $.ajax({
+            url: $(this).attr('action'),
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                if(response.success) {
+                    alert('Établissement créé avec succès !');
+                    window.location.href = "{{ path('app_school_index') }}";
+                } else {
+                    alert(response.message || 'Erreur lors de la création.');
+                }
+            },
+            error: function() {
+                alert('Erreur lors de la création de l\'établissement.');
+            }
+        });
+    });
+    </script>
+{% endblock %}

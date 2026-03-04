@@ -1,0 +1,22 @@
+{{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+<div class="row">
+    <div class="col-12-xxxl col-xl-4 col-sm-6 col-12 form-group">
+        {{ form_label(form.frame) }}
+        {{ form_widget(form.frame) }}
+    </div>
+    <div class="col-12-xxxl col-xl-4 col-sm-6 col-12 form-group">
+        {{ form_label(form.time) }}
+        {{ form_widget(form.time) }}
+    </div>
+    <div class="col-12-xxxl col-xl-4 col-sm-6 col-12 form-group">
+        {{ form_label(form.period) }}
+        {{ form_widget(form.period) }}
+    </div>
+    
+    
+    <div class="col-12 form-group mg-t-8">
+        <button type="submit" class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark">{{ button_label|default('Enregistrer') }}</button>
+        <!-- <button type="reset" class="btn-fill-lg bg-blue-dark btn-hover-yellow">Reset</button> -->
+    </div>
+</div>
+{{ form_end(form) }}

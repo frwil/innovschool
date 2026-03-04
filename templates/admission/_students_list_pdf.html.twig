@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Liste des élèves inscrits</title>
+    <style>
+        body { font-family: DejaVu Sans, Arial, sans-serif; font-size: 12px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; }
+        th { background: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <h2>Liste des élèves inscrits{% if class %} - {{ class.name }}{% endif %}</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Nom complet</th>
+                <th>Date de naissance</th>
+                <th>Matricule</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for student in students %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ student.fullName|default(student.getFullName()) }}</td>
+                <td>{{ student.dateOfBirth ? student.dateOfBirth|date('d/m/Y') : (student.getDateOfBirth() ? student.getDateOfBirth()|date('d/m/Y') : '') }}</td>
+                <td>{{ student.registrationNumber|default(student.getRegistrationNumber()) }}</td>
+            </tr>
+        {% else %}
+            <tr><td colspan="4" style="text-align:center;">Aucun élève inscrit dans cette classe.</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

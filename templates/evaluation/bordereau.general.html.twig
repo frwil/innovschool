@@ -1,0 +1,1353 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}{{ multiplePeriods ? 'Procès Verbal Cumulatif' : (docType =='pv' ? 'Procès Verbal de Notes' :
+'Bordereau Général') }}{% endblock %}
+
+{% block body %}
+<div class="container mt-4" id="printable-area">
+    <h1 class="text-center" style="width:100%;text-align:center">
+        {{ multiplePeriods ? 'PROCES VERBAL CUMULATIF DE NOTES' :
+        (docType =='pv' ? 'PROCES VERBAL DE NOTES' : 'BORDEREAU GENERAL') }}
+    </h1>
+    <h2 class="text-center">{{ class.classOccurence.name }}</h2>
+
+    {% if multiplePeriods %}
+    <p class="text-center"><strong>Période d'évaluation:</strong> {{ evaluationFrame.name }}</p>
+    <p class="text-center"><strong>Périodicité:</strong> {{ evaluationTimeType.name }}</p>
+    <p class="text-center"><strong>Sous-périodes:</strong>
+        {% for time in evaluationTimes %}
+        {{ time.name }}{% if not loop.last %}, {% endif %}
+        {% endfor %}
+    </p>
+    {% else %}
+    <p class="text-center"><strong>Période d'évaluation:</strong> {{ evaluationTimes[0].name }}</p>
+    <p class="text-center"><strong>Périodicité:</strong> {{ evaluationTimeType.name }}</p>
+    {% endif %}
+
+    <!-- Afficher le nombre d'élèves dans chaque catégorie -->
+    <div class="alert alert-info">
+        <strong>Répartition des élèves:</strong>
+        <ul class="mb-0">
+            <li>Élèves classés (notes complètes à 100% pour 
+                {% if multiplePeriods %}toutes les périodes{% else %}la période{% endif %}): 
+                <strong>{{ classifiedStudents|length }}</strong>
+            </li>
+            <li>Élèves non classés (notes incomplètes): <strong>{{ unclassifiedStudents|length }}</strong></li>
+            <li>Total des élèves: <strong>{{ (classifiedStudents|length) + (unclassifiedStudents|length) }}</strong></li>
+        </ul>
+    </div>
+
+    <!-- TABLEAU 1: ÉLÈVES CLASSÉS (100% de complétion pour toutes les périodes) -->
+    {% if classifiedStudents|length > 0 %}
+    <h3 class="mt-4 mb-3 text-success">ÉLÈVES CLASSÉS ({{ classifiedStudents|length }} élève(s))</h3>
+    
+    <!-- Tableau principal (uniquement si une seule période) -->
+    {% if not multiplePeriods %}
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th rowspan="2" class="text-center align-middle">#</th>
+                <th rowspan="2" class="text-center align-middle">Nom de l'élève</th>
+                {% for subjectId, subjectData in classSubjectModules %}
+                <th colspan="{{ subjectData.modules|length }}" class="text-center"
+                    style="display:{{ docType =='pv' ? 'none' : ''}}">{{ subjectData.name }}</th>
+                {% endfor %}
+                <th rowspan="2" class="text-center align-middle bg-light">Moyenne Générale</th>
+                <th rowspan="2" class="text-center align-middle bg-light">Rang</th>
+            </tr>
+            <tr>
+                {% for subjectId, subjectData in classSubjectModules %}
+                {% for module in subjectData.modules|sort((a, b) => a.module.moduleName <=> b.module.moduleName) %}
+                    <th class="text-center vertical-text" style="display:{{ docType =='pv' ? 'none' : ''}}">{{ 
+                        module.module.moduleName }} ({{ module.moduleNotation}})</th>
+                    {% endfor %}
+                    {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% set sortedClassifiedStudents = classifiedStudents %}
+            {% if docType == 'pv' and includeNotes %}
+            {% set sortedClassifiedStudents = classifiedStudents|sort((a, b) =>
+            (periodData[evaluationTimes[0].id].studentAverages[b.id] ?? 0) <=>
+                (periodData[evaluationTimes[0].id].studentAverages[a.id] ?? 0))
+                %}
+                {% else %}
+                {% set sortedClassifiedStudents = classifiedStudents|sort((a, b) => a.student.fullName <=> b.student.fullName) %}
+                    {% endif %}
+
+                    {% for student in sortedClassifiedStudents %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td>{{ student.student.fullName|upper }}</td>
+
+                        {% for subjectData in classSubjectModules %}
+                        {% for module in subjectData.modules|sort((a, b) => a.module.moduleName <=> b.module.moduleName)
+                            %}
+                            <td class="text-center" style="display:{{ docType =='pv' ? 'none' : ''}}">
+                                {% if includeNotes %}
+                                {% if periodData[evaluationTimes[0].id].studentNotes[student.id][module.id] is defined %}
+                                    {{ (periodData[evaluationTimes[0].id].studentNotes[student.id][module.id])|number_format(2) }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                            {% endfor %}
+                            {% endfor %}
+
+                            <td class="text-center bg-light fw-bold">
+                                {% if includeNotes %}
+                                {% if periodData[evaluationTimes[0].id].studentAverages[student.id] is defined %}
+                                    {{ (periodData[evaluationTimes[0].id].studentAverages[student.id])|number_format(2) }}
+                                {% else %}
+                                    -
+                                {% endif %}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+
+                            <td class="text-center bg-light fw-bold">
+                                {% if includeNotes and periodData[evaluationTimes[0].id].rankedStudents[student.id] is defined %}
+                                {{ periodData[evaluationTimes[0].id].rankedStudents[student.id] }}
+                                {% else %}
+                                -
+                                {% endif %}
+                            </td>
+                    </tr>
+                    {% endfor %}
+
+                    {% if includeNotes and periodData[evaluationTimes[0].id].classStats is defined %}
+                    <tr class="bg-light fw-bold">
+                        <td colspan="2" class="text-center">STATISTIQUES GENERALES (Classés)</td>
+                        {% for subjectId, subjectData in classSubjectModules %}
+                        {% set subjectStat = periodData[evaluationTimes[0].id].subjectStats[subjectId] %}
+                        {% set subjectAverage = subjectStat.count > 0 ? subjectStat.total / subjectStat.count : 0 %}
+                        <td colspan="{{ subjectData.modules|length }}" class="text-center"
+                            style="display:{{ docType =='pv' ? 'none' : ''}}">
+                            Moy: {{ subjectAverage|number_format(2) }}<br>
+                            Max: {{ subjectStat.max|number_format(2) }}<br>
+                            Min: {{ subjectStat.min|number_format(2) }}
+                        </td>
+                        {% endfor %}
+                        <td class="text-center">
+                            {{ periodData[evaluationTimes[0].id].classStats.average|number_format(2) }}
+                        </td>
+                        <td class="text-center">-</td>
+                    </tr>
+                    {% endif %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Tableau cumulatif (uniquement si plusieurs périodes) -->
+    {% if multiplePeriods %}
+    <table class="table table-bordered table-striped mt-2">
+        <thead>
+            <tr>
+                <th rowspan="2" class="text-center align-middle">#</th>
+                <th rowspan="2" class="text-center align-middle">Nom de l'élève</th>
+
+                {# Colonnes pour chaque sous-période #}
+                {% for time in evaluationTimes %}
+                <th colspan="1" class="text-center">{{ time.name }}</th>
+                {% endfor %}
+
+                {# Colonne pour la moyenne du frame #}
+                <th rowspan="2" class="text-center align-middle bg-info text-white">
+                    Moy. {{ evaluationFrame.name }}
+                </th>
+
+                <th rowspan="2" class="text-center align-middle bg-success text-white">MOYENNE FINALE</th>
+                <th rowspan="2" class="text-center align-middle bg-warning">RANG FINAL</th>
+            </tr>
+            <tr>
+                {% for time in evaluationTimes %}
+                <th class="text-center">Moy.</th>
+                {% endfor %}
+                <th class="text-center bg-info text-white">/20</th>
+            </tr>
+        </thead>
+        <tbody>
+            {# Trier les élèves classés par moyenne finale #}
+            {% set sortedClassifiedStudents = [] %}
+            {% if cumulativeData.finalAverages is defined and cumulativeData.finalAverages is not empty %}
+            {% for studentId, average in cumulativeData.finalAverages|sort((a, b) => b <=> a) %}
+                {% set student = classifiedStudents|filter(s => s.id == studentId)|first %}
+                {% if student %}
+                {% set sortedClassifiedStudents = sortedClassifiedStudents|merge([student]) %}
+                {% endif %}
+                {% endfor %}
+                {% else %}
+                {% set sortedClassifiedStudents = classifiedStudents|sort((a, b) => a.student.fullName <=> b.student.fullName) %}
+                    {% endif %}
+
+                    {% for student in sortedClassifiedStudents %}
+                    <tr>
+                        <td class="text-center">{{ loop.index }}</td>
+                        <td>{{ student.student.fullName|upper }}</td>
+
+                        {# Moyennes par sous-période #}
+                        {% for time in evaluationTimes %}
+                        <td class="text-center">
+                            {% if cumulativeData.studentAveragesByPeriod[student.id][time.id] is defined %}
+                            {{ cumulativeData.studentAveragesByPeriod[student.id][time.id]|number_format(2) }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+
+                        {# Moyenne du frame #}
+                        {% set frameId = evaluationTimes[0].evaluationFrame.id %}
+                        <td class="text-center bg-light">
+                            {% if cumulativeData.periodAverages[student.id][frameId] is defined %}
+                            {{ cumulativeData.periodAverages[student.id][frameId]|number_format(2) }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+
+                        {# Moyenne finale et rang #}
+                        <td class="text-center bg-light fw-bold">
+                            {% if cumulativeData.finalAverages[student.id] is defined %}
+                            {{ cumulativeData.finalAverages[student.id]|number_format(2) }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+
+                        <td class="text-center bg-light fw-bold">
+                            {% if cumulativeData.rankedStudents[student.id] is defined %}
+                            {{ cumulativeData.rankedStudents[student.id] }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+
+                    {# Ligne des moyennes de classe #}
+                    <tr class="bg-secondary text-white fw-bold">
+                        <td colspan="2" class="text-center">MOYENNES DE CLASSE (Classés)</td>
+
+                        {% for time in evaluationTimes %}
+                        <td class="text-center">
+                            {% if periodData[time.id].classStats.average is defined %}
+                            {{ periodData[time.id].classStats.average|number_format(2) }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        {% endfor %}
+
+                        {# Moyenne du frame #}
+                        <td class="text-center">
+                            {% if cumulativeData.frameClassAverage is defined %}
+                            {{ cumulativeData.frameClassAverage|number_format(2) }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+
+                        <td class="text-center">
+                            {% if cumulativeData.finalClassAverage is defined %}
+                            {{ cumulativeData.finalClassAverage|number_format(2) }}
+                            {% else %}
+                            -
+                            {% endif %}
+                        </td>
+                        <td class="text-center">-</td>
+                    </tr>
+        </tbody>
+    </table>
+    {% endif %}
+    {% else %}
+    <div class="alert alert-warning">
+        <strong>Aucun élève classé.</strong> Aucun élève n'a un taux de complétion des notes à 100% pour 
+        {% if multiplePeriods %}toutes les périodes{% else %}cette période{% endif %}.
+    </div>
+    {% endif %}
+
+    <!-- TABLEAU 2: ÉLÈVES NON CLASSÉS (<100% de complétion) -->
+    {% if unclassifiedStudents|length > 0 %}
+    <h3 class="mt-5 mb-3 text-warning">ÉLÈVES NON CLASSÉS ({{ unclassifiedStudents|length }} élève(s))</h3>
+    
+    <div class="alert alert-warning">
+        <strong>Note:</strong> Ces élèves ne sont pas classés car leur taux de complétion des notes est inférieur à 100% 
+        {% if multiplePeriods %}pour au moins une période{% else %}pour cette période{% endif %}. 
+        Ils n'ont pas de rang.
+    </div>
+    
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th class="text-center align-middle">#</th>
+                <th class="text-center align-middle">Nom de l'élève</th>
+                {% if multiplePeriods %}
+                    {% for time in evaluationTimes %}
+                    <th class="text-center align-middle">Taux {{ time.name }}</th>
+                    {% endfor %}
+                    <th class="text-center align-middle">Global</th>
+                {% else %}
+                    <th class="text-center align-middle">Taux de complétion</th>
+                    <th class="text-center align-middle">Matières complétées</th>
+                {% endif %}
+                {% if includeNotes %}
+                <th class="text-center align-middle">Moyenne Partielle</th>
+                {% endif %}
+                <th class="text-center align-middle">Statut</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in unclassifiedStudents %}
+            <tr>
+                <td class="text-center">{{ loop.index }}</td>
+                <td>{{ student.student.fullName|upper }}</td>
+                
+                {% if multiplePeriods %}
+                    {% set globalRate = 0 %}
+                    {% set periodCount = 0 %}
+                    
+                    {% for time in evaluationTimes %}
+                        <td class="text-center">
+                            {% set timeId = time.id %}
+                            {% if completionRatesByPeriod[timeId][student.id] is defined %}
+                                {% set periodRate = completionRatesByPeriod[timeId][student.id].rate %}
+                                {% set globalRate = globalRate + periodRate %}
+                                {% set periodCount = periodCount + 1 %}
+                                
+                                <div class="progress" style="height: 20px;">
+                                    <div class="progress-bar 
+                                        {% if periodRate == 100 %}bg-success
+                                        {% elseif periodRate >= 75 %}bg-info
+                                        {% elseif periodRate >= 50 %}bg-warning
+                                        {% else %}bg-danger{% endif %}" 
+                                        role="progressbar" 
+                                        style="width: {{ periodRate }}%;"
+                                        aria-valuenow="{{ periodRate }}" 
+                                        aria-valuemin="0" 
+                                        aria-valuemax="100">
+                                        {{ periodRate|number_format(0) }}%
+                                    </div>
+                                </div>
+                                <small class="text-muted">
+                                    {{ completionRatesByPeriod[timeId][student.id].completedSubjects }}/{{ completionRatesByPeriod[timeId][student.id].totalSubjects }}
+                                </small>
+                            {% else %}
+                                <span class="text-danger">-</span>
+                            {% endif %}
+                        </td>
+                    {% endfor %}
+                    
+                    <td class="text-center">
+                        {% set avgRate = periodCount > 0 ? globalRate / periodCount : 0 %}
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar 
+                                {% if avgRate == 100 %}bg-success
+                                {% elseif avgRate >= 75 %}bg-info
+                                {% elseif avgRate >= 50 %}bg-warning
+                                {% else %}bg-danger{% endif %}" 
+                                role="progressbar" 
+                                style="width: {{ avgRate }}%;"
+                                aria-valuenow="{{ avgRate }}" 
+                                aria-valuemin="0" 
+                                aria-valuemax="100">
+                                {{ avgRate|number_format(1) }}%
+                            </div>
+                        </div>
+                    </td>
+                {% else %}
+                    {% set timeId = evaluationTimes[0].id %}
+                    <td class="text-center">
+                        {% if completionRatesByPeriod[timeId][student.id] is defined %}
+                            {% set rate = completionRatesByPeriod[timeId][student.id].rate %}
+                            <div class="progress" style="height: 20px;">
+                                <div class="progress-bar 
+                                    {% if rate == 100 %}bg-success
+                                    {% elseif rate >= 75 %}bg-info
+                                    {% elseif rate >= 50 %}bg-warning
+                                    {% else %}bg-danger{% endif %}" 
+                                    role="progressbar" 
+                                    style="width: {{ rate }}%;"
+                                    aria-valuenow="{{ rate }}" 
+                                    aria-valuemin="0" 
+                                    aria-valuemax="100">
+                                    {{ rate|number_format(1) }}%
+                                </div>
+                            </div>
+                        {% else %}
+                            <span class="text-danger">Non calculé</span>
+                        {% endif %}
+                    </td>
+                    <td class="text-center">
+                        {% if completionRatesByPeriod[timeId][student.id] is defined %}
+                            {{ completionRatesByPeriod[timeId][student.id].completedSubjects }}/{{ completionRatesByPeriod[timeId][student.id].totalSubjects }}
+                            matières
+                        {% else %}
+                            -
+                        {% endif %}
+                    </td>
+                {% endif %}
+                
+                {% if includeNotes %}
+                <td class="text-center">
+                    {% if not multiplePeriods and periodData[evaluationTimes[0].id].studentAverages[student.id] is defined %}
+                        {{ periodData[evaluationTimes[0].id].studentAverages[student.id]|number_format(2) }}
+                    {% elseif multiplePeriods and cumulativeData.finalAverages[student.id] is defined %}
+                        {{ cumulativeData.finalAverages[student.id]|number_format(2) }}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                {% endif %}
+                <td class="text-center">
+                    <span class="badge bg-warning">Non classé</span>
+                </td>
+            </tr>
+            
+            <!-- Détails des matières incomplètes (optionnel, peut être commenté si trop long) -->
+            {% if not multiplePeriods %}
+                {% set timeId = evaluationTimes[0].id %}
+                {% if completionRatesByPeriod[timeId][student.id] is defined and completionRatesByPeriod[timeId][student.id].subjectDetails is defined %}
+                    <tr class="bg-light">
+                        <td colspan="2"></td>
+                        <td colspan="3">
+                            <small>
+                                <strong>Détails par matière:</strong><br>
+                                {% for subjectDetail in completionRatesByPeriod[timeId][student.id].subjectDetails %}
+                                    {% if not subjectDetail.completed %}
+                                        <span class="badge bg-danger me-1 mb-1">{{ subjectDetail.name }}: 
+                                            {{ subjectDetail.completedModules }}/{{ subjectDetail.moduleCount }} modules
+                                        </span>
+                                    {% endif %}
+                                {% endfor %}
+                                {% set completedCount = 0 %}
+                                {% for subjectDetail in completionRatesByPeriod[timeId][student.id].subjectDetails %}
+                                    {% if subjectDetail.completed %}{% set completedCount = completedCount + 1 %}{% endif %}
+                                {% endfor %}
+                                <span class="badge bg-success">{{ completedCount }} matières complètes</span>
+                            </small>
+                        </td>
+                        <td></td>
+                        {% if includeNotes %}<td></td>{% endif %}
+                    </tr>
+                {% endif %}
+            {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="alert alert-success mt-4">
+        <strong>Tous les élèves sont classés!</strong> Tous les élèves ont un taux de complétion des notes à 100% 
+        {% if multiplePeriods %}pour toutes les périodes{% else %}pour cette période{% endif %}.
+    </div>
+    {% endif %}
+
+    <!-- Statistiques générales (uniquement pour les élèves classés) -->
+{% if includeNotes and classifiedStudents|length > 0 %}
+{% if not multiplePeriods %}
+{% set currentData = periodData[evaluationTimes[0].id] %}
+{% if currentData.classStats is defined %}
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header text-bg-primary text-white">
+                <h5 class="mb-0 text-white">Statistiques Générales (Classés)</h5>
+            </div>
+            <div class="card-body" style="color:black !important">
+                <p><strong>Moyenne de classe:</strong> {{ currentData.classStats.average|number_format(2) }}/20</p>
+                <p><strong>Meilleure moyenne:</strong> {{ currentData.classStats.max|number_format(2) }}/20</p>
+                <p><strong>Plus basse moyenne:</strong> {{ currentData.classStats.min|number_format(2) }}/20</p>
+                <p><strong>Effectif classé:</strong> {{ classifiedStudents|length }} élèves</p>
+                <p><strong>Répartition:</strong></p>
+                <ul class="list-unstyled">
+                    {% if baremes is not null and baremes is not empty %}
+                        {# Utilisation des barèmes pour la répartition #}
+                        {% set appreciations = {} %}
+                        {% for student in classifiedStudents %}
+                            {% if currentData.studentAverages[student.id] is defined %}
+                                {% set studentAverage = currentData.studentAverages[student.id] %}
+                                {% set bareme = get_bareme(studentAverage, baremes) %}
+                                {% if bareme %}
+                                    {% set appreciation = bareme.evaluationAppreciationValue %}
+                                    {% if appreciations[appreciation] is defined %}
+                                        {% set appreciations = appreciations|merge({(appreciation): appreciations[appreciation] + 1}) %}
+                                    {% else %}
+                                        {% set appreciations = appreciations|merge({(appreciation): 1}) %}
+                                    {% endif %}
+                                {% endif %}
+                            {% endif %}
+                        {% endfor %}
+                        
+                        {# Afficher la répartition #}
+                        {% for appreciation, count in appreciations %}
+                            <li>{{ appreciation }}: {{ count }} élève(s)</li>
+                        {% endfor %}
+                    {% else %}
+                        {# Mode par défaut si pas de barèmes #}
+                        <li>🎯 Excellent (≥16): {{ currentData.classStats.excellent }} élève(s)</li>
+                        <li>⭐ Très bien (14-16): {{ currentData.classStats.tresBien }} élève(s)</li>
+                        <li>✓ Bien (12-14): {{ currentData.classStats.bien }} élève(s)</li>
+                        <li>↔ Assez bien (10-12): {{ currentData.classStats.assezBien }} élève(s)</li>
+                        <li>❌ Insuffisant (<10): {{ currentData.classStats.insuffisant }} élève(s)</li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header text-bg-success text-white">
+                <h5 class="mb-0 text-white">Moyennes par Matière (Classés)</h5>
+            </div>
+            <div class="card-body" style="color:black !important">
+                {% for subjectId, subjectData in classSubjectModules %}
+                {% set subjectStat = currentData.subjectStats[subjectId] %}
+                {% set subjectAverage = subjectStat.count > 0 ? subjectStat.total / subjectStat.count : 0 %}
+                <div class="mb-2">
+                    <strong>{{ subjectData.name }}:</strong>
+                    {% if baremes is not null and baremes is not empty %}
+                        {% set bareme = get_bareme(subjectAverage, baremes) %}
+                        {% if bareme %}
+                            <span class="badge bg-info text-white ms-2">{{ bareme.evaluationAppreciationValue }}</span>
+                        {% endif %}
+                    {% endif %}
+                    <small class="text-muted" style="color:black !important">
+                        Moy: {{ subjectAverage|number_format(2) }} |
+                        Max: {{ subjectStat.max|number_format(2) }} |
+                        Min: {{ subjectStat.min|number_format(2) }}
+                    </small>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endif %}
+{% endif %}
+
+    <!-- Statistiques générales pour le tableau cumulatif -->
+    {% if multiplePeriods and includeNotes and classifiedStudents|length > 0 %}
+    {% set cumulativeStats = {
+    'average': cumulativeData.finalClassAverage|default(0),
+    'max': 0,
+    'min': 20,
+    'excellent': 0,
+    'tresBien': 0,
+    'bien': 0,
+    'assezBien': 0,
+    'insuffisant': 0,
+    'count': classifiedStudents|length
+    } %}
+
+    {# Calculer les statistiques à partir des moyennes finales #}
+    {% for student in classifiedStudents %}
+    {% if cumulativeData.finalAverages[student.id] is defined %}
+    {% set studentAverage = cumulativeData.finalAverages[student.id] %}
+
+    {# Mise à jour min/max #}
+    {% if studentAverage > cumulativeStats.max %}
+    {% set cumulativeStats = cumulativeStats|merge({'max': studentAverage}) %}
+    {% endif %}
+    {% if studentAverage < cumulativeStats.min %} {% set cumulativeStats=cumulativeStats|merge({'min': studentAverage}) %}
+        {% endif %} {# Répartition avec barèmes si disponibles #} {% if baremes is not null and baremes is not empty %} {% set bareme=get_bareme(studentAverage, baremes) %} {% if bareme %} {% set
+        appreciation=bareme.evaluationAppreciationValue %} {% set key=appreciation|replace({' ': ' _', "'" : '' , 'é' : 'e'
+        , 'è' : 'e' , 'ê' : 'e' , 'à' : 'a' , 'â' : 'a' , 'ô' : 'o' , 'û' : 'u' , 'ç' : 'c' })|lower %} {% if
+        cumulativeStats[key] is defined %} {% set cumulativeStats=cumulativeStats|merge({(key): cumulativeStats[key] +
+        1}) %} {% else %} {% set cumulativeStats=cumulativeStats|merge({(key): 1}) %} {% endif %} {% endif %} {% else %}
+        {# Mode par défaut #} {% if studentAverage>= 16 %}
+        {% set cumulativeStats = cumulativeStats|merge({'excellent': cumulativeStats.excellent + 1}) %}
+        {% elseif studentAverage >= 14 %}
+        {% set cumulativeStats = cumulativeStats|merge({'tresBien': cumulativeStats.tresBien + 1}) %}
+        {% elseif studentAverage >= 12 %}
+        {% set cumulativeStats = cumulativeStats|merge({'bien': cumulativeStats.bien + 1}) %}
+        {% elseif studentAverage >= 10 %}
+        {% set cumulativeStats = cumulativeStats|merge({'assezBien': cumulativeStats.assezBien + 1}) %}
+        {% else %}
+        {% set cumulativeStats = cumulativeStats|merge({'insuffisant': cumulativeStats.insuffisant + 1}) %}
+        {% endif %}
+        {% endif %}
+        {% endif %}
+        {% endfor %}
+
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header text-bg-primary text-white">
+                        <h5 class="mb-0 text-white">Statistiques Générales Cumulées (Classés)</h5>
+                    </div>
+                    <div class="card-body" style="color:black !important">
+                        <p><strong>Moyenne de classe:</strong> {{ cumulativeStats.average|number_format(2) }}/20</p>
+                        <p><strong>Meilleure moyenne:</strong> {{ cumulativeStats.max|number_format(2) }}/20</p>
+                        <p><strong>Plus basse moyenne:</strong> {{ cumulativeStats.min|number_format(2) }}/20</p>
+                        <p><strong>Effectif classé:</strong> {{ cumulativeStats.count }} élèves</p>
+                        <p><strong>Répartition:</strong></p>
+                        <ul class="list-unstyled">
+                            {% if baremes is not null and baremes is not empty %}
+                            {# Afficher la répartition par appréciation #}
+                            {% set appreciations = {} %}
+                            {% for student in classifiedStudents %}
+                            {% if cumulativeData.finalAverages[student.id] is defined %}
+                            {% set studentAverage = cumulativeData.finalAverages[student.id] %}
+                            {% set bareme = get_bareme(studentAverage, baremes) %}
+                            {% if bareme %}
+                            {% set appreciation = bareme.evaluationAppreciationValue %}
+                            {% if appreciations[appreciation] is defined %}
+                            {% set appreciations = appreciations|merge({(appreciation): appreciations[appreciation] + 1}) %}
+                            {% else %}
+                            {% set appreciations = appreciations|merge({(appreciation): 1}) %}
+                            {% endif %}
+                            {% endif %}
+                            {% endif %}
+                            {% endfor %}
+
+                            {% for appreciation, count in appreciations %}
+                            <li>{{ appreciation }}: {{ count }} élève(s)</li>
+                            {% endfor %}
+                            {% else %}
+                            {# Mode par défaut #}
+                            <li>🎯 Excellent (≥16): {{ cumulativeStats.excellent }} élève(s)</li>
+                            <li>⭐ Très bien (14-16): {{ cumulativeStats.tresBien }} élève(s)</li>
+                            <li>✓ Bien (12-14): {{ cumulativeStats.bien }} élève(s)</li>
+                            <li>↔ Assez bien (10-12): {{ cumulativeStats.assezBien }} élève(s)</li>
+                            <li>❌ Insuffisant (<10): {{ cumulativeStats.insuffisant }} élève(s)</li>
+                                    {% endif %}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header text-bg-success text-white">
+                        <h5 class="mb-0 text-white">Statistiques par Période (Classés)</h5>
+                    </div>
+                    <div class="card-body" style="color:black !important">
+                        {% for time in evaluationTimes %}
+                        {% if periodData[time.id].classStats is defined %}
+                        {% set periodStats = periodData[time.id].classStats %}
+                        <div class="mb-3">
+                            <strong>{{ time.name }}:</strong>
+                            {% if baremes is not null and baremes is not empty %}
+                            {% set bareme = get_bareme(periodStats.average, baremes) %}
+                            {% if bareme %}
+                            <span class="badge bg-info text-white ms-2">{{ bareme.evaluationAppreciationValue }}</span>
+                            {% endif %}
+                            {% endif %}
+                            <small class="text-muted" style="color:black !important">
+                                Moy: {{ periodStats.average|number_format(2) }} |
+                                Max: {{ periodStats.max|number_format(2) }} |
+                                Min: {{ periodStats.min|number_format(2) }}
+                            </small>
+                            <div class="small text-muted mt-1" style="color:black !important">
+                                Excellent: {{ periodStats.excellent }} |
+                                Très bien: {{ periodStats.tresBien }} |
+                                Bien: {{ periodStats.bien }} |
+                                Assez bien: {{ periodStats.assezBien }} |
+                                Insuffisant: {{ periodStats.insuffisant }}
+                            </div>
+                        </div>
+                        <hr class="my-2">
+                        {% endif %}
+                        {% endfor %}
+
+                        {# Statistiques des matières pour la dernière période #}
+                        {% if evaluationTimes|length > 0 %}
+                        {% set lastPeriod = evaluationTimes|last %}
+                        {% if periodData[lastPeriod.id].subjectStats is defined %}
+                        <div class="mt-3">
+                            <strong>Moyennes par matière ({{ lastPeriod.name }}):</strong>
+                            {% for subjectId, subjectData in classSubjectModules %}
+                            {% set subjectStat = periodData[lastPeriod.id].subjectStats[subjectId] %}
+                            {% set subjectAverage = subjectStat.count > 0 ? subjectStat.total / subjectStat.count : 0 %}
+                            <div class="mb-2">
+                                <small>{{ subjectData.name }}:</small>
+                                {% if baremes is not null and baremes is not empty %}
+                                {% set bareme = get_bareme(subjectAverage, baremes) %}
+                                {% if bareme %}
+                                <span class="badge bg-info text-white ms-2">{{ bareme.evaluationAppreciationValue }}</span>
+                                {% endif %}
+                                {% endif %}
+                                <small class="text-muted" style="color:black !important">
+                                    Moy: {{ subjectAverage|number_format(2) }} |
+                                    Max: {{ subjectStat.max|number_format(2) }} |
+                                    Min: {{ subjectStat.min|number_format(2) }}
+                                </small>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="text-right mt-4" style="width:100%;text-align:right">
+            <p>Fait à ___________________________________, le {{ "now"|date("d/m/Y") }}</p>
+            <p>Signature ______________________</p>
+        </div>
+</div>
+
+<!-- Bouton pour imprimer -->
+<div class="text-center mt-4">
+    <button class="btn btn-primary" onclick="printDiv('printable-area')">Imprimer</button>
+</div>
+
+<style>
+    .vertical-text {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        text-align: center;
+        vertical-align: middle;
+        white-space: nowrap;
+        font-size: 12px;
+    }
+
+    th,
+    td {
+        vertical-align: middle;
+        border: 1px solid #000;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .bg-light {
+        background-color: #f8f9fa !important;
+    }
+
+    /* Styles pour les cartes de statistiques */
+    .card {
+        margin-bottom: 1rem;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+    }
+
+    .card-header {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #ddd;
+    }
+
+    .card-body {
+        padding: 1rem;
+    }
+
+    .text-bg-primary {
+        background-color: #0d6efd !important;
+        color: white !important;
+    }
+
+    .text-bg-success {
+        background-color: #198754 !important;
+        color: white !important;
+    }
+
+    .progress {
+        margin-bottom: 0;
+    }
+    
+    .progress-bar {
+        line-height: 20px;
+        font-size: 12px;
+    }
+    
+    .bg-light tr td {
+        padding: 5px !important;
+    }
+
+    @media print {
+        @page {
+            size: A4 {{
+                multiplePeriods or docType=='pv' ? 'portrait': 'landscape'
+            }};
+            margin: 10mm;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+            font-size: 11px;
+        }
+
+        .container {
+            width: 100% !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
+        }
+
+        table {
+            width: 100% !important;
+            page-break-inside: auto;
+            font-size: {{
+                multiplePeriods or docType=='pv' ? '9px': '10px'
+            }};
+        }
+
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+
+        thead {
+            display: table-header-group;
+        }
+
+        .vertical-text {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+            font-size: 8px;
+        }
+
+        /* Améliorations pour les statistiques */
+        .card {
+            border: 1px solid #000 !important;
+            page-break-inside: avoid;
+            margin-bottom: 15px !important;
+            break-inside: avoid;
+        }
+
+        .card-header {
+            background-color: #f0f0f0 !important;
+            color: #000 !important;
+            border-bottom: 2px solid #000 !important;
+            padding: 8px 10px !important;
+            font-weight: bold;
+        }
+
+        .card-body {
+            padding: 10px !important;
+        }
+
+        /* Désactiver les couleurs de fond pour l'impression */
+        .text-bg-primary,
+        .text-bg-success {
+            background-color: #f0f0f0 !important;
+            color: #000 !important;
+            -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+        }
+
+        /* Assurer la lisibilité du texte */
+        p,
+        li,
+        strong,
+        small {
+            color: #000 !important;
+            font-size: 10px !important;
+            line-height: 1.4 !important;
+        }
+
+        /* Éviter les coupures dans les tableaux non classés */
+        .table-striped tr {
+            page-break-inside: avoid !important;
+        }
+
+        /* Styles pour les barres de progression en impression */
+        .progress {
+            height: 15px !important;
+            margin-bottom: 5px !important;
+        }
+
+        .progress-bar {
+            line-height: 15px !important;
+            font-size: 9px !important;
+        }
+
+        /* Masquer les détails des matières incomplètes en impression si trop long */
+        @media print and (max-height: 270mm) {
+            tr.bg-light {
+                display: none !important;
+            }
+        }
+
+        /* Espacement pour les listes */
+        .list-unstyled li {
+            margin-bottom: 3px !important;
+        }
+
+        /* Gestion des marges */
+        .mt-4 {
+            margin-top: 15px !important;
+        }
+
+        .mb-3 {
+            margin-bottom: 10px !important;
+        }
+
+        .mb-2 {
+            margin-bottom: 5px !important;
+        }
+
+        /* Gestion des séparateurs */
+        hr {
+            border-top: 1px solid #ccc !important;
+            margin: 8px 0 !important;
+        }
+
+        /* Gestion des colonnes en impression */
+        .row {
+            display: block !important;
+        }
+
+        .col-md-6 {
+            width: 100% !important;
+            float: none !important;
+            margin-bottom: 15px !important;
+            page-break-inside: avoid;
+        }
+
+        /* Éviter la coupure à l'intérieur des cartes */
+        .card>* {
+            page-break-inside: avoid;
+        }
+
+        /* Assurer que le texte reste noir */
+        .text-muted {
+            color: #666 !important;
+        }
+
+        /* Forcer le paysage si une seule période et pas PV */
+        {% if not multiplePeriods and docType !='pv' %}
+            
+        
+
+        html,
+        body {
+            width: 297mm;
+            height: 210mm;
+        }
+
+        {% endif %}
+            
+        
+
+        /* Option : réduire la taille de police pour les statistiques cumulées */
+        {% if multiplePeriods %}
+            
+        
+
+        .card-body p,
+        .card-body li,
+        .card-body small {
+            font-size: 9px !important;
+        }
+
+        .card-header h5 {
+            font-size: 11px !important;
+            margin: 0 !important;
+        }
+
+        table {
+            font-size: 8px !important;
+        }
+
+        {% endif %}
+            
+        
+    }
+</style>
+
+<script>
+    function printDiv(divId) {
+        const printContents = document.getElementById(divId).innerHTML;
+        const originalContents = document.body.innerHTML;
+
+        const printWindow = window.open('', '_blank', 'width=1000,height=600');
+
+        printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>{{ multiplePeriods ? 'Procès Verbal Cumulatif' : (docType =='pv' ? 'Procès Verbal de Notes' : 'Bordereau Général') }}</title>
+            <style>
+                @page {
+                    size: A4 {{ multiplePeriods or docType =='pv' ? 'portrait' : 'landscape' }};
+                    margin: 10mm;
+                }
+                body {
+                    margin: 0;
+                    padding: 20px;
+                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                    -webkit-print-color-adjust: exact;
+                    print-color-adjust: exact;
+                    background: white;
+                    color: black !important;
+                    font-size: 14pt;
+                }
+                
+                .container {
+                    width: 100%;
+                    max-width: none;
+                    margin: 0 auto;
+                    padding: 0;
+                }
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: {{ multiplePeriods ? '9px' : '10px' }};
+                    margin-bottom: 1rem;
+                }
+                th, td {
+                    border: 1px solid #000;
+                    padding: 6px;
+                    text-align: center;
+                    vertical-align: middle;
+                }
+                .vertical-text {
+                    writing-mode: vertical-rl;
+                    transform: rotate(180deg);
+                    text-align: center;
+                    vertical-align: middle;
+                    white-space: nowrap;
+                    font-size: 9px;
+                    min-width: 35px;
+                }
+                
+                /* COULEURS POUR L'AFFICHAGE ÉCRAN */
+                .bg-light { background-color: #f8f9fa !important; }
+                .bg-info { background-color: #e0f7fa !important; }
+                .bg-success { background-color: #e8f5e9 !important; }
+                .bg-warning { background-color: #fff3cd !important; }
+                .bg-secondary { background-color: #e9ecef !important; }
+                
+                /* CORRECTION : Classes text-bg-* pour l'impression */
+                .text-bg-primary {
+                    background-color: #f0f0f0 !important;
+                    color: #000 !important;
+                    border: 1px solid #ccc !important;
+                }
+                
+                .text-bg-success {
+                    background-color: #f5f5f5 !important;
+                    color: #000 !important;
+                    border: 1px solid #ccc !important;
+                }
+                
+                .text-white { color: #000 !important; } /* Noir pour l'impression */
+                .fw-bold { font-weight: bold !important; }
+                .align-middle { vertical-align: middle !important; }
+                .text-center { text-align: center !important; }
+                .text-right { text-align: right !important; }
+                .mt-4 { margin-top: 1.5rem !important; }
+                .mb-0 { margin-bottom: 0 !important; }
+                .mb-2 { margin-bottom: 0.5rem !important; }
+                .mb-3 { margin-bottom: 1rem !important; }
+                
+                /* CORRECTION : Styles pour les cartes de statistiques - IMPORTANT */
+                .card {
+                    margin-bottom: 1rem;
+                    border: 1px solid #ddd !important;
+                    border-radius: 4px;
+                    page-break-inside: avoid;
+                    height: 100%; /* Pour que les cartes aient la même hauteur */
+                }
+                
+                .card-header {
+                    padding: 0.75rem 1rem;
+                    border-bottom: 1px solid #ddd !important;
+                    background-color: #f5f5f5 !important;
+                    color: #000 !important;
+                    font-weight: bold;
+                }
+                
+                .card-body {
+                    padding: 1rem;
+                    background-color: white !important;
+                }
+                
+                /* Styles pour les barres de progression */
+                .progress {
+                    height: 15px !important;
+                    margin-bottom: 5px !important;
+                    border: 1px solid #ccc !important;
+                }
+                
+                .progress-bar {
+                    line-height: 15px !important;
+                    font-size: 10px !important;
+                    text-align: center;
+                }
+                
+                /* CORRECTION : Layout en ligne pour les cartes */
+                .row {
+                    display: flex !important; /* IMPORTANT: flex au lieu de block */
+                    flex-wrap: wrap !important;
+                    margin-right: -15px !important;
+                    margin-left: -15px !important;
+                }
+                
+                .col-md-6 {
+                    flex: 0 0 50% !important; /* 50% de largeur */
+                    max-width: 50% !important;
+                    padding-right: 15px !important;
+                    padding-left: 15px !important;
+                    margin-bottom: 0 !important; /* Retirer le margin-bottom */
+                }
+                
+                .col-md-12 {
+                    flex: 0 0 100% !important;
+                    max-width: 100% !important;
+                    padding-right: 15px !important;
+                    padding-left: 15px !important;
+                }
+                
+                /* Gestion des listes */
+                .list-unstyled {
+                    padding-left: 0;
+                    list-style: none;
+                }
+                
+                .list-unstyled li {
+                    margin-bottom: 0.25rem;
+                }
+                
+                /* Gestion des séparateurs */
+                hr {
+                    border-top: 1px solid #ccc;
+                    margin: 0.5rem 0;
+                }
+                
+                /* Styles pour les statistiques cumulées */
+                {% if multiplePeriods %}
+                .card-body p,
+                .card-body li,
+                .card-body small {
+                    font-size: 10px !important;
+                    line-height: 1.4;
+                }
+                
+                .card-header h5 {
+                    font-size: 12px !important;
+                    margin: 0;
+                }
+                
+                table {
+                    font-size: 9px !important;
+                }
+                {% endif %}
+                
+                /* Assurer la lisibilité en impression */
+                p, li, strong, small, h1, h2, h3, h4, h5, h6 {
+                    color: #000 !important;
+                }
+                
+                .text-muted {
+                    color: #555 !important;
+                }
+                
+                /* Forcer le paysage si une seule période et pas PV */
+                {% if not multiplePeriods and docType != 'pv' %}
+                html, body {
+                    width: 297mm;
+                    height: 210mm;
+                }
+                {% endif %}
+                
+                /* Améliorations d'impression - Surcharge complète */
+                @media print {
+                    @page {
+                        size: A4 {{ multiplePeriods or docType =='pv' ? 'portrait' : 'landscape' }};
+                        margin: 10mm;
+                    }
+                    
+                    body {
+                        padding: 10px !important;
+                        font-size: 10px !important;
+                        background: white !important;
+                        color: black !important;
+                    }
+                    
+                    .container {
+                        padding: 0 !important;
+                        margin: 0 !important;
+                        width: 100% !important;
+                    }
+                    
+                    /* CORRECTION : Layout flex pour impression */
+                    .row {
+                        display: flex !important;
+                        flex-wrap: nowrap !important; /* Ne pas passer à la ligne */
+                        margin-right: -5px !important;
+                        margin-left: -5px !important;
+                    }
+                    
+                    .col-md-6 {
+                        flex: 0 0 50% !important;
+                        max-width: 50% !important;
+                        padding-right: 5px !important;
+                        padding-left: 5px !important;
+                        margin-bottom: 10px !important; /* Réduire l'espacement */
+                    }
+                    
+                    /* Cartes optimisées pour impression */
+                    .card {
+                        margin-bottom: 10px !important;
+                        border: 1px solid #000 !important;
+                        background: white !important;
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                        height: auto !important; /* Hauteur automatique */
+                    }
+                    
+                    .card-header {
+                        padding: 6px 8px !important;
+                        background-color: #f0f0f0 !important;
+                        border-bottom: 2px solid #000 !important;
+                        color: #000 !important;
+                        font-weight: bold !important;
+                        font-size: 11px !important;
+                    }
+                    
+                    .card-body {
+                        padding: 8px !important;
+                        background: white !important;
+                        font-size: 9px !important;
+                    }
+                    
+                    /* Désactiver les couleurs vives pour l'impression */
+                    .text-bg-primary,
+                    .text-bg-success {
+                        background-color: #f0f0f0 !important;
+                        color: #000 !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        border: 1px solid #999 !important;
+                    }
+                    
+                    /* Couleurs de tableau pour impression */
+                    .bg-light { background-color: #f9f9f9 !important; }
+                    .bg-info { background-color: #f0f8ff !important; }
+                    .bg-success { background-color: #f0fff0 !important; }
+                    .bg-warning { background-color: #fffaf0 !important; }
+                    .bg-secondary { background-color: #f8f9fa !important; }
+                    
+                    /* Styles d'impression pour les barres de progression */
+                    .progress {
+                        height: 12px !important;
+                        margin-bottom: 3px !important;
+                        border: 1px solid #999 !important;
+                    }
+                    
+                    .progress-bar {
+                        line-height: 12px !important;
+                        font-size: 8px !important;
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                    }
+                    
+                    /* Pour les barres de progression colorées en impression */
+                    .bg-success { background-color: #d4edda !important; }
+                    .bg-info { background-color: #d1ecf1 !important; }
+                    .bg-warning { background-color: #fff3cd !important; }
+                    .bg-danger { background-color: #f8d7da !important; }
+                    
+                    /* Réduction de la taille pour les PV cumulés */
+                    {% if multiplePeriods %}
+                    body {
+                        font-size: 9px !important;
+                    }
+                    
+                    table {
+                        font-size: 8px !important;
+                    }
+                    
+                    th, td {
+                        padding: 4px !important;
+                    }
+                    
+                    .card-body p,
+                    .card-body li {
+                        font-size: 8px !important;
+                        margin-bottom: 2px !important;
+                        line-height: 1.2 !important;
+                    }
+                    
+                    .card-header h5 {
+                        font-size: 10px !important;
+                    }
+                    
+                    /* Ajustement spécifique pour les cartes en mode cumulé */
+                    .col-md-6 {
+                        flex: 0 0 48% !important; /* Légèrement moins que 50% pour l'espacement */
+                        max-width: 48% !important;
+                    }
+                    {% else %}
+                    /* Pour les non-cumulés, cartes plus grandes */
+                    .col-md-6 {
+                        flex: 0 0 50% !important;
+                        max-width: 50% !important;
+                    }
+                    {% endif %}
+                    
+                    /* Éviter les coupures */
+                    h1, h2, h3, h4, h5, h6 { 
+                        page-break-after: avoid !important;
+                    }
+                    
+                    tr { 
+                        page-break-inside: avoid !important; 
+                    }
+                    
+                    thead { 
+                        display: table-header-group !important; 
+                    }
+                    
+                    /* Masquer les détails des matières incomplètes en impression */
+                    tr.bg-light {
+                        display: none !important;
+                    }
+                    
+                    /* Option: Si les cartes sont trop grandes, forcer le passage à la ligne */
+                    @media print and (max-height: 270mm) {
+                        {% if multiplePeriods %}
+                        .row {
+                            flex-wrap: wrap !important;
+                        }
+                        .col-md-6 {
+                            flex: 0 0 100% !important;
+                            max-width: 100% !important;
+                            margin-bottom: 5px !important;
+                        }
+                        {% endif %}
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            ${printContents}
+        </body>
+        </html>
+    `);
+
+        printWindow.document.close();
+
+        printWindow.onload = function () {
+            printWindow.focus();
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 500);
+        };
+
+        setTimeout(() => {
+            document.body.innerHTML = originalContents;
+            window.location.reload();
+        }, 2000);
+    }
+</script>
+{% endblock %}

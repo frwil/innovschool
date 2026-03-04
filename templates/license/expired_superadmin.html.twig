@@ -1,0 +1,14 @@
+{% extends 'base.html.twig' %}
+{% block body %}
+<div class="alert alert-danger border-2 border-danger rounded mt-5 text-center">
+    <h2 class="text-danger">Licence expirée</h2>
+    <p>{{ message }}</p>
+    <form method="post" action="{{ path('app_renew_license') }}">
+        <div class="form-group">
+            <label for="license_token">Nouveau token de licence - {{ licenceStartAt|date('Y-m-d h:i:s') }}</label>
+            <input type="text" name="license_token" id="license_token" class="form-control" required value="{{ token }}">
+        </div>
+        <button type="submit" class="btn btn-primary mt-3">Valider</button>
+    </form>
+</div>
+{% endblock %}

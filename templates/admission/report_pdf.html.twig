@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Rapport d'admission</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.7rem;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        th:nth-child(n+3) {
+            text-align: center;
+        }
+        td.number{
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div class="three"><h1 style="width:100%;text-align:center">Rapport d'admission (insolvabilité)</h1></div>
+    <div id="report-results">
+        {% if reportData is defined and reportData is not empty %}
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th rowspan=2>Nom</th>
+                        <th rowspan=2>Matricule</th>
+                        {% for modality in modalityTotals|keys %}
+                            <th colspan=2>{{ modalityTotals[modality].modalLabel }}</th>
+                        {% endfor %}
+                        <th rowspan=2>Total Payé</th>
+                        <th rowspan=2>Total Reste</th>
+                    </tr>
+                    <tr>
+                        {% for modality in modalityTotals|keys %}
+                            <th>Payé</th>
+                            <th>Reste</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in reportData %}
+                        <tr>
+                            <td>{{ student.name }}</td>
+                            <td>{{ student.matricule }}</td>
+                            {% set totalPaid = 0 %}
+                            {% set totalRemaining = 0 %}
+                            {% for modalityKey, modality in student.modalities %}
+                                <td class="number">{{ modality.totalPaid|number_format(0, ',', ' ') }}</td>
+                                <td class="number">{{ modality.remainingAmount|number_format(0, ',', ' ') }}</td>
+                                {% set totalPaid = totalPaid + modality.totalPaid %}
+                                {% set totalRemaining = totalRemaining + modality.remainingAmount %}
+                            {% endfor %}
+                            <td class="number">{{ totalPaid|number_format(0, ',', ' ') }}</td>
+                            <td class="number">{{ totalRemaining|number_format(0, ',', ' ') }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr style="font-weight: bold;">
+                        <td colspan="2"><strong>Total</strong></td>
+                        {% for totals in modalityTotals %}
+                            <td class="number">{{ totals.totalPaid|number_format(0, ',', ' ')}}</td>
+                            <td class="number">{{ totals.totalRemaining|number_format(0, ',', ' ') }}</td>
+                        {% endfor %}
+                        {% set grandTotalPaid = 0 %}
+                        {% set grandTotalRemaining = 0 %}
+                        {% for totals in modalityTotals %}
+                            {% set grandTotalPaid = grandTotalPaid + totals.totalPaid %}
+                            {% set grandTotalRemaining = grandTotalRemaining + totals.totalRemaining %}
+                        {% endfor %}
+                        <td class="number">{{ grandTotalPaid|number_format(0, ',', ' ') }}</td>
+                        <td class="number">{{ grandTotalRemaining|number_format(0, ',', ' ') }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+            <p style="text-align: right; margin-top: 20px;">Ce rapport a été généré le {{ "now"|date("d/m/Y H:i") }}</p>
+            <p style="text-align: right;">Généré par {{ app.user.username }}</p>
+            <p style="text-align: right;">Signature</p>
+            <p style="text-align: right;">__________________________</p>
+
+        {% else %}
+            <p>Aucun résultat trouvé.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

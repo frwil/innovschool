@@ -1,0 +1,349 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}
+    Bulletin de l'élèves
+{% endblock %}
+
+{% block body %}
+<div class="container mt-4" id="bulletin-div">
+    <div class="excel-content">
+        {# <a href="/uploads/bulletins/{{ student.registrationNumber }}.html" class="btn btn-primary rounded-0 btn-lg" target="_blank">
+            {{ student.fullName }}
+        </a> #}
+        {{ htmlContent|raw }}
+        
+    </div>
+    <a href="{{ path('app_bulletins') }}" class="btn btn-secondary rounded-5">Retour</a>
+</div>
+<script>
+{% for ligne in lignesEntete %}
+            
+                $(document).ready(function() {
+                    $('tr.row{{ ligne-2}} td,tr.row{{ ligne-3}} td').css('textAlign', 'center').css('font-size','14px').css('font-weight','bold').css('background-color', '#E2E2E2').css('vertical-align', 'middle').css('padding', '5px');
+                    $('tr.row{{ ligne-2}},tr.row{{ ligne-3}}').css('background-color', '#E2E2E2').css('font-weight','bold').css('border', '1px solid black');
+                    $('tr.row{{ ligne-3}} td.column8,tr.row{{ ligne-3}} td.column11,tr.row{{ ligne-3}} td.column14').attr('colspan', 2).css('textAlign', 'center');
+                    $('tr.row{{ ligne-3}} td.column9,tr.row{{ ligne-3}} td.column12,tr.row{{ ligne-3}} td.column15').remove();
+                    $('tr.row{{ ligne-2}} td.column8,tr.row{{ ligne-3}} td.column11,tr.row{{ ligne-3}} td.column14').attr('colspan', 2).css('textAlign', 'center');
+                    $('tr.row{{ ligne-2}} td.column9,tr.row{{ ligne-3}} td.column12,tr.row{{ ligne-3}} td.column15').remove();
+                    $('tr.row{{ ligne-4}} td').css('border','none').addClass('row-no-border');
+                    for(var i = {{ lastcolumn -65 +1 }}; i <= 20; i++) {
+                        $('tr.row{{ ligne-2}}>.column' + i).remove();
+                        $('tr.row{{ ligne-3}}>.column' + i).remove();
+                        
+                    }
+                    for (var i={{ nbLignes }};i<= {{ lastRow}}; i++) {
+                        if(i<={{ lastRow-11 }}){
+                        $('tr.row'+i+'>td').css('border', '1px solid black').css('textAlign', 'center').addClass('row-recap');
+                        $('tr.row'+i+'>td:empty').css('border', 'none');
+                        $('tr.row'+i+'>td:nth-child(n+11)').css('border', 'none');
+                        $('tr.row'+i+'>td.column11').css('border', 'none');
+                        $('tr.row'+i+'>td[colspan]').css('textAlign', 'center').css('font-weight', 'bold');
+                        }
+                        if(i=={{ lastRow-8 }} || i=={{ lastRow-5 }}){
+                            $('tr.row'+i+'>td').attr('colspan', {{ lastcolumn -66 }}).css('textAlign', 'center').css('font-size','16px').css('font-weight', 'bold').css('border-bottom', '1px solid black').addClass('row-title-bottom');
+                            $('tr.row'+i+'>td:nth-child(n+2)').remove();
+                            
+                        }
+                        if(i=={{ lastRow-3 }}){
+                            $('tr.row'+i+'>td').css('textAlign', 'center');
+                        }
+                        if(i>{{ lastRow-3 }} && i<={{ lastRow-2 }}){
+                            $('tr.row'+i+'>td.column5,tr.row'+i+'>td.column9').css('border-left','1px solid black');
+                        }
+                        if(i=={{ lastRow-1 }}){
+                            $('tr.row'+i+'>td.column11').attr('colspan',3);
+                            $('tr.row'+i+'>td:nth-child(n+{{ 13+lastcolumn-66-12 }})').remove();
+                            $('tr.row'+i+'>td.column6').attr('colspan',3);
+                            $('tr.row'+i+'>td.column7').remove();
+                            $('tr.row'+i+'>td.column8').remove();
+                        }
+                    }
+                });
+           
+        {% endfor %}
+    $(document).ready(function() {
+        $('tr.row0>.column1').html('<img src="{{ schoolLogo }}" width="100" height="100" alt="Logo de l\'école">');
+        $('.excel-content>div').append('<div id="mon-entete-impression"></div>');
+        $('#mon-entete-impression').css(
+            'background-image', 'url("{{ schoolLogo }}")'
+        ).css('background-size','40vw').css('background-repeat','no-repeat repeat').css('background-position','top 0 left 70%').css('opacity', '0.2').css('height',$('#bulletin-div').height()+'px').css('width', '100%');
+        $('tr.row7>.column12').html('<img src="{{ studentPhoto }}" width="100" height="100" alt="Photo l\'élève" id="student-photo">');
+        $('#student-photo').css('position', 'relative').css('top', '0').css('left', '0');
+        $('tr.row0>.column1').css('textAlign', 'center').attr('colspan', 6);
+        $('tr.row0>.column7').css('textAlign', 'center').attr('colspan', {{ lastcolumn - 66 -11 }});
+        $('tr.row0>.column0').css('textAlign', 'center').attr('colspan', 5);
+        $('tr.row0>.column2').remove();
+        $('tr.row0>.column3').remove();
+        for(var i = 8; i <= 20; i++) {
+            $('tr.row0>.column' + i).remove();
+        }
+        for(var i = 4; i <= 6; i++) {
+            $('tr.row0>.column' + i).remove();
+        }
+        $('tr.row1>.column0').css('textAlign', 'center').css('font-size','30px').css('font-weight','bold').attr('colspan', {{ lastcolumn -66 }});
+        $('tr.row2>.column0').css('textAlign', 'center').css('font-size','20px').css('font-weight','bold').attr('colspan', {{ lastcolumn -66 }});
+        for(var i = 1; i <= 20; i++) {
+            $('tr.row2>.column' + i).remove();
+            $('tr.row1>.column' + i).remove();
+        }
+        $('tr.row3>.column2').attr('colspan', 5).css('padding-top','15px');
+        for(var i = 3; i <= 6; i++) {
+            $('tr.row3>.column' + i).remove();
+        }
+        for(var i = 15; i <= {{ nbLignes }}; i++) {
+            if($('tr.row'+i+'>.column5').text()=='COTE'){
+                lastCol=$('tr.row'+i+' td:last-child').attr('class').split(' ')[0].replace(/column/g,'');
+                for(var j = 5; j <= lastCol; j++){
+                    $('tr.row'+i+'>.column'+j).css('background-color', '#E2E2E2').css('font-weight','bold');
+                }
+                $('tr.row'+i+'>.column11').attr('colspan', {{ periods|length *3}}-1*{{ periods|length}}).css('textAlign', 'center').css('font-weight','bold');
+                for(var j =12 ; j <= 12+{{ periods|length *3}}-1; j++) {
+                    $('tr.row'+i+'>.column' + j).remove();
+                }
+                $('tr.row'+i+'>.column5').attr('colspan', 5).css('textAlign', 'center').css('font-weight','bold');
+                $('tr.row'+(i-1)+'>.column5').attr('colspan', 5).css('textAlign', 'center').css('font-weight','bold');
+                $('tr.row'+(i-4)+'>.column5').attr('colspan', 3);
+                for(var j = 6 ; j <= 9; j++) {
+                    $('tr.row'+i+'>.column' + j).remove();
+                    $('tr.row'+(i-1)+'>.column' + j).remove();
+                    if(j<8) $('tr.row'+(i-4)+'>.column' + j).remove();
+                }
+                for(var j = i-5 ; j <= i-2; j++) {
+                    $('tr.row'+j+'>.column8').attr('colspan', 2);
+                    $('tr.row'+(j)+'>.column9').remove();
+                }
+            }
+            
+        }
+
+        for(var i = 10; i <= {{ nbLignes-5 }}; i++) {
+            for(j=5; j <= 20; j++) {
+                if(j<8 && ($('tr.row'+i+'>.column' + j).attr('colspan')<5 || $('tr.row'+i+'>.column' + j).attr('colspan')==undefined)){
+                    $('tr.row'+i+'>.column' + j).css('border', 'none');
+                }else{
+                    $('tr.row'+i+'>.column' + j).css('border', '1px solid black');
+                }
+            }
+        }
+        $('.btn').css('display', 'none');
+        $bulletinDiv = $('.excel-content').html()+"<style>"+$('#selfStyle').text()+"</style>";
+        html2canvas(document.querySelector('#bulletin-div')).then(function(canvas) {
+            const imgData = canvas.toDataURL('image/png');
+            const { jsPDF } = window.jspdf;
+            var pdf = new jsPDF('p', 'mm', 'a4');
+            var pageWidth = pdf.internal.pageSize.getWidth();
+            var pageHeight = pdf.internal.pageSize.getHeight();
+            var margin = 10; // 10mm
+
+            // Dimensions de l'image en pixels
+            var imgProps = pdf.getImageProperties(imgData);
+            var pdfWidth = pageWidth - 2 * margin;
+            var pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+
+            // Hauteur utile par page (hors marges)
+            var usablePageHeight = pageHeight - 2 * margin;
+
+            // Hauteur de l'image en pixels pour une page PDF
+            var pageCanvasHeightPx = Math.floor(usablePageHeight * canvas.height / pdfHeight);
+
+            var position = 0;
+            var pageNum = 0;
+
+            while (position < canvas.height) {
+                // Crée un sous-canvas pour la portion à imprimer sur cette page
+                var pageCanvas = document.createElement('canvas');
+                pageCanvas.width = canvas.width;
+                // Pour la dernière page, ajuste la hauteur pour ne pas étirer l'image
+                var isLastPage = (position + pageCanvasHeightPx) >= canvas.height;
+                var currentPageHeightPx = isLastPage ? (canvas.height - position) : pageCanvasHeightPx;
+                pageCanvas.height = currentPageHeightPx;
+
+                var ctx = pageCanvas.getContext('2d');
+                ctx.drawImage(
+                    canvas,
+                    0, position, canvas.width, currentPageHeightPx, // source
+                    0, 0, canvas.width, currentPageHeightPx         // destination
+                );
+
+                var pageImgData = pageCanvas.toDataURL('image/png');
+
+                if (pageNum > 0) pdf.addPage();
+
+                // Calcule la hauteur à afficher dans le PDF pour cette page
+                var currentPdfHeight = isLastPage
+                    ? (usablePageHeight * currentPageHeightPx / pageCanvasHeightPx)
+                    : usablePageHeight;
+
+                pdf.addImage(
+                    pageImgData,
+                    'PNG',
+                    margin,
+                    margin,
+                    pdfWidth,
+                    currentPdfHeight
+                );
+
+                position += pageCanvasHeightPx;
+                pageNum++;
+            }
+            var totalPages = pdf.getNumberOfPages();
+            for (var i = 1; i <= totalPages; i++) {
+                pdf.setPage(i);
+                pdf.setFontSize(10);
+                pdf.text(
+                    'Page ' + i + ' / ' + totalPages,
+                    pdf.internal.pageSize.getWidth() -5,
+                    pdf.internal.pageSize.getHeight() - 5,
+                    { align: 'right' }
+                );
+            }
+            pdf.save('{{ student.registrationNumber }}.pdf');
+            self.close();
+        });
+        $.ajax({
+            type: 'POST',
+            url: '{{ path("app_save_bulletin_file") }}',
+            data: { fileContent: $bulletinDiv,fileName: '{{ student.registrationNumber }}.html' },
+            success: function(response) {
+                console.log('Bulletin saved successfully.');
+            },
+        })
+        
+    });
+</script>
+<script>
+ 
+    
+</script>
+<style id="selfStyle">
+
+.row-no-border{
+    border: none !important;
+}
+.row-recap{
+    font-size: 16px !important;
+}
+.row-title-bottom{
+    font-size: 16px !important;
+    padding:30px !important;
+}
+.row1>td{
+    text-align: center;
+    font-size: 30px !important;
+    font-weight: bold;
+}
+.row2>td{
+    text-align: center;
+    font-size: 20px !important;
+    font-weight: bold;
+}
+.row0>td{
+    font-size: 15px !important;
+}
+#bulletin-div, .excel-content, table {
+    
+    margin-right: 10% !important;
+    padding-right: 10% !important;
+    }
+table td, table th {
+    font-family: "century gothic", CenturyGothic, AppleGothic, sans-serif !important; 
+    font-size: 24px; 
+    font-style: normal !important; 
+    font-variant: normal !important; 
+    font-size: 13pt;
+    vertical-align: middle !important;
+    padding:0 2px 0 2px !important;
+}
+table{
+    border-collapse: collapse !important;
+}
+
+
+.column5[colspan]{
+    font-size:14pt !important;
+}
+
+tr:nth-child(n+2).column0[colspan]{
+    font-size:16pt !important;
+    width: 400px !important;
+}
+    .column8 {
+        width: 200px !important;
+    }
+    .column0 {
+        width: 200px !important;
+        padding:10px;
+    }
+    .column10,.column13,.column16 {
+        display: none !important;
+    }
+    .column12,.column15,.column18 {
+        text-align: center !important;
+        font-weight: bold !important;
+    }
+    table {
+        border-collapse: collapse;
+        width: 100%;
+    }
+    .row8>.column5,.row8>.column6,.row8>.column7,.row8>.column8,.row8>.column9,.row8>.column10,.row8>.column11,.row8>.column12,.row8>.column13,.row8>.column14,.row8>.column15,.row8>.column16,.row8>.column17,.row8>.column18,.row8>.column19 {
+        background-color: #E2E2E2 !important;
+        font-weight: bold !important;
+        vertical-align: middle !important;
+        text-align: center !important;
+        padding: 5px !important;
+    }
+    #mon-entete-impression {
+        position: fixed;
+        top: 30%;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        z-index: 9999;
+        /* optionnel : pour éviter que le contenu ne soit masqué */
+        padding: 10px 0;
+    }
+    #mon-entete-impression img {
+        opacity: 0.3;
+    }
+    td {
+        /*border: 1px solid black !important;*/
+        padding: 0 2px 0 2px !important;
+        font-size:0.9vw !important;
+    }
+    @media print {
+    body * {
+        visibility: hidden !important;
+    }
+    #bulletin-div, #bulletin-div * {
+        visibility: visible !important;
+    }
+    #bulletin-div {
+        position: absolute !important;
+        left: 0; top: 0; width: 100%;
+    }
+    .btn{
+        display: none !important;
+    }
+    #mon-entete-impression {
+        position: fixed;
+        top: 40%;
+        left: 0;
+        width: 100%;
+        text-align: center;
+        z-index: 9999;
+        /* optionnel : pour éviter que le contenu ne soit masqué */
+        padding: 10px 0;
+        display:none;
+    }
+    #mon-entete-impression img {
+        width: 100%;
+        height: auto;
+        opacity: 0.3;
+    }
+    #bulletin-div, .excel-content, table {
+        margin: 0 auto;
+        box-sizing: border-box;
+    }
+    }
+</style>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Emploi du temps par classe{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="three">
+    <h1>Emploi du temps par classe</h1>
+    </div>
+    <form id="timetable-class-form" method="get" action="#">
+        <div class="row mb-3">
+            <div class="col-md-4">
+                <label for="studyLevel" class="form-label">Niveau d'étude</label>
+                <select id="studyLevel" name="studyLevel" class="form-select select2" required>
+                    <option value="">-- Sélectionnez un niveau --</option>
+                    {% for section in sections %}
+                        <option value="{{ section.id }}">{{ section.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="class" class="form-label">Classe</label>
+                <select id="class" name="class" class="form-select select2" required disabled>
+                    <option value="">-- Sélectionnez un niveau d'abord --</option>
+                </select>
+            </div>
+            <div class="col-md-4" style="padding:34px">
+                <button type="submit" class="btn btn-primary" disabled id="submitBtn">Afficher l'emploi du temps</button>
+            </div>
+        </div>
+    </form>
+<hr>
+<div id="class-timetable-result" class="mt-4"></div>
+</div>
+
+<script>
+$(function() {
+    const $studyLevel = $('#studyLevel');
+    const $class = $('#class');
+    const $submitBtn = $('#submitBtn');
+    const $form = $('#timetable-class-form');
+    const $result = $('#class-timetable-result');
+
+    $studyLevel.on('change', function() {
+        const sectionId = $(this).val();
+        $class.html('<option value="">Chargement...</option>');
+        $class.prop('disabled', true);
+        $submitBtn.prop('disabled', true);
+        if (sectionId) {
+            $.ajax({
+                url: '{{ path('app_classes_by_section', {'sectionId': 'SECTION_ID'}) }}'.replace('SECTION_ID', sectionId),
+                method: 'GET',
+                dataType: 'json',
+                success: function(data) {
+                    $class.html('<option value="">-- Sélectionnez une classe --</option>');
+                    if (data.length > 0) {
+                        $.each(data, function(i, classe) {
+                            $class.append(`<option value="${classe.id}">${classe.name}</option>`);
+                        });
+                        $class.prop('disabled', false);
+                    } else {
+                        $class.html('<option value="">Aucune classe disponible</option>');
+                        $class.prop('disabled', true);
+                    }
+                },
+                error: function() {
+                    $class.html('<option value="">Erreur de chargement</option>');
+                    $class.prop('disabled', true);
+                }
+            });
+        } else {
+            $class.html('<option value="">-- Sélectionnez un niveau d\'abord --</option>');
+            $class.prop('disabled', true);
+        }
+    });
+
+    $class.on('change', function() {
+        $submitBtn.prop('disabled', !$(this).val());
+    });
+
+    $form.on('submit', function(e) {
+        e.preventDefault();
+        const classId = $class.val();
+        if (!classId) return;
+        $result.html('<div class="text-center text-muted">Chargement de l\'emploi du temps...</div>');
+        $.ajax({
+            url: '{{ path('app_timetable_class_grid', {'id': 'CLASS_ID'}) }}'.replace('CLASS_ID', classId),
+            method: 'GET',
+            success: function(html) {
+                $result.html(html);
+            },
+            error: function() {
+                $result.html('<div class="alert alert-danger">Erreur lors du chargement de l\'emploi du temps.</div>');
+            }
+        });
+    });
+});
+</script>
+{% endblock %}

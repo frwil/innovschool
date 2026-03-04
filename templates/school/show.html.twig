@@ -1,0 +1,54 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}School{% endblock %}
+
+{% block body %}
+    <h1>School</h1>
+
+    {# <table class="table">
+        <tbody>
+            <tr>
+                <th>Id</th>
+                <td>{{ school.id }}</td>
+            </tr>
+            <tr>
+                <th>Name</th>
+                <td>{{ school.name }}</td>
+            </tr>
+            <tr>
+                <th>Address</th>
+                <td>{{ school.address }}</td>
+            </tr>
+            <tr>
+                <th>ContactName</th>
+                <td>{{ school.contactName }}</td>
+            </tr>
+            <tr>
+                <th>ContactPhone</th>
+                <td>{{ school.contactPhone }}</td>
+            </tr>
+            <tr>
+                <th>ContactEmail</th>
+                <td>{{ school.contactEmail }}</td>
+            </tr>
+            <tr>
+                <th>TrialStartAt</th>
+                <td>{{ school.trialStartAt ? school.trialStartAt|date('Y-m-d') : '' }}</td>
+            </tr>
+            <tr>
+                <th>TrialDuration</th>
+                <td>{{ school.trialDuration }}</td>
+            </tr>
+            <tr>
+                <th>CreatedAt</th>
+                <td>{{ school.createdAt ? school.createdAt|date('Y-m-d H:i:s') : '' }}</td>
+            </tr>
+        </tbody>
+    </table> #}
+
+    <a href="{{ path('app_school_index') }}">back to list</a>
+
+    {# <a href="{{ path('app_school_edit', {'id': school.id}) }}">edit</a> #}
+
+    {{ include('school/_delete_form.html.twig') }}
+{% endblock %}

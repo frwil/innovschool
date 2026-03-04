@@ -1,0 +1,197 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Liste des enseignants
+{% endblock %}
+
+{% block body %}
+	<div class="container mt-4">
+		<div class="three">
+			<h1>Liste des enseignants</h1>
+		</div>
+		<div class="row">
+			<!-- Bloc 1 : Tableau des enseignants -->
+			<div class="col-md-8">
+				<div class="table-responsive"> {# Ajout d'un conteneur responsive #}
+					<table class="table table-striped table-bordered" id="ens-table" style="width:100%">
+						<thead>
+							<tr>
+								<th data-priority="1">#</th> {# Priorités pour le responsive #}
+								<th data-priority="1">Nom complet</th>
+								<th data-priority="2">Email</th>
+								<th data-priority="3">Classe(s)</th>
+								<th data-priority="1">Actions</th>
+								<th data-priority="4">Téléphone</th>
+								<th data-priority="5">Sexe</th>
+								
+							</tr>
+						</thead>
+						<tbody>
+							{% for teacher in teachers %}
+								<tr>
+									<td>{{ loop.index }}</td>
+									<td>{{ teacher.fullName }}</td>
+									<td>{{ teacher.email }}</td>
+									<td>
+										<div class="btn-group-vertical"> {# Meilleur affichage des boutons #}
+											{% if teacher.classMasters is defined %}
+											{% for tc in teacher.classMasters %}
+											{% if teacher.isSchoolClassClassMaster(tc) %}
+											<a class="position-relative btn btn-info btn-sm mb-1" style="padding:5px;" title="Professeur principal"
+												href="{{ path('app_school_class_show', {'id': tc.classOccurence.id}) }}">
+												{{ tc.classOccurence.name }}
+												<span class="position-absolute top-0 translate-middle badge rounded-pill bg-danger">
+													<i class="fa fa-star"></i>
+												</span>
+											</a>
+											{% else %}
+											<a class="btn btn-dark btn-sm mb-1" href="{{ path('app_school_class_show', {'id': tc.classOccurence.classe.id}) }}">{{ tc.classOccurence.name }}</a>
+											{% endif %}
+											{% endfor %}
+											{% endif %}
+											{% if teacher.teacherSchoolClassSubjects is defined %}
+											{% set uniqueClasses = [] %}
+											{% for tcs in teacher.teacherSchoolClassSubjects %}
+											{% set classId = tcs.schoolClassPeriod.classOccurence.classe.id %}
+											{% set className = tcs.schoolClassPeriod.classOccurence.name %}
+											{% if classId not in uniqueClasses %}
+											{% set uniqueClasses = uniqueClasses|merge([classId]) %}
+											<a class="btn btn-dark btn-sm mb-1" href="{{ path('app_school_class_show', {'id': classId}) }}">{{ className }}</a>
+											{% endif %}
+											{% endfor %}
+											{% endif %}
+										</div>
+									</td>
+
+									<td>
+										<a href="{{ path('app_user_show_by_id', {'id': teacher.id}) }}" class="btn btn-sm btn-primary">Voir</a>
+									</td>
+									<td>{{ teacher.phone }}</td>
+									<td>
+										{% if teacher.gender.value == "male" %}Homme{% elseif teacher.gender.value == "female" %}Femme{% else %}-
+										{% endif %}
+									</td>
+									
+								</tr>
+							{% endfor %}
+						</tbody>
+					</table>
+				</div>
+				<hr>
+				<div class="mb-4">
+					<form method="post" action="{{ path('app_teacher_export') }}">
+						<div class="row">
+							<div class="col-md-4">
+								<label for="exportFormatTeacher" class="form-label">Format d'export</label>
+								<select id="exportFormatTeacher" name="exportFormat" class="form-select select2" required>
+									<option value="">Sélectionner un format</option>
+									<option value="csv">CSV</option>
+									<option value="xlsx">Excel (XLSX)</option>
+								</select>
+							</div>
+							<div class="col-md-4" style="padding-top: 33px;">
+								<button type="submit" class="btn btn-success btn-lg">Exporter la liste des enseignants</button>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
+
+			<!-- Bloc 2 : Formulaire de création d'enseignant -->
+			<div class="col-md-4 border rounded p-3">
+				<div class="three"><h1>Ajouter un enseignant</h1></div>
+				<form id="app_teacher_new_form" method="post" action="{{ path('app_teacher_new') }}" enctype="multipart/form-data">
+					<div class="mb-3">
+						<label for="lastName" class="form-label">Nom</label>
+						<input type="text" id="lastName" name="lastName" class="form-control" required>
+					</div>
+					<div class="mb-3">
+						<label for="Sexe" class="form-label">Sexe</label>
+						<select id="gender" name="gender" class="form-select select2" required>
+							<option value="" disabled selected>Choisir le sexe</option>
+							<option value="male">Homme</option>
+							<option value="female">Femme</option>
+						</select>
+					</div>
+					<div class="mb-3">
+						<label for="phone" class="form-label">Téléphone</label>
+						<input type="text" id="phone" name="phone" class="form-control" maxlength="10" pattern="\d{9,10}" title="9 à 10 chiffres">
+					</div>
+					<button type="submit" class="btn btn-success">Enregistrer</button>
+				</form>
+			</div>
+		</div>
+	</div>
+	<script>
+		$(function () {
+				$('#app_teacher_new_form').on('submit', function (e) {
+					e.preventDefault();
+					var form = this;
+					var formData = new FormData(form);
+
+					$.ajax({
+						url: $(form).attr('action'),
+						type: 'POST',
+						data: formData,
+						processData: false,
+						contentType: false,
+						success: function (response) {
+							alert(response.message || 'Enseignant enregistré avec succès !');
+							window.location.reload();
+						},
+						error: function (xhr) {
+							let msg = 'Erreur lors de l\'enregistrement.';
+							if (xhr.responseJSON && xhr.responseJSON.message) {
+								msg = xhr.responseJSON.message;
+							}
+							alert(msg);
+						}
+					});
+				});
+
+				$('#ens-table').DataTable({
+					responsive: true,
+					language: {
+						url: "{{asset('i18n/fr-FR.json')}}"
+					},
+					columnDefs: [
+						{ responsivePriority: 1, targets: 0 }, // #
+						{ responsivePriority: 1, targets: 1 }, // Nom complet
+						{ responsivePriority: 2, targets: 2 }, // Email
+						{ responsivePriority: 4, targets: 3 }, // Téléphone
+						{ responsivePriority: 5, targets: 4 }, // Sexe
+						{ responsivePriority: 3, targets: 5 }, // Classes
+						{ responsivePriority: 1, targets: 6 }  // Actions
+					],
+					pageLength: 10,
+					lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "Tous"]],
+					dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rt<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>'
+				});
+			});
+	</script>
+
+	<style>
+		/* Styles supplémentaires pour améliorer le responsive */
+		@media (max-width: 768px) {
+			.table-responsive {
+				border: 1px solid #dee2e6;
+			}
+			.btn-group-vertical .btn {
+				margin-bottom: 2px;
+			}
+		}
+		
+		/* Assurer que les boutons dans le tableau ne débordent pas */
+		.btn-group-vertical {
+			display: flex;
+			flex-direction: column;
+			align-items: flex-start;
+		}
+		
+		.btn-group-vertical .btn {
+			white-space: nowrap;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			max-width: 100%;
+		}
+	</style>
+{% endblock %}

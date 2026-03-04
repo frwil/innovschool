@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-size: 8px;
+            color: #343232;
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 10mm;
+        }
+
+        .invoice-table {
+            width: 210mm;
+            margin: 0 auto;
+            border-collapse: collapse;
+            box-sizing: border-box;
+            table-layout: fixed;
+        }
+
+        .subtable-table {
+            margin: 0 auto;
+            border-collapse: collapse;
+            box-sizing: border-box;
+            table-layout: fixed;
+        }
+
+        .invoice-table td, .subtable-table td {
+            padding: 5px;
+            border: 1px solid #343232;
+            vertical-align: top;
+            word-wrap: normal;
+        }
+
+        .listTable td {
+            padding: 7px;
+        }
+
+        .head-table td {
+            padding: 2px;
+        }
+
+        /* 24 colonnes */
+        .col-1 {
+            width: 4.16%;
+        }
+
+        .col-2 {
+            width: 8.33%;
+        }
+
+        .col-3 {
+            width: 12.5%;
+        }
+
+        .col-4 {
+            width: 16.66%;
+        }
+
+        .col-5 {
+            width: 20.83%;
+        }
+
+        .col-6 {
+            width: 25%;
+        }
+
+        .col-7 {
+            width: 29.16%;
+        }
+
+        .col-8 {
+            width: 33.33%;
+        }
+
+        .col-9 {
+            width: 37.5%;
+        }
+
+        .col-10 {
+            width: 41.66%;
+        }
+
+        .col-11 {
+            width: 45.83%;
+        }
+
+        .col-12 {
+            width: 50%;
+        }
+
+        .col-13 {
+            width: 54.16%;
+        }
+
+        .col-14 {
+            width: 58.33%;
+        }
+
+        .col-15 {
+            width: 62.5%;
+        }
+
+        .col-16 {
+            width: 66.66%;
+        }
+
+        .col-17 {
+            width: 70.83%;
+        }
+
+        .col-18 {
+            width: 75%;
+        }
+
+        .col-19 {
+            width: 79.16%;
+        }
+
+        .col-20 {
+            width: 83.33%;
+        }
+
+        .col-21 {
+            width: 87.5%;
+        }
+
+        .col-22 {
+            width: 91.66%;
+        }
+
+        .col-23 {
+            width: 95.83%;
+        }
+
+        .col-24 {
+            width: 100%;
+        }
+
+        .header,
+        .footer,
+        .invoice-details,
+        .totals,
+        .signature {
+            padding: 0;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .header p,
+        .footer p {
+            margin: 0;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .invoice-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .invoice-details th,
+        .invoice-details td {
+            padding: 10px;
+            border: 1px solid #000;
+            text-align: left;
+        }
+
+        .invoice-details th {
+            background-color: #f2f2f2;
+        }
+
+        .totals {
+            text-align: right;
+        }
+
+        .totals table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .totals th,
+        .totals td {
+            padding: 10px;
+            border: 1px solid #000;
+        }
+
+        .totals th {
+            background-color: #f2f2f2;
+        }
+
+        .signature {
+            text-align: right;
+            font-size: 14px;
+        }
+
+        .objectRaw p {
+            margin-top: 0px;
+            margin-bottom: auto;
+        }
+
+        .pv-header td {
+            border: none;
+            text-align: right;
+            line-height: 1px;
+            padding: 8px;
+        }
+    </style>
+</head>
+
+
+<body>
+    <table class="invoice-table">
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px; text-align: center;">
+                EN TETE
+            </td>
+        </tr>
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px; text-align: center;">
+                BULLETIN DE NOTES
+            </td>
+        </tr>
+        <tr>
+            <td colspan="6" class="col-6" style="border: 0px;">
+                Nom: <strong>{{model.headInfos.name}}</strong> <br> <br>
+                Né(e) Le: <strong>{{model.headInfos.birth | date('d-m-Y')}}</strong> <br> <br>
+                Nom du tuteux: <strong>{{model.headInfos.tutor}}</strong> <br> <br>
+            </td>
+            <td colspan="6" class="col-6" style="border: 0px;">
+                Classe: <strong>{{model.headInfos.schoolClassPeriod}}</strong> <br> <br>
+                Redoublant: <strong>{{model.headInfos.repeated}}</strong> <br> <br>
+                Téléphone du tuteur: <strong>{{model.headInfos.tutorPhone}}</strong> <br> <br>
+            </td>
+            <td colspan="6" class="col-6" style="border: 0px;">
+                Sexe: <strong>{{model.headInfos.gender}}</strong> <br> <br>
+                Matricule: <strong>{{model.headInfos.name}}</strong> <br> <br>
+                Enseignant principal:
+            </td>
+            <td colspan="6" class="col-6" style="border: 0px; text-align: center;">
+                <img src="{{asset("img/default_student.png")}}" height="65px" alt="image">
+            </td>
+        </tr>
+
+        {% for group in model.cardItems.groups %}
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px;">
+                {{ group.name }}
+            </td>
+        </tr>
+        
+        <tr style="text-align: center;">
+            <td colspan="5" class="col-5" style="background-color: #d3d3d3;">
+                Sujet
+            </td>
+            <td colspan="5" class="col-5" style="background-color: #d3d3d3;">
+                Compétences Ciblées
+            </td>
+            {% for eval in model.cardItems.evals %}
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                {{eval.name}}
+            </td>
+            {% endfor %}
+
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                Barême
+            </td>
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                Moy.
+            </td>
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                Moy. X coef.
+            </td>
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                Rang
+            </td>
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                Cotation
+            </td>
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                Grade
+            </td>
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                Min.
+            </td>
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                Moy.
+            </td>
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                Max.
+            </td>
+            <td colspan="1" class="col-1" style="background-color: #d3d3d3;">
+                T.R
+            </td>
+            <td colspan="2" class="col-2" style="background-color: #d3d3d3;">
+                signature de l'Enseignant
+            </td>
+        </tr>
+        {% for subject in group.subjects %}
+        <tr>
+            <td colspan="5" class="col-5">
+                {{subject.name}}
+            </td>
+            <td colspan="5" class="col-5" style="text-align: right; font-size: 7px;">
+                {{subject.skills}}
+            </td>
+            {% for eval in model.cardItems.evals %}
+            <td colspan="1" class="col-1"style="">
+                {{ subject.evals[eval.name].grade }}
+            </td>
+            {% endfor %}
+            
+            <td colspan="1" class="col-1">
+                20
+            </td>
+            <td colspan="1" class="col-1">
+                {{ subject.average }}
+            </td>
+            <td colspan="1" class="col-1">
+                {{ subject.averageFactor }}
+            </td>
+            <td colspan="1" class="col-1">
+                {{ subject.studentRank }}
+            </td>
+            <td colspan="1" class="col-1">
+                {{ subject.cotation }}
+            </td>
+            <td colspan="1" class="col-1">
+                {{ subject.grade }}
+            </td>
+            <td colspan="1" class="col-1">
+                {{ subject.min }}
+            </td>
+            <td colspan="1" class="col-1">
+                {{ subject.middle }}
+            </td>
+            <td colspan="1" class="col-1">
+                {{ subject.max }}
+            </td>
+            <td colspan="1" class="col-1">
+                {{ subject.successRate }}%
+            </td>
+            <td colspan="2" class="col-2">
+                
+            </td>
+        </tr>
+        {% endfor %}
+        <!-- <tr>
+            <td colspan="10" class="col-10" style="text-align: center;">
+                Récapitulatif
+            </td>
+           
+            {% for eval in model.cardItems.evals %}
+            <td colspan="1" class="col-1"style="">
+                
+            </td>
+            {% endfor %}
+            
+            <td colspan="1" class="col-1">
+                
+            </td>
+            <td colspan="1" class="col-1">
+                
+            </td>
+            <td colspan="1" class="col-1">
+                
+            </td>
+            <td colspan="1" class="col-1">
+                
+            </td>
+            <td colspan="1" class="col-1">
+                
+            </td>
+            <td colspan="1" class="col-1">
+                
+            </td>
+            <td colspan="1" class="col-1">
+                
+            </td>
+            <td colspan="1" class="col-1">
+                
+            </td>
+            <td colspan="1" class="col-1">
+                
+            </td>
+            <td colspan="1" class="col-1">
+                
+            </td>
+            <td colspan="2" class="col-2">
+                
+            </td>
+        </tr> -->
+        {% endfor %}
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px; height: 10px;">
+                
+            </td>
+        </tr>
+        <tr>
+            <td colspan="6" class="col-6" style="border: 0px; text-align: center;">
+                ELEVE <br> <br>
+                <table class="subtable-table" style="border: none; padding: 0; margin: 0; width: 100%; text-align: left;">
+                    <tr>
+                        <th style="border: 1px solid black;">Total</th>
+                        <td>{{model.cardItems.averageFactor}}</td>
+                    </tr>
+                    <tr>
+                        <th style="border: 1px solid black;">Moyenne</th>
+                        <td>{{ model.cardItems.averageFactorAverage | number_format(2) }} </td>
+                    </tr>
+                    <tr>
+                        <th style="border: 1px solid black;">Rang</th>
+                        <td>1</td>
+                    </tr>
+                    <tr>
+                        <th style="border: 1px solid black;">Nombre de matières validées</th>
+                        <td>5/15</td>
+                    </tr>
+                </table>
+            </td>
+            <td colspan="6" class="col-6" style="border: 0px; text-align: center;">
+                CLASSE <br> <br>
+                <table class="subtable-table" style="border: none; padding: 0; margin: 0; width: 100%; text-align: left;">
+                    <tr>
+                        <th style="border: 1px solid black;">Total</th>
+                        <td>249</td>
+                    </tr>
+                    <tr>
+                        <th style="border: 1px solid black;">Moyenne</th>
+                        <td>9.22</td>
+                    </tr>
+                    <tr>
+                        <th style="border: 1px solid black;">Rang</th>
+                        <td>30e</td>
+                    </tr>
+                    <tr>
+                        <th style="border: 1px solid black;">Nombre de matières validées</th>
+                        <td>5/15</td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px; height: 60px;">
+                
+            </td>
+        </tr>
+    </table>
+  
+</body>
+
+</html>

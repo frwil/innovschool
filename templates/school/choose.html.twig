@@ -1,0 +1,181 @@
+{# filepath: templates/school/choose.html.twig #}
+{% extends 'base.up.html.twig' %}
+{% block body %}
+<div class="container mt-5 border" style="width: 50%; margin: auto; background: #fff; padding: 20px; border-radius: 10px;">
+    <h2>{% if (schools|length == 0) or (periods|length == 0) %}Créez{% else %}Choisissez{% endif %} votre {% if schools|length ==0 %} établissement {% elseif periods|length ==0 %} année scolaire {% else %} établissement et année scolaire {% endif %}</h2>
+    {% if schools|length == 0 %}
+        <div class="alert alert-warning">Aucun établissement n'existe pour le moment.</div>
+        {# Formulaire de création d'école #}
+        <form id="create-school-form" method="post" enctype="multipart/form-data">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nom de l'établissement</label>
+                        <input type="text" name="name" id="name" class="form-control" required >
+                    </div>
+                    <div class="mb-3">
+                        <label for="acronym" class="form-label">Sigle</label>
+                        <input type="text" name="acronym" id="acronym" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="address" class="form-label">Adresse</label>
+                        <input type="text" name="address" id="address" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="logo" class="form-label">Logo (optionnel)</label>
+                        <input type="file" name="logo" id="logo" class="form-control">
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="mb-3">
+                        <label for="contactName" class="form-label">Nom du Responsable</label>
+                        <input type="text" name="contactName" id="contactName" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="contactEmail" class="form-label">Email du Responsable</label>
+                        <input type="email" name="contactEmail" id="contactEmail" class="form-control" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="contactPhone" class="form-label">Téléphone du Responsable</label>
+                        <input type="text" name="contactPhone" id="contactPhone" class="form-control" required>
+                    </div>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label for="studytypeid" class="form-label">Types d'enseignement</label>
+                <select name="studytypeid[]" id="studytypeid" class="form-control" multiple required>
+                    {% for studytype in studytypes %}
+                        <option value="{{ studytype.id }}">{{ studytype.name }}</option>
+                    {% endfor %}
+                </select>
+                <small class="form-text text-muted">Maintenez Ctrl (ou Cmd) pour sélectionner plusieurs types.</small>
+            </div>
+            <button type="submit" class="btn btn-primary mt-3">Créer un établissement</button>
+        </form>
+
+        <div id="school-form-result" class="mt-3"></div>
+
+        <script>
+        function generateAcronym() {
+            const name = $('#name').val();
+            const acronymField = $('#acronym');
+            if (!acronymField.data('touched')) {
+                const acronym = name
+                    .split(' ')
+                    .filter(w => w.length > 0)
+                    .map(w => w[0].toUpperCase())
+                    .join('');
+                acronymField.val(acronym);
+            }
+        }
+        $('#acronym').on('input', function() {
+            $(this).data('touched', true);
+        });
+
+        $('#name').on('input', generateAcronym);
+
+        $('#create-school-form').on('submit', function(e) {
+            e.preventDefault();
+            var form = this;
+            var formData = new FormData(form);
+            $.ajax({
+                url: "{{ path('app_create_school') }}",
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                success: function(json) {
+                    if(json.success) {
+                        $('#school-form-result').html('<div class="alert alert-success">Établissement créé avec succès !</div>');
+                        form.reset();
+                        $('#acronym').data('touched', false);
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        $('#school-form-result').html('<div class="alert alert-danger">' + (json.message || 'Erreur lors de la création.') + '</div>');
+                    }
+                },
+                error: function() {
+                    $('#school-form-result').html('<div class="alert alert-danger">Erreur réseau.</div>');
+                }
+            });
+        });
+        </script>
+    {% elseif periods|length == 0 %}
+        <div class="alert alert-warning">Aucune année scolaire n'existe pour le moment.</div>
+        {# Formulaire de création d'année scolaire #}
+        <form id="create-period-form" method="post" action="{{ path('period_create') }}">
+            <div class="mb-3">
+                <label for="period_name" class="form-label">Nom de l'année scolaire</label>
+                <input type="text" name="name" id="period_name" class="form-control" required placeholder="Ex : 2024/2025">
+            </div>
+            <div class="mb-3">
+                <label for="enabled" class="form-label">Année scolaire par défaut ?</label>
+                <select name="enabled" id="enabled" class="form-control">
+                    <option value="1">Oui</option>
+                    <option value="0">Non</option>
+                </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Créer une année scolaire</button>
+        </form>
+
+        <div id="period-form-result" class="mt-3"></div>
+
+        <script>
+        $('#create-period-form').on('submit', function(e) {
+            e.preventDefault();
+            var form = this;
+            var formData = $(form).serialize();
+            $.ajax({
+                url: form.action,
+                type: 'POST',
+                data: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                success: function(json) {
+                    if(json.success) {
+                        $('#period-form-result').html('<div class="alert alert-success">Année scolaire créée avec succès !</div>');
+                        form.reset();
+                        setTimeout(function() {
+                            window.location.reload();
+                        }, 2000);
+                    } else {
+                        $('#period-form-result').html('<div class="alert alert-danger">' + (json.message || 'Erreur lors de la création.') + '</div>');
+                    }
+                },
+                error: function() {
+                    $('#period-form-result').html('<div class="alert alert-danger">Erreur réseau.</div>');
+                }
+            });
+        });
+        </script>
+    {% else %}
+        <form method="post">
+            <select name="school_id" class="form-control select2 mb-3" required>
+                <option value="">-- Sélectionnez l'établissement --</option>
+                {% for school in schools %}
+                    <option value="{{ school.id }}">{{ school.name }}</option>
+                {% endfor %}
+            </select>
+            <hr>
+            <select name="period_id" class="form-control mt-3 select2" required>
+                <option value="">-- Sélectionnez l'année scolaire --</option>
+                {% for period in periods %}
+                    <option value="{{ period.id }}">{{ period.name }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="btn btn-primary mt-3 btn-lg rounded-0">Valider</button>
+        </form>
+    {% endif %}
+</div>
+<script>
+$(function() {
+    $('#period_name').inputmask('9999/9999', {
+        placeholder: '____/____',
+        showMaskOnHover: false,
+        showMaskOnFocus: true
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Carte Scolaire</title>
+    <style>
+    @page {
+        margin: 0;
+    }
+        .card {
+           width: 145mm;
+            height: 93mm;
+            background: url('{{ imageBase64 }}') no-repeat center center;
+            background-size: 100% 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            box-sizing: border-box;
+            
+            margin: 2px;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            font-size: 0.7rem;
+
+            width: 145mm;
+            height: 93mm;
+            
+        }
+        table {
+            width: 98%;
+            border-collapse: collapse;
+            margin: 0;
+            padding: 0;
+        }
+        .qr-code {
+            text-align: center;
+        }
+
+        img.qr-code-img {
+            max-width: 30mm;
+            max-height: 30mm;
+        }
+        td, th {
+            line-height: 0.4;
+            vertical-align: middle;
+            padding: 0;
+            margin: 0;
+        }
+        
+    </style>
+</head>
+<body>
+    <div class="card">
+        <table style="border: none;">
+            <thead>
+                <tr style="padding:0">
+                    <th style="width:{% if baseConfig.doubleHeaderLayout %}auto{% else %}30%{% endif%};"><img src="{{ imageLogoBase64 }}" alt="Photo" style="max-width: 50px;"></th>
+                    <th style="text-align: center;"><p style="padding:0">{{ baseConfig.cardHeader }}</p><p style="padding:0">{{ baseConfig.nationalMotto}}</p><p style="padding:0">{{ school.name }}</p></th>
+                    {% if baseConfig.doubleHeaderLayout %}
+                        <th style="text-align: center;"><p style="">{{ baseConfig.cardHeaderA }}</p><p style="padding:0">{{ baseConfig.nationalMottoA}}</p><p style="padding:0">{{ school.name }}</p></th>
+                    {% endif %}
+                    <th></th>
+                </tr>
+                <tr >
+                    <th colspan="{% if baseConfig.doubleHeaderLayout %}4{% else %}3{% endif%}" style="text-align: center;font-size:1.1em; font-weight: bold;padding:0">
+                        <p style="padding:0">CARTE D'IDENTITE SCOLAIRE</p>
+                    </th>
+                </tr>
+            </thead>
+        </table>
+        <table style="border: none; margin-top: 0;">
+            <tbody>
+                <tr>
+                    <td style="text-align: center;" rowspan="5">
+                        <div style="margin:10px 20px 0 20px;height:120px" class="rounded-circle">
+                            <img src="{{ imageStudentPhotoBase64 }}" alt="Photo" style="width: 120px; height: 120px;border-radius:10%" class="rounded-pill">
+                        </div>
+                    </td>
+                    <td style="" colspan="2">
+                        <p><strong>Année Scolaire :</strong> {{ studentInfos.schoolClassPeriod.period.name }}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="" colspan="2">
+                        <p><strong>Nom :</strong> {{ student.fullName|upper }}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="">
+                        <p><strong>Né(e) le :</strong> {{ student.dateOfBirth|date('d/m/Y') }}</p>
+                    </td>
+                    <td style="">
+                        <p><strong>à :</strong> {{student.placeOfBirth}}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="">
+                        <p><strong>Sexe :</strong> {{ student.genderString|upper }}</p>
+                    </td>
+                    <td style="">
+                        <p><strong>Classe :</strong> {{ studentInfos.schoolClassPeriod.classOccurence.name }}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="">
+                        <p><strong>Contact :</strong> {{ student.phone }}</p>
+                    </td>
+                    <td style="">
+                        <p><strong>Contact Parent :</strong> {{ student.tutorPhone }}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="text-align:center">
+                        <p><strong>Matricule :</strong> {{ student.registrationNumber }}</p>
+                    </td>
+                    <td style="">
+                        
+                    </td>
+                    <td style="text-align: center; ">
+                        <img src="{{ qrCode }}" alt="QR Code" class="qr-code-img">
+                    </td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td style="text-align: left;padding-left: 10px;background-color:rgba(255, 255, 255, 0.5);border-radius: 5px;">
+                        <p>École : {{ school.name }}</p>
+                        <p>Adresse : {{ school.address }}</p>
+                        <p>Téléphone : {{ school.contactPhone }}</p>
+                    </td>
+                    <td colspan="2" style="text-align: right;">
+                        <p><img src="{{imageHeadOfficerBase64}}" style="width:70px;position:relative;background-color:rgba(255,255,255,0.5);border-radius:5px"></p><br>
+                        <p><u>{{ baseConfig.signTitle }}</u></p>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+        <div style="margin:10px 20px 0 20px;height:150px;width:150px;position: absolute;top : 20%;left: 33%">
+            <img src="{{ imageLogoBase64 }}" alt="Photo" style="height: 100%;opacity: 0.3;">
+        </div>
+    </div>
+</body>
+</html>

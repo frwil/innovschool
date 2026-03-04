@@ -1,0 +1,1680 @@
+{% extends 'base.up.html.twig' %} {% block title %}Gestion des évaluations {%
+endblock %} {% block stylesheets %}
+{{ parent() }}
+<link rel="stylesheet" href="{{ asset('css/rowGroup.dataTables.css') }}" />
+{% endblock %} {% block body %}
+<div class="container mt-4">
+  <div class="three">
+    <h1 class="mb-4">Gestion des évaluations</h1>
+  </div>
+
+  <!-- Onglets -->
+  <ul class="nav nav-tabs" id="evaluationTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+      <button class="nav-link active" id="base-config-tab" data-bs-toggle="tab" data-bs-target="#base-config"
+        type="button" role="tab" aria-controls="base-config" aria-selected="true">
+        Configuration de base
+      </button>
+    </li>
+    <!-- Nouvel onglet Matières affectées -->
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="assigned-subjects-tab" data-bs-toggle="tab" data-bs-target="#assigned-subjects"
+        type="button" role="tab" aria-controls="assigned-subjects" aria-selected="false">
+        Matières affectées
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="evaluation-modules-tab" data-bs-toggle="tab" data-bs-target="#evaluation-modules"
+        type="button" role="tab" aria-controls="evaluation-modules" aria-selected="false">
+        Modules d'évaluation
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="appreciations-tab" data-bs-toggle="tab" data-bs-target="#appreciations" type="button"
+        role="tab" aria-controls="appreciations" aria-selected="false">
+        Appréciations
+      </button>
+    </li>
+    <li class="nav-item" role="presentation">
+      <button class="nav-link" id="type-bulletins-tab" data-bs-toggle="tab" data-bs-target="#typebulletins"
+        type="button" role="tab" aria-controls="typebulletins" aria-selected="false">
+        Type de bulletins
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content mt-4" id="evaluationTabsContent">
+    <!-- Onglet 1 : Configuration de base -->
+    <div class="tab-pane fade show active" id="base-config" role="tabpanel" aria-labelledby="base-config-tab">
+      <div class="row mb-3">
+        <div class="col-md-6">
+          <!-- Bloc 1 : DataTable avec la liste des évaluations -->
+          <div class="card mb-4">
+            <div class="card-header">Liste des évaluations</div>
+            <div class="card-body">
+              <table id="evaluations-table" class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th>Classe</th>
+                    <th>Période</th>
+                    <th>Sous-période</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Les données seront chargées dynamiquement via AJAX -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div class="col-md-6">
+          <!-- Bloc 2 : Formulaire de création d'une évaluation -->
+          <div class="card mb-4">
+            <div class="card-header">Créer une nouvelle évaluation</div>
+            <div class="card-body">
+              <form id="create-evaluation-form">
+                <div class="row">
+                  <!-- Colonne gauche -->
+                  <div class="col-md-6">
+                    <!-- Champ pour les niveaux d'étude -->
+                    <div class="mb-3">
+                      <label for="sectionId" class="form-label">Niveau d'étude</label>
+                      <select id="sectionId" name="sectionId" class="form-select select2">
+                        <option></option>
+                        <!-- Options dynamiques -->
+                        {% for section in sections %}
+                        <option value="{{ section.id }}">
+                          {{ section.name }}
+                        </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+
+                    <!-- Champ pour les classes -->
+                    <div class="mb-3">
+                      <label for="classId" class="form-label">Classe</label>
+                      <select id="classId" name="classId[]" class="form-select select2" multiple>
+                        <!-- Options dynamiques (chargées via JavaScript) -->
+                      </select>
+                      <button type="button" id="selectAllClasses" class="btn btn-light">Sélectionner Tout</button>
+                      <span id="classId-loading" style="display: block;"></span>
+                    </div>
+                  </div>
+
+                  <!-- Colonne droite -->
+                  <div class="col-md-6">
+                    <!-- Champ pour les périodes d'évaluation -->
+                    <div class="mb-3">
+                      <label for="evaluationFrameId" class="form-label">Période d'évaluation</label>
+                      <select id="evaluationFrameId" name="evaluationFrameId" class="form-select select2">
+                        <option></option>
+                        <!-- Options dynamiques depuis la table evaluationFrames -->
+                        <!-- Options dynamiques -->
+                        {% for frame in evaluationFrames %}
+                        <option value="{{ frame.id }}">{{ frame.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+
+                    <!-- Champ pour les périodicités -->
+                    <div class="mb-3">
+                      <label for="evaluationTimeTypeId" class="form-label">Périodicité</label>
+                      <select id="evaluationTimeTypeId" name="evaluationTimeTypeId" class="form-select select2">
+                        <option></option>
+                        <!-- Options dynamiques depuis la table schoolEvaluationTimeType -->
+                        {% for type in evaluationTimeTypes %}
+                        <option value="{{ type.id }}">{{ type.name }}</option>
+                        {% endfor %}
+                      </select>
+                    </div>
+
+                    <!-- Champ pour les sous-périodes d'évaluation -->
+                    <div class="mb-3">
+                      <label for="evaluationTimeId" class="form-label">Sous-période d'évaluation</label>
+                      <select id="evaluationTimeId" name="evaluationTimeId" class="form-select select2">
+                        <!-- Options dynamiques -->
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Bouton de soumission -->
+                <button type="submit" class="btn btn-primary" id="bntSaveEvaluation">Créer</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Onglet 2 : Matières affectées -->
+    <div class="tab-pane fade" id="assigned-subjects" role="tabpanel" aria-labelledby="assigned-subjects-tab">
+      <div class="row">
+        <div class="col-md-12">
+          <div class="card">
+            <div class="card-header">Liste des matières affectées</div>
+            <div class="card-body">
+              <form method="post" action="" id="show-assign-subjects-form">
+                <div class="row">
+                  <div class="mb-3 col-md-3">
+                    <label for="sectionId" class="form-label">Niveau d'étude</label>
+                    <select id="sectionId-aff" name="sectionId-aff" class="form-select select2">
+                      <option value="">Sélectionner un niveau</option>
+                      {% for section in sections %}
+                      <option value="{{ section.id }}">{{ section.name }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="mb-3 col-md-3">
+                    <label for="classId-aff" class="form-label">Classe</label>
+                    <select id="classId-aff" name="classId-aff" class="form-select select2" disabled>
+                      <option value="">Sélectionner une classe</option>
+                      <!-- Options dynamiques via JS -->
+                    </select>
+                    <span id="sp-classId-aff"></span><span id="sp-classId-aff-text"></span>
+                  </div>
+                </div>
+              </form>
+              <table id="assigned-subjects-table" class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th>Classe</th>
+                    <th>Matière</th>
+                    <th>Coefficient</th>
+                    <th>Groupe</th>
+                    <th>Enseignant</th>
+                    <th>Compétences</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Les données seront chargées dynamiquement via AJAX -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Onglet 3 : Modules d'évaluation -->
+    <div class="tab-pane fade" id="evaluation-modules" role="tabpanel" aria-labelledby="evaluation-modules-tab">
+      <div class="row">
+        <!-- Bloc 1 : DataTable (70%) -->
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header">Liste des modules d'évaluation</div>
+            <div class="card-body">
+              <table id="modules-table" class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th>Matière</th>
+                    <th>Classe</th>
+                    <th>Module</th>
+                    <th>Notation</th>
+                    <th>Évaluations</th>
+                    <!-- Nouvelle colonne -->
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Les données seront chargées dynamiquement via AJAX -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bloc 2 : Formulaire (30%) -->
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">Module Mapping</div>
+            <div class="card-body">
+              <form id="create-module-form">
+                <!-- Champ pour les niveaux d'étude -->
+                <div class="mb-3">
+                  <label for="sectionModuleId" class="form-label">Niveau d'étude</label>
+                  <select id="sectionModuleId" name="sectionModuleId" class="form-select select2">
+                    {% for section in sections %}
+                    <option value="{{ section.id }}">{{ section.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+
+                <!-- Champ pour les classes -->
+                <div class="mb-3">
+                  <label for="classModuleId" class="form-label">Classe</label>
+                  <select id="classModuleId" name="classModuleId" class="form-select select2">
+                    <!-- Options dynamiques -->
+                  </select>
+                </div>
+
+                <!-- Champ pour les matières -->
+                <div class="mb-3">
+                  <label for="subjectModuleId" class="form-label">Matière</label>
+                  <div class="input-group">
+                    <select id="subjectModuleId" name="subjectModuleId" class="form-select select2" multiple></select>
+                    <button type="button" class="btn btn-light" id="selectAllBtn">
+                      Sélectionner Tout
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Champ pour le module -->
+                <div class="form-group">
+                  <label for="moduleName" class="form-label">Type de module</label>
+                  <div class="input-group">
+                    <select id="moduleName" name="moduleName" class="form-select">
+                      <option></option>
+                      <!-- Options dynamiques depuis la table subjectModules -->
+                      {% for module in subjectModules %}
+                      <option value="{{ module.id }}">
+                        {{ module.moduleName }}
+                      </option>
+                      {% endfor %}
+                    </select>
+                    <button type="button" class="btn btn-secondary" data-bs-toggle="modal"
+                      data-bs-target="#addModuleModal">
+                      Ajouter un module
+                    </button>
+                  </div>
+                </div>
+
+                <!-- Champ pour la notation -->
+                <div class="mb-3">
+                  <label for="moduleNotation" class="form-label">Notation</label>
+                  <input type="number" id="moduleNotation" name="moduleNotation" class="form-control" min="0"
+                    value="20" />
+                  <span class="text-muted">
+                    <i>Note maximale pour le module</i>
+                  </span>
+                </div>
+
+                <button type="submit" class="btn btn-primary" id="btn-create-module">Créer</button>
+              </form>
+              <!-- Fenêtre modale pour ajouter un module -->
+              <div class="modal fade" id="addModuleModal" tabindex="-1" aria-labelledby="addModuleModalLabel"
+                aria-hidden="true">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title" id="addModuleModalLabel">
+                        Ajouter un module
+                      </h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                      <form id="add-module-form" method="POST" class="form-group">
+                        <!-- Champ pour le nom du module -->
+                        <div class="mb-3">
+                          <label for="newModuleName" class="form-label">Nom du module</label>
+                          <input type="text" id="newModuleName" name="newModuleName" class="form-control" required />
+                        </div>
+                        <!-- Champ pour la description du module -->
+                        <div class="mb-3">
+                          <label for="newModuleDescription" class="form-label">Description</label>
+                          <textarea id="newModuleDescription" name="newModuleDescription" class="form-control"
+                            rows="3"></textarea>
+                        </div>
+                        <button type="button" id="btn-submit-module" class="btn btn-primary">
+                          Enregistrer
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <!-- Fenêtre modale pour modifier un module -->
+              <div class="modal fade" id="editModuleModal" tabindex="-1" aria-labelledby="editModuleModalLabel"
+                aria-hidden="true">
+                <div class="modal-dialog">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <h5 class="modal-title" id="editModuleModalLabel">
+                        Modifier le module
+                      </h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                      <form id="edit-module-form">
+                        <div class="mb-3">
+                          <label for="moduleNotationModal" class="form-label">Notation</label>
+                          <input type="number" step="0.5" id="moduleNotationModal" name="moduleNotation"
+                            class="form-control" min="0" required />
+                        </div>
+                        <button type="submit" class="btn btn-primary">
+                          Enregistrer
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tab-pane fade" id="appreciations" role="tabpanel" aria-labelledby="appreciations-tab">
+      <div class="card">
+        <div class="card-header">Gestion des appréciations</div>
+        <div class="card-body">
+          <!-- Ajoutez ici votre table, formulaire ou autre contenu pour gérer les appréciations -->
+          <div class="row">
+            <!-- Bloc 1 : DataTable (70%) -->
+            <div class="col-md-8">
+              <div class="card">
+                <div class="card-header">Liste des barèmes</div>
+                <div class="card-body">
+                  <table id="baremes-table" class="table table-bordered">
+                    <thead>
+                      <tr>
+                        <th>Template</th>
+                        <th>Note maximale</th>
+                        <th>Valeur abrégée</th>
+                        <th>Valeur d'appréciation</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <!-- Les données seront chargées dynamiquement via AJAX -->
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+            <!-- Bloc 2 : Formulaire (30%) -->
+            <div class="col-md-4">
+              <div class="card" style="height: auto !important">
+                <div class="card-header">Créer un template d'appréciation</div>
+                <div class="card-body">
+                  <form id="create-template-form">
+                    <div class="mb-3">
+                      <label for="templateName" class="form-label">Nom du template</label>
+                      <input type="text" id="templateName" name="templateName" class="form-control" required />
+                    </div>
+                    <div class="mb-3 form-check">
+                      <input type="checkbox" class="form-check-input" id="templateDefault" name="templateDefault" />
+                      <label class="form-check-label" for="templateDefault">Défaut</label>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Créer</button>
+                  </form>
+                </div>
+              </div>
+              <div class="card" style="height: auto !important">
+                <div class="card-header">Créer un barême d'appréciation</div>
+                <div class="card-body">
+                  <!-- Formulaire de création de barème -->
+                  <form id="create-bareme-form" class="mt-4">
+                    <div class="mb-3">
+                      <label for="baremeTemplate" class="form-label">Template d'appréciation</label>
+                      <select id="baremeTemplate" name="baremeTemplate" class="form-select select2" required>
+                        <option value="">Sélectionner un template</option>
+                        {% for template in appreciationTemplates %}
+                        <option value="{{ template.id }}">
+                          {{ template.name }}
+                        </option>
+                        {% endfor %}
+                      </select>
+                    </div>
+                    <div class="mb-3">
+                      <label for="baremeMaxNote" class="form-label">Note maximale</label>
+                      <input type="number" id="baremeMaxNote" name="baremeMaxNote" class="form-control" min="0"
+                        required />
+                    </div>
+                    <div class="mb-3">
+                      <label for="baremeValue" class="form-label">Valeur abrégée</label>
+                      <input type="text" id="baremeValue" name="baremeValue" class="form-control" required />
+                    </div>
+                    <div class="mb-3">
+                      <label for="baremeFullValue" class="form-label">Valeur d'appréciation</label>
+                      <input type="text" id="baremeFullValue" name="baremeFullValue" class="form-control" required />
+                    </div>
+                    <button type="submit" class="btn btn-success">
+                      Ajouter un barème
+                    </button>
+                  </form>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-pane fade" id="typebulletins" role="tabpanel" aria-labelledby="type-bulletins-tab">
+      <div class="row">
+        <!-- Bloc 1 : DataTable -->
+        <div class="col-md-8">
+          <div class="card">
+            <div class="card-header">
+              Affectation des modèles de bulletin aux classes
+            </div>
+            <div class="card-body">
+              <table id="reportcard-classes-table" class="table table-bordered">
+                <thead>
+                  <tr>
+                    <th>Classe</th>
+                    <th>Modèle de bulletin</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- Rempli dynamiquement via AJAX -->
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <!-- Bloc 2 : Formulaire d'affectation -->
+        <div class="col-md-4">
+          <div class="card">
+            <div class="card-header">
+              Assigner un modèle de bulletin à une classe
+            </div>
+            <div class="card-body">
+              <form id="assign-reportcard-form">
+                <div class="mb-3">
+                  <label for="sectionSelect" class="form-label">Niveau d'étude</label>
+                  <select id="sectionSelect" name="sectionId" class="form-select select2" required>
+                    <option value="">Sélectionner un niveau</option>
+                    {% for section in sections %}
+                    <option value="{{ section.id }}">{{ section.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label for="classSelect" class="form-label">Classe</label>
+                  <select id="classSelect" name="classId[]" class="form-select select2" required multiple>
+                    <option value="">Sélectionner une classe</option>
+                    <!-- Options dynamiques via JS -->
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label for="templateSelect" class="form-label">Modèle de bulletin</label>
+                  <select id="templateSelect" name="templateId" class="form-select select2" required>
+                    <option value="">Sélectionner un modèle</option>
+                    {% for template in reportCardTemplates %}
+                    <option value="{{ template.id }}">
+                      {{ template.name }}
+                    </option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <button type="submit" class="btn btn-success">Assigner</button>
+              </form>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Fenêtre modale pour modifier un modèle de bulletin -->
+  <div class="modal fade" id="editReportCardTemplateModal" tabindex="-1"
+    aria-labelledby="editReportCardTemplateModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editReportCardTemplateModalLabel">Modifier le modèle de bulletin</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+        <div class="modal-body">
+          <form id="edit-reportcard-template-form">
+            <input type="hidden" id="editTemplateId" name="templateId">
+            <div class="mb-3">
+              <label for="editTemplateName" class="form-label">Nom</label>
+              <input type="text" class="form-control" id="editTemplateName" name="name" required>
+            </div>
+            <div class="mb-3">
+              <label for="editTemplateDescription" class="form-label">Description</label>
+              <textarea class="form-control" id="editTemplateDescription" name="description"></textarea>
+            </div>
+            <!-- Ajoute d'autres champs si besoin -->
+            <div class="mb-3">
+              <label for="editTemplateHeaderTitle" class="form-label">Titre d'en-tête</label>
+              <input type="text" class="form-control" id="editTemplateHeaderTitle" name="headerTitle">
+            </div>
+            <div class="mb-3">
+              <label for="editTemplateHeaderLeft" class="form-label">En-tête gauche</label>
+              <textarea class="form-control" id="editTemplateHeaderLeft" name="headerLeft"></textarea>
+            </div>
+            <div class="mb-3">
+              <label for="editTemplateHeaderRight" class="form-label">En-tête droite</label>
+              <textarea class="form-control" id="editTemplateHeaderRight" name="headerRight"></textarea>
+            </div>
+            <div class="mb-3">
+              <label for="editTemplateNationalMottoLeft" class="form-label">Devise nationale gauche</label>
+              <input type="text" class="form-control" id="editTemplateNationalMottoLeft" name="nationalMottoLeft">
+            </div>
+            <div class="mb-3">
+              <label for="editTemplateNationalMottoRight" class="form-label">Devise nationale droite</label>
+              <input type="text" class="form-control" id="editTemplateNationalMottoRight" name="nationalMottoRight">
+            </div>
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Fenêtre modale pour modifier l'affectation du modèle de bulletin -->
+  <div class="modal fade" id="editReportCardAssignmentModal" tabindex="-1"
+    aria-labelledby="editReportCardAssignmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="editReportCardAssignmentModalLabel">Modifier l'affectation du modèle de bulletin
+          </h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+        <div class="modal-body">
+          <form id="edit-reportcard-assignment-form">
+            <input type="hidden" id="editAssignmentClassId" name="classId">
+            <div class="mb-3">
+              <label for="editAssignmentTemplateId" class="form-label">Modèle de bulletin</label>
+              <select id="editAssignmentTemplateId" name="templateId" class="form-select" required>
+                <option value="">Sélectionner un modèle</option>
+                {% for template in reportCardTemplates %}
+                <option value="{{ template.id }}">{{ template.name }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal de modification d'assignation de matière -->
+  <div class="modal fade" id="editSubjectAssignmentModal" tabindex="-1"
+    aria-labelledby="editSubjectAssignmentModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+      <div class="modal-content">
+        <form id="edit-subject-assignment-form">
+          <div class="modal-header">
+            <h5 class="modal-title" id="editSubjectAssignmentModalLabel">Modifier l'assignation de matière</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+          </div>
+          <div class="modal-body">
+            <input type="hidden" id="editSubjectAssignmentId" name="id">
+            <div class="mb-3">
+              <label for="editSubjectCoefficient" class="form-label">Coefficient</label>
+              <input type="number" class="form-control" id="editSubjectCoefficient" name="coefficient" required>
+            </div>
+            <div class="mb-3">
+              <label for="editSubjectGroup" class="form-label">Groupe</label>
+              <select class="form-select" id="editSubjectGroup" name="group" required>
+                <option value="">Sélectionner un groupe</option>
+                {% for group in groups %}
+                <option value="{{ group.id }}">{{ group.description }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="editSubjectTeacher" class="form-label">Enseignant</label>
+              <select class="form-select" id="editSubjectTeacher" name="teacher">
+                <option value="">Sélectionner un enseignant</option>
+                {% for teacher in teachers %}
+                <option value="{{ teacher.id }}">{{ teacher.fullName }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="assignTeacherMethod" class="form-label">Méthode d'assignation</label>
+              <select class="form-select" id="assignTeacherMethod" name="assignTeacherMethod" required>
+                <option value="only_this">Uniquement cette matière</option>
+                <option value="all_empty">Toutes les matières non affectées</option>
+                <option value="all">Toutes les matières</option>
+              </select>
+            </div>
+            <div class="mb-3">
+              <label for="editSubjectSkills" class="form-label">Compétences</label>
+              <textarea class="form-control" id="editSubjectSkills" name="skills"></textarea>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="submit" class="btn btn-primary">Enregistrer</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %} {% block javascripts %}
+{{ parent() }}
+<script src="{{ asset('js/dataTables.rowGroup.js') }}"></script>
+<script src="{{ asset('js/rowGroup.dataTables.js') }}"></script>
+<script>
+  var modulesTable;
+    $(document).ready(function () { // Initialisation de DataTable avec une source AJAX et rowGroup
+      modulesTable = $('#modules-table').DataTable({
+        ajax: {
+          url: '{{ path("app_get_modules") }}', // Remplacez par votre route pour récupérer les modules
+          dataSrc: '' // Si la réponse JSON est un tableau
+        },
+        columns: [
+          {
+            data: 'subjectName'
+          },
+          { // Matière
+            data: 'className'
+          },
+          { // Classe
+            data: 'moduleName'
+          },
+          { // Module
+            data: 'moduleNotation'
+          }, { // Notation
+            data: null,
+            render: function (data, type, row) {
+              if (row.evaluationCount > 0) {
+                return `
+                                            <a href="${'{{ path("app_view_evaluations", { moduleId: "__ID__" }) }}'.replace('__ID__', row.id)
+                  }" class="btn btn-link">
+                                                <span class="badge bg-success">${row.evaluationCount
+                  } classe(s)</span>
+                                            </a>
+                                        `;
+              } else {
+                return `<span class="badge bg-secondary">Aucune évaluation</span>`;
+              }
+            },
+            title: 'Évaluations'
+          }, {
+            data: null,
+            render: function (data, type, row) {
+              // Vérifier si c'est le module "Ecrit"
+              if (row.moduleName === 'Ecrit') {
+                // Vérifier s'il y a d'autres modules disponibles
+                let hasOtherModules = false;
+                modulesTable.rows().every(function () {
+                  const rowData = this.data();
+                  if (rowData.subjectId === row.subjectId &&
+                    rowData.classId === row.classId &&
+                    rowData.moduleName !== 'Ecrit') {
+                    hasOtherModules = true;
+                    return false; // Sortir de la boucle
+                  }
+                });
+
+                {% if (is_granted('ROLE_SUPER_ADMIN')) %}
+                // Si c'est le seul module, afficher les deux boutons
+                if (row.countModules === 1) {
+                  return `
+                    <button class="btn btn-sm btn-primary edit-module" data-id="${row.id}">Modifiers</button>
+                    <button class="btn btn-sm btn-danger delete-module" data-id="${row.id}">Supprimer</button>
+                `;
+                } else {
+                  return `
+                    <button class="btn btn-sm btn-primary edit-module" data-id="${row.id}">Modifier</button>
+                    <button class="btn btn-sm btn-danger delete-module" data-id="${row.id}">Supprimer</button>
+                `;
+                }
+                {% else %}
+// Si c'est le seul module, afficher les deux boutons
+              if(row.countModules === 1) {
+        return `
+                    <button class="btn btn-sm btn-primary edit-module" data-id="${row.id}">Modifiers</button>
+                    <button class="btn btn-sm btn-danger delete-module" data-id="${row.id}">Supprimer</button>
+                `;
+      } else {
+        return `
+                    <button class="btn btn-sm btn-primary edit-module" data-id="${row.id}">Modifier</button>
+                `;
+      }
+      {% endif %}
+    }
+
+
+            // Pour les autres modules, afficher les deux boutons
+            return `
+            <button class="btn btn-sm btn-primary edit-module" data-id="${row.id}">Modifier</button>
+            <button class="btn btn-sm btn-danger delete-module" data-id="${row.id}">Supprimer</button>
+        `;
+          },
+    title: 'Actions'
+        }
+      ],
+    rowGroup: {
+      dataSrc: ['className', 'subjectName'] // Grouper par matière
+    },
+    responsive: true,
+      pageLength: 30,
+        language: {
+      url: "{{asset('i18n/fr-FR.json')}}"
+    },
+    columnDefs: [
+      {
+        target: [
+          0, 1
+        ],
+        visible: false
+      }, {
+        target: [
+          2, 3, 4, 5
+        ],
+        sortable: false
+      }
+    ]
+    });
+
+
+    // Mise à jour dynamique des classes en fonction du niveau d'étude
+    $('#sectionModuleId').on('change', function () {
+      const sectionId = $(this).val();
+      const classSelect = $('#classModuleId');
+
+      // Effacer les options actuelles
+      classSelect.empty();
+      if(sectionId && sectionId !='') classSelect.append(new Option('Chargement en cours...', ''));
+
+      if (sectionId) { // Charger les classes via une requête AJAX
+        $.ajax({
+          url: '{{ path("app_classes_by_section_with_students") }}', // Remplacez par votre route
+          method: 'GET',
+          data: {
+            sectionId: sectionId
+          },
+          success: function (data) { // Ajouter les nouvelles options
+            classSelect.empty();
+            classSelect.append(new Option('Sélectionner une classe', ''));
+            data.forEach(function (classItem) {
+              classSelect.append(new Option(classItem.name, classItem.id));
+            });
+          },
+          error: function () {
+            $.notify('Une erreur est survenue lors du chargement des classes.', 'error');
+          }
+        });
+      }
+    });
+
+    // Mise à jour dynamique des matières en fonction de la classe
+    $('#classModuleId').on('change', function () {
+      const classId = $(this).val();
+      const subjectSelect = $('#subjectModuleId');
+
+      // Effacer les options actuelles
+      subjectSelect.empty();
+      if(classId && classId !='') $('#selectAllBtn').html('<div class="spinner-border"></div>&nbsp;Chargement en cours...')
+      if (classId) { // Charger les matières via une requête AJAX
+        $.ajax({
+          url: '{{ path("app_subjects_by_class") }}', // Remplacez par votre route
+          method: 'GET',
+          data: {
+            classId: classId
+          },
+          success: function (data) { // Ajouter les nouvelles options
+            subjectSelect.empty();
+            $('#selectAllBtn').html('Sélectionner Tout');
+            data.forEach(function (subjectItem) {
+              subjectSelect.append(new Option(subjectItem.name, subjectItem.id));
+            });
+          },
+          error: function () {
+            $.notify('Une erreur est survenue lors du chargement des matières.', 'error');
+          }
+        });
+      }
+    });
+
+    $('#btn-submit-module').on('click', function (e) {
+      e.preventDefault();
+
+      const moduleName = $('#newModuleName').val();
+      const moduleDescription = $('#newModuleDescription').val();
+
+      $.ajax({
+        url: '{{ path("app_add_module") }}', // Remplacez par votre route
+        method: 'POST',
+        data: {
+          name: moduleName,
+          description: moduleDescription
+        },
+        success: function (response) {
+          $.notify('Module ajouté avec succès', 'success');
+          // Optionnel : Ajoutez le nouveau module à la liste déroulante
+          const newOption = new Option(response.moduleName, response.id, true, true);
+          $('#moduleName').append(newOption).trigger('change');
+          // Réinitialisez le formulaire
+          $('#add-module-form')[0].reset();
+          // Fermez la modale
+          $('#addModuleModal').modal('hide');
+
+        },
+        error: function () {
+          $.notify('Une erreur est survenue lors de l\'ajout du module.', 'error');
+        }
+      });
+    });
+
+    // Gestion de la soumission du formulaire create-module-form
+    $('#create-module-form').on('submit', function (e) {
+      e.preventDefault();
+      // Empêche le rechargement de la page
+      $('#btn-create-module').prop('disabled',true);
+      $('#btn-create-module').html('<span class="spinner-border me-1"></span>Enregistrement en cours...')
+
+      // Récupérer les données du formulaire
+      const formData = {
+        sectionId: $('#sectionModuleId').val(),
+        classId: $('#classModuleId').val(),
+        subjectId: $('#subjectModuleId').val(),
+        moduleName: $('#moduleName').val(),
+        moduleNotation: $('#moduleNotation').val()
+      };
+
+      // Envoyer les données via AJAX
+      $.ajax({
+        url: '{{ path("app_map_module") }}', // Remplacez par votre route
+        method: 'POST',
+        data: formData,
+        success: function (response) { // Afficher un message de succès
+          $.notify('Module mappé avec succès !', 'success');
+          // Réinitialiser le formulaire
+          $('#moduleName').val('');
+          $('#btn-create-module').prop('disabled',false);
+          $('#btn-create-module').html('Créer');
+
+          // vider les choix de select2
+          $('#subjectModuleId').val(null).trigger('change');
+          // Recharger le tableau
+          modulesTable.ajax.reload();
+        },
+        error: function (xhr) { // Afficher un message d'erreur
+          $.notify('Une erreur est survenue : ' + xhr.responseText, 'error');
+          $('#btn-create-module').prop('disabled',false);
+          $('#btn-create-module').html('Créer');
+        }
+      });
+    });
+
+    $('#selectAllBtn').on('click', function () {
+      const select = $('#subjectModuleId');
+      const allSelected = select.find('option:selected').length === select.find('option').not('option[value=""]').length;
+      if (allSelected) {
+        select.val(null).trigger('change'); // Désélectionner tout
+      } else {
+        select.find('option').not('option[value=""]').prop('selected', true).trigger('change'); // Sélectionner tout
+      }
+    });
+
+    // Mise à jour dynamique des sous-périodes en fonction de la période et de la périodicité
+    $('#evaluationFrameId, #evaluationTimeTypeId').on('change', function () {
+      const frameId = $('#evaluationFrameId').val();
+      const typeId = $('#evaluationTimeTypeId').val();
+      const timeSelect = $('#evaluationTimeId');
+
+      // Effacer les options actuelles
+      timeSelect.empty();
+      if(frameId && frameId !='' && typeId && typeId !='') timeSelect.append(new Option('Chargement en cours...', ''));
+
+      if (frameId && typeId) { // Charger les sous-périodes via une requête AJAX
+        $.ajax({
+          url: '{{ path("app_times_by_frame_and_type") }}', // Remplacez par votre route
+          method: 'GET',
+          data: {
+            frameId: frameId,
+            typeId: typeId
+          },
+          success: function (data) { // Ajouter les nouvelles options
+            timeSelect.empty();
+            timeSelect.append(new Option('Sélectionner une sous-période', ''));
+            data.forEach(function (timeItem) {
+              timeSelect.append(new Option(timeItem.name, timeItem.id));
+            });
+          },
+          error: function () {
+            $.notify('Une erreur est survenue lors du chargement des sous-périodes.', 'error');
+          }
+        });
+      }
+    });
+
+    // Mise à jour dynamique des classes en fonction du niveau d'étude
+    $('#sectionId').on('change', function () {
+      const sectionId = $(this).val(); // Récupère l'ID du niveau d'étude sélectionné
+      const classSelect = $('#classId');
+      // Sélecteur pour le champ des classes
+
+      // Effacer les options actuelles
+      classSelect.empty();
+      if(sectionId !='' && sectionId) $('#classId-loading').html('<div class="spinner-border"></div>&nbsp;Chargement en cours...'); // Ajouter une option vide par défaut
+
+      if (sectionId) { // Charger les classes via une requête AJAX
+        $.ajax({
+          url: '{{ path("app_classes_by_section_with_students") }}', // Remplacez par votre route
+          method: 'GET',
+          data: {
+            sectionId: sectionId
+          },
+          success: function (data) { // Ajouter les nouvelles options
+            classSelect.empty();
+            $('#classId-loading').html('');
+            data.forEach(function (classItem) {
+              classSelect.append(new Option(classItem.name, classItem.id));
+            });
+          },
+          error: function () {
+            $.notify('Une erreur est survenue lors du chargement des classes.', 'error');
+          }
+        });
+      }
+    });
+  });
+
+
+    $(document).ready(function () { // Initialisation de DataTable pour la liste des évaluations
+      const evaluationsTable = $('#evaluations-table').DataTable({
+        ajax: {
+          url: '{{ path("app_get_evaluations") }}', // Remplacez par votre route pour récupérer les évaluations
+          dataSrc: '' // Si la réponse JSON est un tableau
+        },
+        columns: [
+          {
+            data: 'className'
+          }, {
+            data: 'evaluationFrameName'
+          }, {
+            data: 'evaluationTimeName'
+          }, {% if is_granted('ROLE_SUPER_ADMIN') %}
+    {
+          data: null,
+          render: function (data, type, row) {
+            return `
+                                    <button class="btn btn-sm btn-primary edit-evaluation" data-id="${row.id
+              }">Modifier</button>
+                                    <button class="btn btn-sm btn-danger delete-evaluation" data-id="${row.id
+              }">Supprimer</button>
+                                `;
+          }
+        }
+    {% else %}
+    { data: null, render: function (data, type, row) { return ''; } }
+    {% endif %}
+    ],
+      responsive: true,
+      language: {
+      url: "{{asset('i18n/fr-FR.json')}}"
+    },
+      rowGroup: {
+      dataSrc: 'className' // Grouper par matière
+    },
+      columnDefs: [
+      {
+        target: [0],
+        visible: false
+      }, {
+        target: [
+          1, 2, 3
+        ],
+        sortable: false
+      }
+    ]
+    });
+
+    // Gestion du bouton "Supprimer"
+    $('#evaluations-table').on('click', '.delete-evaluation', function () {
+      const evaluationId = $(this).data('id'); // Récupère l'ID de l'évaluation
+      if (confirm('Êtes-vous sûr de vouloir supprimer cette évaluation ?\nCette action va également supprimer toutes les notes associées.')) {
+        $.ajax({
+          url: '{{ path("app_delete_evaluation_configuration", { id: "ID" }) }}'.replace('ID', evaluationId), // Remplace "ID" par l'ID réel
+          method: 'DELETE',
+          success: function () {
+            $.notify('Évaluation supprimée avec succès.', 'success');
+            evaluationsTable.ajax.reload(); // Recharge le tableau
+          },
+          error: function () {
+            $.notify('Une erreur est survenue lors de la suppression.', 'error');
+          }
+        });
+      }
+    });
+
+    // Gestion du bouton "Modifier"
+    $('#evaluations-table').on('click', '.edit-evaluation', function () {
+      const evaluationId = $(this).data('id');
+      // Redirigez vers une page ou affichez un formulaire pour modifier l'évaluation
+      window.location.href = '{{ path("app_edit_evaluation_config", { id: "ID" }) }}'.replace('ID', evaluationId);
+    });
+
+    // Gestion de la soumission du formulaire de création d'une évaluation
+    $('#create-evaluation-form').on('submit', function (e) {
+      e.preventDefault();
+      // Empêche le rechargement de la page
+      $('#bntSaveEvaluation').prop('disabled', true);
+      $('#bntSaveEvaluation').html('Enregistrement en cours...');
+      // Récupérer les données du formulaire
+      const formData = {
+        classId: $('#classId').val(),
+        evaluationTimeId: $('#evaluationTimeId').val()
+      };
+
+      // Envoyer les données via AJAX
+      $.ajax({
+        url: '{{ path("app_create_evaluation") }}', // Remplacez par votre route
+        method: 'POST',
+        data: formData,
+        success: function (response) {
+          $.notify('Évaluation créée avec succès.', 'success');
+          $('#bntSaveEvaluation').prop('disabled', false);
+          $('#bntSaveEvaluation').html('Créer');
+          $('.select2').val(null).trigger('change');
+          $('#create-evaluation-form')[0].reset(); // Réinitialiser le formulaire
+          $('#create-evaluation-form').find('.select2').val(null).trigger('change'); // Réinitialiser les sélecteurs select2
+          evaluationsTable.ajax.reload(); // Recharge le tableau
+        },
+        error: function () {
+          $.notify('Une erreur est survenue lors de la création de l\'évaluation.', 'error');
+          $('#bntSaveEvaluation').prop('disabled', false);
+          $('#bntSaveEvaluation').html('Créer');
+        }
+      });
+    });
+
+    $('#modules-table').on('click', '.delete-module', function () {
+      const moduleId = $(this).data('id'); // Récupère l'ID du module
+      if (confirm('Êtes-vous sûr de vouloir supprimer ce module ?')) {
+        if (confirm("La suppression entraînera la suppression de toutes les évaluations associées. L'action est irreversible. Êtes-vous sûr ?")) {
+          $.ajax({
+            url: '{{ path("app_delete_module", { id: "ID" }) }}'.replace('ID', moduleId), // Remplace "ID" par l'ID réel
+            method: 'DELETE',
+            success: function () {
+              $.notify('Module supprimé avec succès.', 'success');
+              modulesTable.ajax.reload(); // Recharge le tableau
+            },
+            error: function () {
+              $.notify('Une erreur est survenue lors de la suppression. Vérifiez que le module n\'est pas utilisé dans une évaluation.', 'error');
+            }
+          });
+        }
+      }
+    });
+
+    $('#modules-table').on('click', '.edit-module', function () {
+      const moduleId = $(this).data('id');
+      // Récupère l'ID du module
+
+      // Charger les données du module dans une modale
+      $.ajax({
+        url: '{{ path("app_edit_module", { id: "ID" }) }}'.replace('ID', moduleId), // Remplace "ID" par l'ID réel
+        method: 'GET',
+        success: function (data) {
+          $('#editModuleModal #moduleNotationModal').val(data.moduleNotation);
+          $('#editModuleModal').data('module-id', moduleId); // Stocker l'ID dans la modale
+          $('#editModuleModal').modal('show'); // Afficher la modale
+        },
+        error: function () {
+          $.notify('Une erreur est survenue lors du chargement des données.', 'error');
+        }
+      });
+    });
+
+    // Gestion de la soumission du formulaire de modification
+    $('#edit-module-form').on('submit', function (e) {
+      e.preventDefault();
+
+      const moduleId = $('#editModuleModal').data('module-id'); // Récupère l'ID du module
+      const formData = {
+        moduleNotation: $('#editModuleModal #moduleNotationModal').val()
+      };
+      const modulesTable = $('#modules-table').DataTable(); // Récupérer l'instance DataTable
+
+      $.ajax({
+        url: '{{ path("app_edit_module", { id: "ID" }) }}'.replace('ID', moduleId), // Remplace "ID" par l'ID réel
+        method: 'POST',
+        data: formData,
+        success: function () {
+          $.notify('Module modifié avec succès.', 'success');
+          $('#editModuleModal').modal('hide'); // Fermer la modale
+          modulesTable.ajax.reload(); // Recharge le tableau
+        },
+        error: function () {
+          $.notify('Une erreur est survenue lors de la modification.', 'error');
+        }
+      });
+    });
+
+    $('#create-bareme-form').on('submit', function (e) {
+      e.preventDefault();
+      const formData = {
+        templateId: $('#baremeTemplate').val(),
+        maxNote: $('#baremeMaxNote').val(),
+        value: $('#baremeValue').val(),
+        fullValue: $('#baremeFullValue').val()
+      };
+      $.ajax({
+        url: '{{ path("app_create_evaluation_appreciation_bareme") }}', // À créer côté Symfony
+        method: 'POST',
+        data: formData,
+        success: function (response) {
+          $.notify('Barème ajouté avec succès !', 'success');
+          $('#create-bareme-form')[0].reset();
+          $('#baremeTemplate').val(null).trigger('change'); // Réinitialiser le sélecteur select2
+          $('#baremes-table').DataTable().ajax.reload();
+        },
+        error: function (xhr) {
+          $.notify('Erreur lors de l\'ajout du barème : ' + xhr.responseText, 'error');
+        }
+      });
+    });
+
+    // Gestion de la soumission du formulaire de création de template d'appréciation
+    $('#create-template-form').on('submit', function (e) {
+      e.preventDefault();
+
+      const formData = {
+        name: $('#templateName').val(),
+        default: $('#templateDefault').is(':checked') ? 1 : 0
+      };
+
+      $.ajax({
+        url: '{{ path("app_create_evaluation_appreciation_template") }}', // Remplacez par votre route Symfony
+        method: 'POST',
+        data: formData,
+        success: function (response) {
+          $.notify('Template créé avec succès !', 'success');
+          $('#create-template-form')[0].reset();
+          // Rafraîchir le DataTable des barèmes si besoin
+          $('#baremes-table').DataTable().ajax.reload();
+        },
+        error: function (xhr) {
+          let err = JSON.parse(xhr.responseText).error ? JSON.parse(xhr.responseText).error : xhr.responseText;
+          $.notify('Erreur lors de la création du template : ' + err, 'error');
+        }
+      });
+    });
+
+    $('#baremes-table').DataTable({
+      ajax: {
+        url: '{{ path("app_list_evaluation_appreciation_baremes") }}',
+        dataSrc: ''
+      },
+      columns: [
+        {
+          data: null,
+          render: function (data, type, row) {
+            let badge = row.isDefault ? ' <span class="badge bg-primary">Défaut</span>' : '';
+            return row.template + badge;
+          },
+          title: 'Template'
+        },
+        {
+          data: 'maxNote',
+          title: 'Note maximale'
+        },
+        {
+          data: 'value',
+          title: 'Valeur'
+        },
+        {
+          data: 'fullValue',
+          title: 'Valeur d\'appréciation'
+        }, {
+          data: null,
+          render: function (data, type, row) {
+            return `<button class="btn btn-sm btn-danger delete-bareme" data-id="${row.id}">Supprimer</button>`;
+          },
+          title: 'Actions'
+        }
+      ],
+      rowGroup: {
+        dataSrc: 'template'
+      },
+      columnDefs: [
+        {
+          target: 0,
+          visible: false
+        }
+      ],
+      responsive: true,
+      language: {
+        url: "{{asset('i18n/fr-FR.json')}}"
+      }
+    });
+
+    $('#baremes-table').on('click', '.delete-bareme', function () {
+      const baremeId = $(this).data('id');
+      if (confirm('Êtes-vous sûr de vouloir supprimer ce barème d\'appréciation ?')) {
+        $.ajax({
+          url: '{{ path("app_delete_evaluation_appreciation_bareme", { id: "ID" }) }}'.replace('ID', baremeId),
+          method: 'DELETE',
+          success: function () {
+            $.notify('Barème supprimé avec succès.', 'success');
+            $('#baremes-table').DataTable().ajax.reload();
+          },
+          error: function () {
+            $.notify('Une erreur est survenue lors de la suppression.', 'error');
+          }
+        });
+      }
+    });
+
+    // Initialisation DataTable
+    $('#reportcard-classes-table').DataTable({
+      ajax: {
+        url: '{{ path("app_reportcard_class_list") }}',
+        dataSrc: ''
+      },
+      columns: [
+        { data: 'className', title: 'Classe' },
+        { data: 'templateName', title: 'Modèle de bulletin' },
+        {
+          data: null,
+          render: function (data, type, row) {
+            return `
+                        <div class="input-group input-group-sm" style="max-width: 320px;">
+        <select class="form-select form-select-sm select-reportcard-action" data-class-id="${row.id}" data-template-id="${row.templateId ?? ''}">
+            <option value="">Action...</option>
+            <option value="edit-template">Modifier le modèle</option>
+            <option value="edit-assignment">Modifier Affectation</option>
+        </select>
+        <button class="btn btn-sm btn-primary do-reportcard-action" data-class-id="${row.id}" data-template-id="${row.templateId ?? ''}">Valider</button>
+        
+                        </div>
+                        <button class="btn btn-sm btn-danger delete-reportcard" data-id="${row.id}">
+                            Supprimer
+                        </button>
+                    `;
+          },
+          title: 'Actions'
+        }
+      ],
+      responsive: true,
+      language: {
+        url: "{{asset('i18n/fr-FR.json')}}"
+      }
+    });
+    $('#reportcard-classes-table').on('click', '.do-reportcard-action', function () {
+      const $row = $(this).closest('.input-group');
+      const action = $row.find('.select-reportcard-action').val();
+      const classId = $(this).data('class-id');
+      const templateId = $(this).data('template-id');
+
+      if (action === 'edit-template') {
+        if (!templateId) {
+          $.notify('Aucun modèle de bulletin à modifier pour cette classe.', 'info');
+          return;
+        }
+        // Ouvre la modale de modification du modèle
+        $.ajax({
+          url: '{{ path("app_get_reportcard_template", { id: "TEMPLATE_ID" }) }}'.replace('TEMPLATE_ID', templateId),
+          method: 'GET',
+          success: function (data) {
+            $('#editTemplateId').val(data.id);
+            $('#editTemplateName').val(data.name);
+            $('#editTemplateDescription').val(data.description);
+            $('#editTemplateHeaderTitle').val(data.headerTitle);
+            $('#editTemplateHeaderLeft').val(data.headerLeft);
+            $('#editTemplateHeaderRight').val(data.headerRight);
+            $('#editTemplateNationalMottoLeft').val(data.nationalMottoLeft);
+            $('#editTemplateNationalMottoRight').val(data.nationalMottoRight);
+            $('#editReportCardTemplateModal').modal('show');
+          },
+          error: function () {
+            $.notify('Erreur lors du chargement du modèle.', 'error');
+          }
+        });
+      } else if (action === 'edit-assignment') {
+        // Ouvre la modale de modification d'affectation
+        const rowData = $('#reportcard-classes-table').DataTable().row($(this).parents('tr')).data();
+        $('#editAssignmentClassId').val(classId);
+        $('#editAssignmentTemplateId').val(rowData.templateId);
+        $('#editReportCardAssignmentModal').modal('show');
+      }
+    });
+
+    // Mise à jour dynamique des classes selon la section
+    $('#sectionSelect').on('change', function () {
+      const sectionId = $(this).val();
+      const classSelect = $('#classSelect');
+      classSelect.empty()
+      if(sectionId && sectionId !='') classSelect.append(new Option('Chargement en cours...', ''));
+      if (sectionId) {
+        $.ajax({
+          url: '{{ path("app_classes_by_section") }}',
+          method: 'GET',
+          data: { sectionId: sectionId },
+          success: function (data) {
+            classSelect.empty().append(new Option('Sélectionner une classe', ''));
+            data.forEach(function (classItem) {
+              classSelect.append(new Option(classItem.name, classItem.id));
+            });
+          },
+          error: function () {
+            $.notify('Erreur lors du chargement des classes.', 'error');
+          }
+        });
+      }
+    });
+
+    // Soumission du formulaire d'affectation
+    $('#assign-reportcard-form').on('submit', function (e) {
+      e.preventDefault();
+      const formData = {
+        classId: $('#classSelect').val(),
+        templateId: $('#templateSelect').val()
+      };
+      $.ajax({
+        url: '{{ path("app_assign_reportcard_template") }}',
+        method: 'POST',
+        data: formData,
+        success: function () {
+          $.notify('Modèle de bulletin assigné avec succès.', 'success');
+          $('#reportcard-classes-table').DataTable().ajax.reload();
+          $('#assign-reportcard-form')[0].reset();
+          $('#sectionSelect, #classSelect, #templateSelect').val(null).trigger('change');
+        },
+        error: function () {
+          $.notify('Erreur lors de l\'assignation.', 'error');
+        }
+      });
+    });
+
+    // Gestion des boutons Modifier/Supprimer à compléter selon tes routes
+    $('#reportcard-classes-table').on('click', '.delete-reportcard', function () {
+      const classId = $(this).data('id');
+      if (confirm('Supprimer l\'affectation du modèle de bulletin pour cette classe ?')) {
+        $.ajax({
+          url: '{{ path("app_remove_reportcard_template_from_class", { id: "ID" }) }}'.replace('ID', classId),
+          method: 'DELETE',
+          success: function (response) {
+            $.notify(response.message ? response.message : 'Affectation retirée de la classe avec succès', 'success');
+            $('#reportcard-classes-table').DataTable().ajax.reload();
+          },
+          error: function () {
+            $.notify('Erreur lors de la suppression.', 'error');
+          }
+        });
+      }
+    });
+
+    $('#reportcard-classes-table').on('click', '.edit-reportcard-template', function (e) {
+      e.preventDefault();
+      const templateId = $(this).data('id');
+      if (!templateId) {
+        $.notify('Aucun modèle de bulletin à modifier pour cette classe.', 'info');
+        return;
+      }
+      $.ajax({
+        url: '{{ path("app_get_reportcard_template", { id: "TEMPLATE_ID" }) }}'.replace('TEMPLATE_ID', templateId),
+        method: 'GET',
+        success: function (data) {
+          $('#editTemplateId').val(data.id);
+          $('#editTemplateName').val(data.name);
+          $('#editTemplateDescription').val(data.description);
+          $('#editTemplateHeaderTitle').val(data.headerTitle);
+          $('#editTemplateHeaderLeft').val(data.headerLeft);
+          $('#editTemplateHeaderRight').val(data.headerRight);
+          $('#editTemplateNationalMottoLeft').val(data.nationalMottoLeft);
+          $('#editTemplateNationalMottoRight').val(data.nationalMottoRight);
+          $('#editReportCardTemplateModal').modal('show');
+        },
+        error: function () {
+          $.notify('Erreur lors du chargement du modèle.', 'error');
+        }
+      });
+    });
+
+    $('#reportcard-classes-table').on('click', '.edit-reportcard', function (e) {
+      e.preventDefault();
+      const classId = $(this).data('id');
+      // Récupère la ligne du DataTable
+      const rowData = $('#reportcard-classes-table').DataTable().row($(this).parents('tr')).data();
+      $('#editAssignmentClassId').val(classId);
+      $('#editAssignmentTemplateId').val(rowData.templateId);
+      $('#editReportCardAssignmentModal').modal('show');
+    });
+
+    // Soumission du formulaire de modification d'affectation
+    $('#edit-reportcard-assignment-form').on('submit', function (e) {
+      e.preventDefault();
+      const formData = {
+        classId: [$('#editAssignmentClassId').val()],
+        templateId: $('#editAssignmentTemplateId').val()
+      };
+      $.ajax({
+        url: '{{ path("app_assign_reportcard_template") }}',
+        method: 'POST',
+        data: formData,
+        success: function () {
+          $.notify('Affectation modifiée avec succès.', 'success');
+          $('#editReportCardAssignmentModal').modal('hide');
+          $('#reportcard-classes-table').DataTable().ajax.reload();
+        },
+        error: function () {
+          $.notify('Erreur lors de la modification de l\'affectation.', 'error');
+        }
+      });
+    });
+
+    $('#edit-reportcard-template-form').on('submit', function (e) {
+      e.preventDefault();
+      const formData = {
+        name: $('#editTemplateName').val(),
+        description: $('#editTemplateDescription').val(),
+        headerTitle: $('#editTemplateHeaderTitle').val(),
+        headerLeft: $('#editTemplateHeaderLeft').val(),
+        headerRight: $('#editTemplateHeaderRight').val(),
+        nationalMottoLeft: $('#editTemplateNationalMottoLeft').val(),
+        nationalMottoRight: $('#editTemplateNationalMottoRight').val()
+      };
+      const templateId = $('#editTemplateId').val();
+      $.ajax({
+        url: '{{ path("app_edit_reportcard_template", { id: "TEMPLATE_ID" }) }}'.replace('TEMPLATE_ID', templateId),
+        method: 'POST',
+        data: formData,
+        success: function () {
+          $.notify('Modèle modifié avec succès.', 'success');
+          $('#editReportCardTemplateModal').modal('hide');
+          $('#reportcard-classes-table').DataTable().ajax.reload();
+        },
+        error: function () {
+          $.notify('Erreur lors de la modification du modèle.', 'error');
+        }
+      });
+    });
+
+    $('#sectionId-aff').on('change', function () {
+      const sectionId = $(this).val();
+      const classSelect = $('#classId-aff');
+      classSelect.empty()
+      $('#assigned-subjects-table').DataTable().clear().draw();
+      if(sectionId && sectionId !='') {
+        classSelect.append(new Option('Chargement en cours...', ''));
+        $('#sp-classId-aff').addClass('spinner-border');
+        $('#sp-classId-aff-text').html('Chargement en cours...');
+      }
+      classSelect.prop('disabled', true); // Désactiver le sélecteur de classe
+      $('#showAssignedSubjectsBtn').prop('disabled', true); // Désactiver le bouton de chargement des classes
+      if (sectionId) {
+        $.ajax({
+          url: '{{ path("app_generic_classes_by_section") }}',
+          method: 'GET',
+          data: { sectionId: sectionId },
+          success: function (data) {
+            classSelect.empty().append(new Option('Sélectionner une classe', ''));
+            data.forEach(function (classItem) {
+              classSelect.append(new Option(classItem.name, classItem.id));
+            });
+            classSelect.prop('disabled', false); // Activer le sélecteur de classe
+            $('#sp-classId-aff').removeClass('spinner-border');
+            $('#sp-classId-aff-text').html('');
+          },
+          error: function () {
+            $.notify('Erreur lors du chargement des classes.', 'error');
+            $('#sp-classId-aff').removeClass('spinner-border');
+            $('#sp-classId-aff-text').html('');
+          }
+        });
+      }
+    });
+
+    $('#classId-aff').on('change', function () {
+      const classId = $(this).val();
+      $('#sp-classId-aff').addClass('spinner-border');
+      $('#sp-classId-aff-text').html('Chargement en cours...');
+      if (classId) {
+        $('#showAssignedSubjectsBtn').prop('disabled', false); // Activer le bouton de chargement des classes
+      } else {
+        $('#showAssignedSubjectsBtn').prop('disabled', true); // Désactiver le bouton si aucune classe n'est sélectionnée
+      }
+      //logique pour charger les matières si nécessaire dans le datatable
+      if (classId != '') {
+        $('#assigned-subjects-table').DataTable().clear().draw();
+        $('#assigned-subjects-table').DataTable().ajax.url('{{ path("app_get_assigned_subjects_by_class", { id: "ID" }) }}'.replace('ID', classId));
+        $('#assigned-subjects-table').DataTable().ajax.reload(()=>{
+          $('#sp-classId-aff').removeClass('spinner-border');
+          $('#sp-classId-aff-text').html('');
+        });
+        //
+        
+      }
+    });
+
+    $('#assigned-subjects-table').DataTable({
+      "ajax": {
+        "url": "",
+        "dataSrc": ""
+      },
+      columns: [
+        { data: 'classe', title: 'Classe' },
+        { data: 'name', title: 'Matière' },
+        { data: 'coefficient', title: 'Coefficient' },
+        {
+          data: 'null', title: 'Groupe', render: function (data, type, row) {
+            return row.group ? `${row.group}&nbsp;<button class="btn btn-sm btn-danger cancel-subject-group" style="padding:5px !important;font-size:10px !important" data-id="${row.id}" title="Annuler l'affectation à cette matière"><i class="fa fa-trash"></i></button>` : '';
+          }
+        },
+        {
+          data: 'null', title: 'Enseignant', render: function (data, type, row) {
+            return row.teacher ? `${row.teacher}&nbsp;<button class="btn btn-sm btn-danger cancel-subject-teacher" style="padding:5px !important;font-size:10px !important" data-id="${row.id}" title="Annuler l'affectation à cette matière"><i class="fa fa-trash"></i></button>` : '';
+          }
+        },
+        { data: 'skills', title: 'Compétences' },
+        {
+          data: null,
+          render: function (data, type, row) {
+            return `
+                    <button class="btn btn-sm btn-primary edit-subject" data-id="${row.id}" title="Modifier"><i class="fa fa-pencil-alt"></i></button>
+                    <button class="btn btn-sm btn-danger delete-subject" data-id="${row.id}" title="Supprimer"><i class="fa fa-trash"></i></button>
+                `;
+          },
+          title: 'Actions'
+        }
+      ],
+      language: {
+        url: "{{asset('i18n/fr-FR.json')}}"
+      },
+      searching: true,
+      paging: false,
+      info: false
+    });
+    $('#assigned-subjects-table').on('click', '.delete-subject', function () {
+      const subjectId = $(this).data('id');
+      if (confirm('Voulez-vous vraiment supprimer cette matière affectée ?')) {
+        $.ajax({
+          url: '{{ path("app_delete_assigned_subject", { id: "ID" }) }}'.replace('ID', subjectId), // Remplace par ta route Symfony
+          method: 'DELETE',
+          success: function () {
+            $.notify('Matière supprimée avec succès.', 'success');
+            $('#assigned-subjects-table').DataTable().ajax.reload();
+          },
+          error: function () {
+            $.notify('Erreur lors de la suppression.', 'error');
+          }
+        });
+      }
+    });
+
+    $('#assigned-subjects-table').on('click', '.edit-subject', function () {
+      const rowData = $('#assigned-subjects-table').DataTable().row($(this).parents('tr')).data();
+      $('#editSubjectAssignmentId').val(rowData.id);
+      $('#editSubjectCoefficient').val(rowData.coefficient);
+      $('#editSubjectGroup').val(rowData.group_id).trigger('change');
+      $('#editSubjectTeacher').val(rowData.teacher_id).trigger('change');
+      $('#editSubjectSkills').val(rowData.skills);
+      $('#editSubjectAssignmentModal').modal('show');
+    });
+
+    $('#edit-subject-assignment-form').on('submit', function (e) {
+      e.preventDefault();
+      const formData = {
+        id: $('#editSubjectAssignmentId').val(),
+        coefficient: $('#editSubjectCoefficient').val(),
+        group: $('#editSubjectGroup').val(),
+        teacher: $('#editSubjectTeacher').val(),
+        skills: $('#editSubjectSkills').val(),
+        assignTeacherMethod: $('#assignTeacherMethod').val()
+      };
+      $.ajax({
+        url: '{{ path("app_edit_subject_assignment",{id:"ID"}) }}'.replace('ID', $('#editSubjectAssignmentId').val()), // À créer côté Symfony
+        method: 'POST',
+        data: formData,
+        success: function () {
+          $.notify('Assignation modifiée avec succès.', 'success');
+          $('#editSubjectAssignmentModal').modal('hide');
+          const classId = $('#classId-aff').val();
+          // Recharge le DataTable des matières assignées
+          $('#assigned-subjects-table').DataTable().ajax.url('{{ path("app_get_assigned_subjects_by_class", { id: "ID" }) }}'.replace('ID', classId)).load();
+        },
+        error: function () {
+          $.notify('Erreur lors de la modification.', 'error');
+        }
+      });
+    });
+
+    $('#assigned-subjects-table').on('click', '.cancel-subject-group', function () {
+      const subjectId = $(this).data('id');
+      if (confirm('Voulez-vous vraiment annuler l\'affectation de ce groupe à la matière ?')) {
+        $.ajax({
+          url: '{{ path("app_cancel_subject_group") }}', // Crée cette route côté Symfony
+          method: 'POST',
+          data: {
+            id: subjectId,
+            _token: '{{ csrf_token("cancel_subject_group") }}'
+          },
+          success: function () {
+            $.notify('Affectation du groupe annulée.', 'success');
+            $('#assigned-subjects-table').DataTable().ajax.reload();
+          },
+          error: function () {
+            $.notify('Erreur lors de l\'annulation.', 'error');
+          }
+        });
+      }
+    });
+
+    $('#assigned-subjects-table').on('click', '.cancel-subject-teacher', function () {
+      const subjectId = $(this).data('id');
+      if (confirm('Voulez-vous vraiment annuler l\'affectation de cet enseignant à la matière ?')) {
+        $.ajax({
+          url: '{{ path("app_cancel_subject_teacher") }}', // Crée cette route côté Symfony
+          method: 'POST',
+          data: {
+            id: subjectId,
+            _token: '{{ csrf_token("cancel_subject_teacher") }}'
+          },
+          success: function () {
+            $.notify('Affectation de l\'enseignant annulée.', 'success');
+            $('#assigned-subjects-table').DataTable().ajax.reload();
+          },
+          error: function () {
+            $.notify('Erreur lors de l\'annulation.', 'error');
+          }
+        });
+      }
+    });
+
+    $('#selectAllClasses').on('click', function () {
+      if ($('#classId').find('option:selected').length > 0) {
+        $('#classId').val(null).trigger('change');
+        $('#selectAllClasses').html('Sélectionner Tout');
+      } else {
+        $('#classId').find('option').prop('selected', true).trigger('change');
+        if ($('#classId').find('option:selected').length > 0) $('#selectAllClasses').html('Désélectionner Tout');
+      }
+    })
+});
+</script>
+{% endblock %}

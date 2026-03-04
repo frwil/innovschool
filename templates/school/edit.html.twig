@@ -1,0 +1,80 @@
+{% extends 'base.up.html.twig' %}
+
+
+{% block title %}Edit School
+{% endblock %}
+
+{% block body %}
+
+	<twig:Breadcrumbs label="Modifier écoles"/>
+
+	<div class="card height-auto">
+		<div class="card-body">
+			<div class="mb-4 mt-3">
+				<a class="btn btn-lg btn-dark" href="{{ path('app_school_index') }}">Retour</a>
+			</div>
+
+			<form id="edit-school-form" method="post" enctype="multipart/form-data">
+				<div class="row">
+					<div class="col-md-6">
+						<div class="mb-3">
+							<label for="name" class="form-label">Nom de l'établissement</label>
+							<input type="text" id="name" name="name" class="form-control" value="{{ school.name }}" required>
+						</div>
+						<div class="mb-3">
+							<label for="acronym" class="form-label">Sigle</label>
+							<input type="text" id="acronym" name="acronym" class="form-control" value="{{ school.acronym }}" required>
+						</div>
+						<div class="mb-3">
+							<label for="address" class="form-label">Adresse</label>
+							<input type="text" id="address" name="address" class="form-control" value="{{ school.address }}" required>
+						</div>
+						<div class="mb-3">
+							<label for="logo" class="form-label">Logo (optionnel)</label>
+							<input type="file" id="logo" name="logo" class="form-control">
+							{% if school.logo %}
+								<img src="{{ asset('uploads/logos/' ~ school.logo) }}" alt="Logo" style="max-height: 80px; margin-top: 10px;">
+							{% endif %}
+						</div>
+					</div>
+					<div class="col-md-6">
+						<div class="mb-3">
+							<label for="contactName" class="form-label">Nom du responsable</label>
+							<input type="text" id="contactName" name="contactName" class="form-control" value="{{ school.contactName }}" required>
+						</div>
+						<div class="mb-3">
+							<label for="contactEmail" class="form-label">Email du responsable</label>
+							<input type="email" id="contactEmail" name="contactEmail" class="form-control" value="{{ school.contactEmail }}" required>
+						</div>
+						<div class="mb-3">
+							<label for="contactPhone" class="form-label">Téléphone du responsable</label>
+							<input type="text" id="contactPhone" name="contactPhone" class="form-control" value="{{ school.contactPhone }}" required>
+						</div>
+					</div>
+				</div>
+				<button type="submit" class="btn btn-primary">Enregistrer les modifications</button>
+			</form>
+		</div>
+	</div>
+	<script>
+		$('#edit-school-form').on('submit', function (e) {
+			e.preventDefault();
+			var formData = new FormData(this);
+
+			$.ajax({
+			url: '{{ path('app_school_edit', {'id': school.id}) }}',
+			type: 'POST',
+			data: formData,
+			processData: false,
+			contentType: false,
+			success: function (response) { // Affiche un message ou redirige selon la réponse
+			alert('École modifiée avec succès !', 'success');
+			window.location.href = '/school'; // Redirige si besoin
+			},
+			error: function (xhr) {
+			alert('Erreur lors de la modification de l\'école.', 'error');
+			}
+			});
+			});
+	</script>
+{% endblock %}

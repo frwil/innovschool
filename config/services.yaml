@@ -1,0 +1,97 @@
+# This file is the entry point to configure your own services.
+# Files in the packages/ subdirectory configure your dependencies.
+
+# Put parameters here that don't need to change on each machine where the app is deployed
+# https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
+parameters:
+    app_update_json_url: '%env(APP_UPDATE_JSON_URL)%'
+    app_update_zip_url: '%env(APP_UPDATE_ZIP_URL)%'
+    uploads_directory: '%kernel.project_dir%/public/uploads'
+    app.timezone: '%env(APP_TIMEZONE)%'
+
+services:
+    # default configuration for services in *this* file
+    _defaults:
+        autowire: true      # Automatically injects dependencies in your services.
+        autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
+        public: false
+
+    # makes classes in src/ available to be used as services
+    # this creates a service per class whose id is the fully-qualified class name
+    App\:
+        resource: '../src/'
+        exclude:
+            - '../src/DependencyInjection/'
+            - '../src/Entity/'
+            - '../src/Kernel.php'
+
+    # add more service definitions when explicit configuration is needed
+    # please note that last definitions always *replace* previous ones
+
+    App\utils\:
+        resource: '../src/utils/*'
+        autowire: true
+        autoconfigure: true
+        public: true
+
+    App\MessageHandler\GenerateAllBulletinsMessageHandler:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
+    App\Command\GenerateAllBulletinsAsyncCommand:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
+    App\Service\LicenseManager:
+        arguments:
+            $licenseSecret: '%env(APP_LICENSE_SECRET)%'
+            $httpClient: '@?http_client'
+
+    App\EventListener\SchoolSelectionListener:
+        tags:
+            - { name: kernel.event_listener, event: kernel.request, method: onKernelRequest }
+
+    App\EventSubscriber\GlobalTemplateVariablesSubscriber:
+        tags:
+            - { name: kernel.event_subscriber }
+
+    App\Twig\AppExtension:
+        tags: [twig.extension]
+
+    App\Service\ModuleManager:
+        public: true
+
+    App\Repository\:
+        resource: '../src/Repository/*'
+        autowire: true
+        autoconfigure: true
+    App\Service\PdfGenerator:
+        arguments:
+            $params: '@parameter_bag'
+    App\MessageHandler\GenerateAllBulletinsPdfMessageHandler:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+
+    App\Service\WindowsWorkerManager:
+        arguments:
+            $projectDir: '%kernel.project_dir%'
+    App\Service\BulletinContextService:
+        arguments:
+            $entityManager: '@doctrine.orm.entity_manager'
+            $requestStack: '@request_stack'
+            $schoolRepo: '@App\Repository\SchoolRepository'
+            $periodRepo: '@App\Repository\SchoolPeriodRepository'
+
+    App\Service\BulletinGenerationService:
+        arguments:
+            - '@App\Service\BulletinGenerator'
+            - '@doctrine.orm.entity_manager'
+            - '@App\Repository\SchoolClassPeriodRepository'
+            - '@App\Repository\StudentClassRepository'
+            - '@App\Repository\ReportCardTemplateRepository'
+            - '@App\Repository\EvaluationRepository'
+
+    App\Service\BulletinProgressService:
+        arguments:
+            - '%kernel.project_dir%'
+            - '@filesystem'

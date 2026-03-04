@@ -1,0 +1,2018 @@
+{# filepath: templates/student_admission/admission.html.twig #}
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Admission des élèves{% endblock %}
+
+{% block body %}
+<div class="three"><h1>Admission des élèves</h1></div>
+
+<div class="filters row mb-4">
+    <div class="col-3">
+        <label for="section-select" class="form-label">Niveau d'étude</label>
+        <select id="section-select" class="form-control select2">
+        <option></option>
+            {% for section in sections %}
+                <option value="{{ section.id }}">{{ section.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-3">
+        <label for="class-select" class="form-label">Classe</label>
+        <select id="class-select" class="form-control select2" disabled>
+        <option></option>
+        </select>
+    </div>
+</div>
+
+<hr>
+
+<table id="students-table" class="display responsive table-bordered table-striped" style="width:100%">
+    <thead>
+        <tr>
+            <th>N° d'ordre</th>
+            <th>Matricule</th>
+            <th>Nom de l'élève</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        {# Les données seront chargées dynamiquement via AJAX #}
+    </tbody>
+</table>
+
+<div class="card mt-4 hidden" id="payment-form-container">
+    <div class="card-header">
+       <div class="three"><h1>Gérer le paiement <span id="student-name-display"></span></h1></div>
+    </div>
+    <div class="card-body">
+        <!-- Onglets -->
+        <ul class="nav nav-tabs" id="paymentTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="summary-tab" data-bs-toggle="tab" data-bs-target="#summary" type="button" role="tab" aria-controls="summary" aria-selected="true">Sommaire</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="principales-tab" data-bs-toggle="tab" data-bs-target="#principales" type="button" role="tab" aria-controls="principales" aria-selected="false">Modalités Standard</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="secondaires-tab" data-bs-toggle="tab" data-bs-target="#secondaires" type="button" role="tab" aria-controls="secondaires" aria-selected="false">Modalités Additionnelles</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="configuration-tab" data-bs-toggle="tab" data-bs-target="#configuration" type="button" role="tab" aria-controls="configuration" aria-selected="false">Configuration</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="historique-tab" data-bs-toggle="tab" data-bs-target="#historique" type="button" role="tab" aria-controls="historique" aria-selected="false">Historique des paiements</button>
+            </li>
+        </ul>
+
+        <!-- Contenu des onglets -->
+        <div class="tab-content" id="paymentTabsContent">
+            <!-- Sommaire -->
+            <div class="tab-pane fade show active" id="summary" role="tabpanel" aria-labelledby="summary-tab">
+                <div class="row mt-3">
+                    <!-- Bloc 1 : Liste des modalités à payer -->
+                    <div class="col-md-4">
+                        <div class="equal-height">
+                            <div class="block-content">
+                                <div class="three"><h1>Modalités à payer</h1></div>
+                                <div id="summary-modalities-list">
+                                    {# Les modalités à payer seront chargées dynamiquement ici #}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bloc 2 : Total des paiements -->
+                    <div class="col-md-4">
+                        <div class="equal-height">
+                            <div class="block-content">
+                                <div class="three"><h1>Total des paiements</h1></div>
+                                <div id="summary-total-payments">
+                                    {# Les totaux des paiements seront chargées dynamiquement ici #}
+                                </div>
+                            </div>
+                            <div id="summary-total-payments-block"></div>
+                        </div>
+                    </div>
+
+                    <!-- Bloc 3 : Restes à payer -->
+                    <div class="col-md-4">
+                        <div class="equal-height">
+                            <div class="block-content">
+                                <div class="three"><h1>Restes à payer</h1></div>
+                                <div id="summary-remaining-payments">
+                                    {# Les restes à payer seront chargées dynamiquement ici #}
+                                </div>
+                            </div>
+                            <div id="summary-remaining-payments-block"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bouton flottant pour afficher le reçu -->
+                <button id="generate-receipt" class="btn btn-primary floating-button">
+                    <i class="fas fa-file-pdf"></i> Afficher le reçu
+                </button>
+            </div>
+
+            <!-- Modalités Principales -->
+            <div class="tab-pane fade" id="principales" role="tabpanel" aria-labelledby="principales-tab">
+                <div class="row mt-3">
+                    <!-- Colonne gauche : Liste des modalités standard -->
+                    <div class="col-md-7">
+                        <div class="three"><h1>Liste des modalités standard</h1></div>
+                        <div id="principales-list">
+                            {# Les modalités standard seront chargées dynamiquement ici #}
+                        </div>
+                        <div class="mt-3">
+                            <strong>Total à payer : </strong><span id="principales-total">0</span> 
+                        </div>
+                    </div>
+
+                    <!-- Colonne droite : Formulaire de paiement avec onglets -->
+                    <div class="col-md-5">
+                        <div class="three"><h1>Enregistrer un paiement</h1></div>
+                        <ul class="nav nav-tabs" id="paymentFormTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="by-modal-tab" data-bs-toggle="tab" data-bs-target="#by-modal" type="button" role="tab" aria-controls="by-modal" aria-selected="true">Par Modalité</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="batch-payment-tab" data-bs-toggle="tab" data-bs-target="#batch-payment" type="button" role="tab" aria-controls="batch-payment" aria-selected="false">Paiement Batch</button>
+                            </li>
+                        </ul>
+
+                        <div class="tab-content mt-3" id="paymentFormTabsContent">
+                            <!-- Onglet Par Modalité -->
+                            <div class="tab-pane fade show active" id="by-modal" role="tabpanel" aria-labelledby="by-modal-tab">
+                                <div id="error-message-principales"></div>
+                                <form id="principales-payment-form" novalidate>
+                                    <input type="hidden" id="principales-student-id" name="studentId" value="">
+                                    <input type="hidden" id="principales-class-id" name="classId" value="">
+                                    <div class="mb-3">
+                                        <label for="principales-payment-modal" class="form-label">Modalité</label>
+                                        <select class="form-control select2" id="principales-payment-modal" name="modalId" required>
+                                            <option></option>
+                                            {# Les modalités standard seront chargées dynamiquement ici #}
+                                        </select>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="principales-payment-date" class="form-label">Date de paiement</label>
+                                        <input type="datetime-local" class="form-control" id="principales-payment-date" name="paymentDate" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="principales-payment-amount" class="form-label">Montant</label>
+                                        <input type="number" class="form-control" id="principales-payment-amount" name="amount" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Enregistrer</button>
+                                </form>
+                            </div>
+
+                            <!-- Onglet Paiement Batch -->
+                            <div class="tab-pane fade" id="batch-payment" role="tabpanel" aria-labelledby="batch-payment-tab">
+                                <div id="error-message-batch"></div>
+                                <form id="batch-payment-form" novalidate>
+                                    <input type="hidden" id="batch-class-id" name="classId" value="">
+                                    <input type="hidden" id="batch-student-id" name="studentId" value=""> <!-- Champ caché pour l'élève sélectionné -->
+                                    <div class="mb-3">
+                                        <label for="batch-payment-date" class="form-label">Date de paiement</label>
+                                        <input type="datetime-local" class="form-control" id="batch-payment-date" name="paymentDate" required>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="batch-payment-amount" class="form-label">Montant Total</label>
+                                        <input type="number" class="form-control" id="batch-payment-amount" name="amount" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">Enregistrer Paiement Batch</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modalités Secondaires -->
+            <div class="tab-pane fade" id="secondaires" role="tabpanel" aria-labelledby="secondaires-tab">
+                <div class="row mt-3">
+                    <!-- Colonne gauche : Liste des modalités additionnelles -->
+                    <div class="col-md-8">
+                        <div class="three"><h1>Liste des modalités additionnelles</h1></div>
+                        <div id="secondaires-list">
+                            {# Les modalités secondaires seront chargées dynamiquement ici #}
+                        </div>
+                        <div class="mt-3">
+                            <strong>Total des modalités : </strong><span id="secondaires-total">0</span> 
+                        </div>
+                        <div class="mt-3">
+                            <strong>Total des paiements : </strong><span id="secondaires-total-payments">0</span> 
+                        </div>
+                        <div class="mt-3">
+                            <strong>Restes à payer : </strong><span id="secondaires-total-remaining">0</span> 
+                        </div>
+                    </div>
+
+                    <!-- Colonne droite : Formulaire de paiement -->
+                    <div class="col-md-4">
+                        <div class="three"><h1>Enregistrer un paiement</h1></div>
+                        <div id="error-message-secondaires"></div>
+                        <form id="secondaires-payment-form" novalidate>
+                            <input type="hidden" id="secondaires-student-id" name="studentId" value="">
+                            <input type="hidden" id="secondaires-class-id" name="classId" value="">
+                            <div class="mb-3">
+                                <label for="secondaires-payment-modal" class="form-label">Modalité</label>
+                                <select class="form-select" id="secondaires-payment-modal" name="modalId" required>
+                                    <option></option>
+                                    {# Les modalités additionnelles seront chargées dynamiquement ici #}
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label for="secondaires-payment-date" class="form-label">Date de paiement</label>
+                                <input type="datetime-local" class="form-control" id="secondaires-payment-date" name="paymentDate" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="secondaires-payment-amount" class="form-label">Montant</label>
+                                <input type="number" class="form-control" id="secondaires-payment-amount" name="amount" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Enregistrer</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Configuration -->
+            <div class="tab-pane fade" id="configuration" role="tabpanel" aria-labelledby="configuration-tab">
+                <div class="row mt-3">
+                    <!-- Sous-onglets -->
+                    <ul class="nav nav-tabs" id="configurationSubTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="subscriptions-tab" data-bs-toggle="tab" data-bs-target="#subscriptions" type="button" role="tab" aria-controls="subscriptions" aria-selected="true">Souscriptions</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="transport-subscriptions-tab" data-bs-toggle="tab" data-bs-target="#transport-subscriptions" type="button" role="tab" aria-controls="transport-subscriptions" aria-selected="false">Souscriptions (Transport)</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="reductions-tab" data-bs-toggle="tab" data-bs-target="#reductions" type="button" role="tab" aria-controls="reductions" aria-selected="false">Réductions</button>
+                        </li>
+                    </ul>
+
+                    <!-- Contenu des sous-onglets -->
+                    <div class="tab-content" id="configurationSubTabsContent">
+                        <!-- Souscriptions -->
+                        <div class="tab-pane fade show active" id="subscriptions" role="tabpanel" aria-labelledby="subscriptions-tab">
+                            <div class="row mt-3">
+                                <!-- Bloc 1 : Liste des souscriptions -->
+                                <div class="col-md-8">
+                                    <div class="three"><h1>Liste des souscriptions</h1></div>
+                                    <table id="subscriptions-table" class="display responsive" style="width:100%">
+                                        <thead>
+                                            <tr>
+                                                <th>Modalité</th>
+                                                <th>Type de souscription</th>
+                                                <th>Périodicité</th>
+                                                <th>Montant</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {# Les souscriptions existantes seront chargées dynamiquement ici via AJAX #}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Bloc 2 : Formulaire de souscription -->
+                                <div class="col-md-4">
+                                    <div class="three"><h1>Souscrire à une modalité</h1></div>
+                                    <form id="subscription-form" novalidate>
+                                        <input type="hidden" id="subscription-student-id" name="studentId" value="">
+                                        <input type="hidden" id="subscription-class-id" name="classId" value="">
+
+                                        <div class="mb-3">
+                                            <label for="subscription-modal" class="form-label">Modalité</label>
+                                            <select class="form-control" id="subscription-modal" name="modalId" required>
+                                                {# Les modalités non souscrites seront chargées dynamiquement ici #}
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="subscription-type" class="form-label">Type de souscription</label>
+                                            <select class="form-select" id="subscription-type" name="subscriptionType" required>
+                                                <option></option>
+                                                <option value="full">Plein tarif</option>
+                                                <option value="half">Demi tarif</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="subscription-periodicity" class="form-label">Périodicité</label>
+                                            <select class="form-select" id="subscription-periodicity" name="periodicity" required>
+                                                <option></option>
+                                                <option value="full">Plein temps</option>
+                                                <option value="morning only">Matin uniquement</option>
+                                                <option value="evening only">Soir uniquement</option>
+                                            </select>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary">Souscrire</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Souscriptions (Transport) -->
+                        <div class="tab-pane fade" id="transport-subscriptions" role="tabpanel" aria-labelledby="transport-subscriptions-tab">
+                            <div class="row mt-3">
+                                <!-- Bloc 1 : Liste des souscriptions de transport -->
+                                <div class="col-md-8">
+                                    <div class="three"><h1>Liste des souscriptions de transport</h1></div>
+                                    <table id="transport-subscriptions-table" class="display responsive" style="width:100%">
+                                        <thead>
+                                            <tr>
+                                                <th>Modalité</th>
+                                                <th>Type de souscription</th>
+                                                <th>Périodicité</th>
+                                                <th>Montant</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {# Les souscriptions de transport seront chargées dynamiquement ici via AJAX #}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Bloc 2 : Formulaire de souscription de transport -->
+                                <div class="col-md-4">
+                                    <div class="three"><h1>Souscrire à une modalité de transport</h1></div>
+                                    <form id="transport-subscription-form" novalidate>
+                                        <input type="hidden" id="transport-subscription-student-id" name="studentId" value="">
+                                        <input type="hidden" id="transport-subscription-class-id" name="classId" value="">
+
+                                        <div class="mb-3">
+                                            <label for="transport-subscription-modal" class="form-label">Modalité</label>
+                                            <select class="form-select select2" id="transport-subscription-modal" name="modalId" required>
+                                                {# Les modalités de transport non souscrites seront chargées dynamiquement ici #}
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="transport-subscription-type" class="form-label">Type de souscription</label>
+                                            <select class="form-select select2" id="transport-subscription-type" name="subscriptionType" required>
+                                                <option></option>
+                                                <option value="full">Plein tarif</option>
+                                                <option value="half">Demi tarif</option>
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="transport-subscription-periodicity" class="form-label">Périodicité</label>
+                                            <select class="form-select select2" id="transport-subscription-periodicity" name="periodicity" required>
+                                                <option></option>
+                                                
+                                            </select>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary">Souscrire</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Réductions -->
+                        <div class="tab-pane fade" id="reductions" role="tabpanel" aria-labelledby="reductions-tab">
+                            <div class="row mt-3">
+                                <!-- Bloc 1 : Liste des réductions -->
+                                <div class="col-md-8">
+                                    <div class="three"><h1>Liste des réductions</h1></div>
+                                    <table id="reductions-table" class="display responsive" style="width:100%">
+                                        <thead>
+                                            <tr>
+                                                <th>Type de réduction</th>
+                                                <th>Montant</th>
+                                                <th>Date</th>
+                                                <th>Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {# Les réductions existantes seront chargées dynamiquement ici via AJAX #}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Bloc 2 : Formulaire d'enregistrement des réductions -->
+                                <div class="col-md-4">
+                                    <div class="three"><h1>Ajouter une réduction</h1></div>
+                                    <form id="reduction-form" novalidate>
+                                        <input type="hidden" id="reduction-student-id" name="studentId" value="">
+                                        <input type="hidden" id="reduction-class-id" name="classId" value="">
+
+                                        <div class="mb-3">
+                                            <label for="reduction-modal" class="form-label">Modalité</label>
+                                            <select class="form-control" id="reduction-modal" name="reductionModalId" required>
+                                                <option></option>
+                                                {# Les modalités seront chargées dynamiquement ici #}
+                                            </select>
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="reduction-amount" class="form-label">Montant</label>
+                                            <input type="number" class="form-control" id="reduction-amount" name="reductionAmount" required>
+                                        </div>
+
+                                        <button type="submit" class="btn btn-primary">Ajouter</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="tab-pane fade" id="historique" role="tabpanel" aria-labelledby="historique-tab">
+                <div class="mt-3">
+                    <div class="three"><h1>Historique des paiements</h1></div>
+                    <ul class="nav nav-tabs" id="paymentHistoryTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="base-payments-tab" data-bs-toggle="tab" data-bs-target="#base-payments" type="button" role="tab" aria-controls="base-payments" aria-selected="true">Modalités de base</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="additional-payments-tab" data-bs-toggle="tab" data-bs-target="#additional-payments" type="button" role="tab" aria-controls="additional-payments" aria-selected="false">Modalités additionnelles</button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="transport-payments-tab" data-bs-toggle="tab" data-bs-target="#transport-payments" type="button" role="tab" aria-controls="transport-payments" aria-selected="false">Itinéraires transport</button>
+                    </li>
+                </ul>
+                <div class="tab-content mt-3" id="paymentHistoryTabsContent">
+                    <!-- Onglet Modalités de base -->
+                    <div class="tab-pane fade show active" id="base-payments" role="tabpanel" aria-labelledby="base-payments-tab">
+                        <div class="btn-group"><button id="toggle-checkboxes-base" disabled class="btn btn-primary mb-3">Sélection multiple</button><button id="print-selected-base" class="btn btn-primary mb-3" disabled data-student-id="" data-class-id="">Imprimer la sélection</button></div>
+                        <table id="base-payments-table" class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="select-all-base" disabled onclick="toggleAllChecked(this,'base-payments-table','print-selected-base')" /></th>
+                                    <th>Date de paiement</th>
+                                    <th>Montant</th>
+                                    <th>Modalité</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {# Les paiements seront chargés dynamiquement ici #}
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Onglet Modalités additionnelles -->
+                    <div class="tab-pane fade" id="additional-payments" role="tabpanel" aria-labelledby="additional-payments-tab">
+                        <div class="btn-group"><button id="toggle-checkboxes-additional" disabled class="btn btn-primary mb-3">Sélection multiple</button><button id="print-selected-additional" class="btn btn-primary mb-3" disabled data-student-id="" data-class-id="">Imprimer la sélection</button></div>
+                        <table id="additional-payments-table" class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="select-all-additional" disabled onclick="toggleAllChecked(this,'additional-payments-table','print-selected-additional')" /></th>
+                                    <th>Date de paiement</th>
+                                    <th>Montant</th>
+                                    <th>Modalité</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {# Les paiements seront chargés dynamiquement ici #}
+                            </tbody>
+                        </table>
+                    </div>
+                    <!-- Onglet Modalités de transport -->
+                    <div class="tab-pane fade" id="transport-payments" role="tabpanel" aria-labelledby="transport-payments-tab">
+                        <div class="btn-group"><button id="toggle-checkboxes-transport" disabled class="btn btn-primary mb-3">Sélection multiple</button><button id="print-selected-transport" class="btn btn-primary mb-3" disabled data-student-id="" data-class-id="">Imprimer la sélection</button></div>
+                        <table id="transport-payments-table" class="table table-striped">
+                            <thead>
+                                <tr>
+                                    <th><input type="checkbox" id="select-all-transport" disabled onclick="toggleAllChecked(this,'transport-payments-table','print-selected-transport')" /></th>
+                                    <th>Date de paiement</th>
+                                    <th>Montant</th>
+                                    <th>Modalité</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {# Les paiements seront chargés dynamiquement ici #}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="payment-history" role="tabpanel" aria-labelledby="payment-history-tab">
+                
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Modal Paiement Transport -->
+<div class="modal fade" id="transportPaymentModal" tabindex="-1" aria-labelledby="transportPaymentModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="transport-payment-form-modal">
+        <div class="modal-header">
+          <h5 class="modal-title" id="transportPaymentModalLabel">Paiement Transport</h5>
+          <button type="button" class="btn-close" data-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="transport-subscription-id" name="subscriptionId">
+          <div class="mb-3">
+            <label for="transport-payment-date-modal" class="form-label">Date de paiement</label>
+            <input type="datetime-local" class="form-control" id="transport-payment-date-modal" name="paymentDate" required>
+          </div>
+          <div class="mb-3">
+            <label for="transport-payment-amount-modal" class="form-label">Montant</label>
+            <input type="number" class="form-control" id="transport-payment-amount-modal" name="amount" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal">Annuler</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de modification de paiement -->
+<div class="modal fade" id="updatePaymentModal" tabindex="-1" aria-labelledby="updatePaymentModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form id="update-payment-form">
+        <div class="modal-header">
+          <h5 class="modal-title" id="updatePaymentModalLabel">Modifier le paiement</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" name="paymentId" id="update-payment-id">
+          <div class="mb-3">
+            <label for="update-payment-amount" class="form-label">Montant</label>
+            <input type="number" class="form-control" name="amount" id="update-payment-amount" required min="0">
+          </div>
+          <div class="mb-3">
+            <label for="update-payment-date" class="form-label">Date</label>
+            <input type="date" class="form-control" name="date" id="update-payment-date" required>
+          </div>
+          <div class="mb-3">
+            <label for="update-payment-modalite" class="form-label">Modalité</label>
+            <select class="form-select" name="modalite" id="update-payment-modalite" required>
+              <!-- Options à remplir dynamiquement -->
+            </select>
+          </div>
+          <div id="update-payment-error" class="text-danger"></div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+    
+    $(document).ready(function () {
+        const today = new Date().toISOString().split('T')[0];
+        $('#principales-payment-date, #secondaires-payment-date').val(getCurrentDateTimeLocal());
+
+        // Initialisation de Select2
+        $('#section-select').select2({
+            placeholder: 'Sélectionner une section',
+            allowClear: true,
+        });
+        $('#class-select').select2({
+            placeholder: 'Sélectionner une classe',
+            allowClear: true,
+        });
+
+        // Rafraîchir la DataTable lorsque la section ou la classe est modifiée
+        $('#section-select, #class-select').on('change', function () {
+            // tous les tableaux DataTable sont vidés d'abord
+            $('table').DataTable().clear().draw();
+            table.ajax.reload();
+        });
+
+        // Charger les classes en fonction de la section
+        $('#section-select').on('change', function () {
+            const sectionId = $(this).val();
+            $('#class-select').prop('disabled', true).empty().append('<option></option>');
+
+            if (sectionId) {
+                $.ajax({
+                    url: '{{ path("app_classes_by_section") }}',
+                    data: { sectionId: sectionId },
+                    success: function (data) {
+                        data.forEach(function (classItem) {
+                            $('#class-select').append(`<option value="${classItem.id}">${classItem.name}</option>`);
+                        });
+                        $('#class-select').prop('disabled', false);
+
+                        // Rafraîchir la DataTable
+                        table.ajax.reload();
+                    }
+                });
+            }
+        });
+
+        // Initialisation de DataTable
+        const table = $('#students-table').DataTable({
+            ajax: {
+                url: '{{ path("app_students_data") }}',
+                data: function (d) {
+                    d.class = $('#class-select').val();
+                }
+            },
+            columns: [
+                { data: 'orderNumber' },
+                { data: 'matricule' },
+                { data: 'name' },
+                {
+                    data: 'id',
+                    orderable: false,
+                    render: function (data, type, row) {
+                        return `
+                            <div class="btn-group"><button class="btn btn-sm btn-primary manage-button" data-id="${row.id}" data-name="${row.name}">Gérer</button>
+                            </div>
+                        `;
+                    }
+                }
+            ],
+            language: {
+                emptyTable: "Aucune donnée disponible dans le tableau"
+            }
+        });
+
+        $('#students-table').on('click', '.manage-button', function () {
+            const classId = $('#class-select').val();
+            const studentId = $(this).data('id');
+            const studentName=$(this).data('name');
+            $('#student-name-display').text("- "+studentName); // Mettre à jour le nom de l'élève dans le modal
+            $('#principales-student-id').val(studentId);
+            $('#principales-class-id').val(classId);
+            $('#batch-student-id').val(studentId); // Remplir le champ caché pour l'élève dans le formulaire Batch
+            $('#batch-class-id').val(classId); // Remplir le champ caché pour la classe dans le formulaire Batch
+            updateTabs(studentId, classId);
+        });
+
+        // Gestion de la soumission des formulaires
+        $('#principales-payment-form').on('submit', function (e) {
+            e.preventDefault();
+            $('#error-message-principales').html('');
+
+            if (!validateForm('principales-payment-form')) {
+                $.notify('Veuillez remplir tous les champs obligatoires.', 'error');
+                return;
+            }
+
+            const formData = $(this).serialize();
+            $.ajax({
+                url: '{{ path("app_save_principales_payment") }}',
+                method: 'POST',
+                data: formData,
+                success: function () {
+                    $.notify('Paiement enregistré avec succès.', 'success');
+
+                    // Réinitialiser le formulaire
+                    $('#principales-payment-form')[0].reset();
+                    const today = new Date().toISOString().split('T')[0];
+                    $('#principales-payment-date, #secondaires-payment-date').val(getCurrentDateTimeLocal());
+
+                    // Mettre à jour les onglets
+                    updateTabs($('#principales-student-id').val(), $('#principales-class-id').val());
+                },
+                error: function (xhr) {
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        $('#error-message-principales').html(`
+                            <div class="alert alert-danger">
+                                ${xhr.responseJSON.message}
+                            </div>
+                        `);
+                    } else {
+                        $.notify('Une erreur est survenue lors de l\'enregistrement du paiement.', 'error');
+                    }
+                }
+            });
+        });
+
+        $('#secondaires-payment-form').on('submit', function (e) {
+            e.preventDefault();
+            $('#error-message-secondaires').html('');
+
+            if (!validateForm('secondaires-payment-form')) {
+                $.notify('Veuillez remplir tous les champs obligatoires.', 'error');
+                return;
+            }
+
+            const formData = $(this).serialize();
+            $.ajax({
+                url: '{{ path("app_save_secondaires_payment") }}',
+                method: 'POST',
+                data: formData,
+                success: function () {
+                    $.notify('Paiement des modalités secondaires enregistré avec succès.', 'success');
+
+                    // Réinitialiser le formulaire
+                    $('#secondaires-payment-form')[0].reset();
+                    const today = new Date().toISOString().split('T')[0];
+                    $('#secondaires-payment-date').val(today);
+
+                    // Mettre à jour les onglets
+                    updateTabs($('#secondaires-student-id').val(), $('#secondaires-class-id').val());
+                },
+                error: function (xhr) {
+                    if (xhr.responseJSON && xhr.responseJSON.message) {
+                        $('#error-message-secondaires').html(`
+                            <div class="alert alert-danger">
+                                ${xhr.responseJSON.message}
+                            </div>
+                        `);
+                    } else {
+                        $.notify('Une erreur est survenue lors de l\'enregistrement du paiement.', 'error');
+                    }
+                }
+            });
+        });
+
+        $('#configuration-form').on('submit', function (e) {
+            e.preventDefault();
+            const formData = $(this).serialize();
+            $.ajax({
+                url: '{{ path("app_save_configuration") }}',
+                method: 'POST',
+                data: formData,
+                success: function () {
+                    alert('Configuration enregistrée avec succès.');
+                },
+                error: function () {
+                    alert('Une erreur est survenue lors de l\'enregistrement.');
+                }
+            });
+        });
+
+        $('#additional-modalities').on('change', '.form-check-input', function () {
+            const modalId = $(this).val();
+            const studentId = $('#principales-student-id').val();
+            const classId = $('#principales-class-id').val();
+
+            $.ajax({
+                url: '{{ path("app_toggle_subscription") }}',
+                method: 'POST',
+                data: {
+                    studentId: studentId,
+                    modalId: modalId,
+                    classId: classId,
+                },
+                success: function (response) {
+                    if (response.success) {
+                        alert(`Souscription ${response.enabled ? 'activée' : 'désactivée'} avec succès.`);
+                        // Recharger l'onglet Modalités Additionnelles
+                        reloadAdditionalModalities(studentId, classId);
+                    } else {
+                        alert('Une erreur est survenue.');
+                    }
+                },
+                error: function () {
+                    alert('Une erreur est survenue lors de la mise à jour de la souscription.');
+                }
+            });
+        });
+
+        $('#generate-receipt').on('click', function () {
+            const studentId = $('#principales-student-id').val();
+            const classId = $('#principales-class-id').val();
+
+            if (!studentId || !classId) {
+                alert('Veuillez sélectionner un élève et une classe pour générer le reçu.');
+                return;
+            }
+
+            // Rediriger vers l'URL de génération du reçu
+            window.open(`/receipt?studentId=${studentId}&classId=${classId}`, '_blank');
+        });
+        // Soumettre le formulaire de souscription
+        $('#subscription-form').on('submit', function (e) {
+            e.preventDefault();
+            const formData = $(this).serialize();
+            $.ajax({
+                url: '{{ path("app_save_subscription") }}',
+                method: 'POST',
+                data: formData,
+                success: function () {
+                    $.notify('Souscription enregistrée avec succès.','success');
+                    const studentId=$('#subscription-student-id').val()
+                    const classId=$('#subscription-class-id').val()
+                    $('#subscription-form')[0].reset();
+                    updateTabs(studentId,classId)
+                },
+                error: function () {
+                    $.notify('Une erreur est survenue lors de l\'enregistrement de la souscription.');
+                }
+            });
+        });
+
+        $('#reduction-form').on('submit', function (e) {
+            e.preventDefault();
+
+            const reductionModalId = $('#reduction-modal').val();
+            const reductionAmount = parseFloat($('#reduction-amount').val());
+            const studentId = $('#reduction-student-id').val();
+            const classId = $('#reduction-class-id').val();
+            const reductionId = $(this).data('reduction-id'); // Récupérer l'ID de la réduction (si en mode modification)
+
+            if (!reductionModalId || isNaN(reductionAmount) || reductionAmount <= 0) {
+                $.notify('Veuillez sélectionner une modalité et entrer un montant valide.', 'error');
+                return;
+            }
+
+            // Vérifier les montants via une requête AJAX
+            $.ajax({
+                url: '{{ path("app_validate_reduction") }}',
+                method: 'POST',
+                data: {
+                    reductionModalId: reductionModalId,
+                    reductionAmount: reductionAmount,
+                    studentId: studentId,
+                    classId: classId,
+                    reductionId : reductionId ? reductionId : null
+                },
+                success: function (response) {
+                    if (!response.valid) {
+                        $.notify(response.message, 'error');
+                        return;
+                    }
+
+                    // Déterminer si c'est une modification ou une création
+                    const url = reductionId
+                        ? `/reductions/update/${reductionId}` // URL pour la mise à jour
+                        : '{{ path("app_save_reduction") }}'; // URL pour la création
+
+                    // Soumettre le formulaire
+                    $.ajax({
+                        url: url,
+                        method: 'POST',
+                        data: $('#reduction-form').serialize(),
+                        success: function () {
+                            const message = reductionId
+                                ? 'Réduction mise à jour avec succès.'
+                                : 'Réduction enregistrée avec succès.';
+                            $.notify(message, 'success');
+                            loadReductions(studentId, classId);
+                            $('#reduction-form')[0].reset();
+                            $('#reduction-modal').val(null).trigger('change');
+                            $('#reduction-form').removeData('reduction-id'); // Supprimer l'ID de la réduction
+                        },
+                        error: function () {
+                            $.notify('Une erreur est survenue lors de l\'enregistrement de la réduction.', 'error');
+                        }
+                    });
+                },
+                error: function () {
+                    $.notify('Une erreur est survenue lors de la validation de la réduction.', 'error');
+                }
+            });
+        });
+
+        $('#reductions-table').off('click', '.delete-reduction'); // Supprimer les anciens gestionnaires d'événements
+        $('#reductions-table').on('click', '.delete-reduction', function () {
+            const reductionId = $(this).data('id');
+            if (confirm('Êtes-vous sûr de vouloir supprimer cette réduction ?')) {
+                $.ajax({
+                    url: `/reductions/delete/${reductionId}`,
+                    method: 'DELETE',
+                    success: function () {
+                        $.notify('Réduction supprimée avec succès.', 'success');
+                        const studentId = $('#reduction-student-id').val();
+                        const classId = $('#reduction-class-id').val();
+                        $('#reduction-form').removeData('reduction-id'); // Supprimer l'ID de la réduction
+                        updateTabs(studentId, classId);
+                    },
+                    error: function () {
+                        $.notify('Une erreur est survenue lors de la suppression de la réduction.', 'error');
+                    }
+                });
+            }
+        });
+
+        $('#reductions-table').on('click', '.edit-reduction', function () {
+            const reductionId = $(this).data('id');
+            const modalId = $(this).data('modal-id');
+            const amount = $(this).data('amount');
+
+            // Charger les données dans le formulaire
+            $('#reduction-modal').val(modalId).trigger('change'); // Sélectionner la modalité
+            $('#reduction-amount').val(amount); // Remplir le montant
+            $('#reduction-form').data('reduction-id', reductionId); // Stocker l'ID de la réduction dans le formulaire
+        });
+
+        $('#batch-payment-form').on('submit', function (e) {
+            e.preventDefault(); // Empêcher le rechargement de la page
+
+            // Réinitialiser les messages d'erreur
+            $('#error-message-batch').html('');
+
+            // Récupérer les données du formulaire
+            const formData = $(this).serialize();
+
+            // Effectuer la requête AJAX
+            $.ajax({
+                url: '{{ path("app_batch_payment") }}', // Remplacez par la route Symfony correspondante
+                method: 'POST',
+                data: formData,
+                success: function (response) {
+                    if (response.success) {
+                        // Afficher un message de succès
+                        $.notify('Paiement batch effectué avec succès.', 'success');
+
+                        // Réinitialiser le formulaire
+                        $('#batch-payment-form')[0].reset();
+
+                        // Mettre à jour les onglets ou les données affichées
+                        updateTabs($('#batch-student-id').val(), $('#batch-class-id').val());
+                    } else {
+                        // Afficher un message d'erreur si la réponse contient une erreur
+                        $('#error-message-batch').html(`
+                            <div class="alert alert-danger">
+                                ${response.message || 'Une erreur est survenue.'}
+                            </div>
+                        `);
+                    }
+                },
+                error: function (xhr) {
+                    const error= xhr.responseJSON && xhr.responseJSON.error
+                        ? xhr.responseJSON.error
+                        : 'Une erreur est survenue lors de l\'enregistrement du paiement batch.';
+                    // Gérer les erreurs de la requête AJAX
+                    $.notify(error, 'error');
+                }
+            });
+        });
+
+        $('#transport-subscription-form').on('submit', function (e) {
+            e.preventDefault();
+            const formData = $(this).serialize();
+            $.ajax({
+                url: '{{ path("app_save_transport_subscription") }}',
+                method: 'POST',
+                data: formData,
+                success: function () {
+                    $.notify('Souscription de transport enregistrée avec succès.', 'success');
+                    const studentId = $('#transport-subscription-student-id').val();
+                    const classId = $('#transport-subscription-class-id').val();
+                    loadTransportSubscriptions(studentId, classId);
+                    $('#transport-subscription-form')[0].reset();
+                },
+                error: function () {
+                    $.notify('Une erreur est survenue lors de l\'enregistrement de la souscription.', 'error');
+                }
+            });
+        });
+
+        $('#transport-subscription-type').on('change', function () {
+            const type = $(this).val();
+            const $periodicity = $('#transport-subscription-periodicity');
+            $periodicity.empty().append('<option></option>'); // Réinitialiser les options
+
+            if (type === 'full') {
+                $periodicity.append('<option value="full">Plein temps</option>');
+            } else if (type === 'half') {
+                $periodicity.append('<option value="morning only">Matin uniquement</option>');
+                $periodicity.append('<option value="evening only">Soir uniquement</option>');
+            }
+        });
+
+        $('#transport-subscriptions-table').on('click', '.cancel-transport-subscription', function () {
+            const subscriptionId = $(this).data('id');
+
+            if (confirm('Êtes-vous sûr de vouloir annuler cette souscription ?')) {
+                $.ajax({
+                    url: '{{ path("app_cancel_transport_subscription") }}',
+                    method: 'POST',
+                    data: { subscriptionId: subscriptionId },
+                    success: function () {
+                        $.notify('Souscription annulée avec succès.', 'success');
+                        const studentId = $('#transport-subscription-student-id').val();
+                        const classId = $('#transport-subscription-class-id').val();
+                        loadTransportSubscriptions(studentId, classId); // Recharger la liste des souscriptions
+                    },
+                    error: function () {
+                        $.notify('Une erreur est survenue lors de l\'annulation de la souscription.', 'error');
+                    }
+                });
+            }
+        });
+
+        // Gérer l'annulation d'un paiement
+        $(document).on('click', '.cancel-payment', function () {
+            const paymentId = $(this).data('id');
+
+            if (confirm('Êtes-vous sûr de vouloir annuler ce paiement ?')) {
+                $.ajax({
+                    url: '{{ path("app_cancel_payment") }}',
+                    method: 'POST',
+                    data: { paymentId: paymentId },
+                    success: function () {
+                        $.notify('Paiement annulé avec succès.', 'success');
+                        updateTabs($('#principales-student-id').val(),$('#principales-class-id').val());
+                    },
+                    error: function () {
+                        $.notify('Une erreur est survenue lors de l\'annulation du paiement.', 'error');
+                    }
+                });
+            }
+        });
+
+        // Gérer l'impression d'un paiement
+        $(document).on('click', '.print-payment', function () {
+            const paymentId = $(this).data('id');
+            const studentId = $(this).data('student-id');
+            const classId = $(this).data('class-id');
+            window.open(`/receipt?paymentId=${paymentId}&classId=${classId}&studentId=${studentId}`, '_blank');
+        });
+
+        // Activer/Désactiver le bouton #print-selected-base en fonction des cases cochées
+        $('#base-payments-table').on('change', '.row-checkbox', function () {
+            const hasChecked = $('#base-payments-table tbody .row-checkbox:checked').length > 0;
+            $('#print-selected-base').prop('disabled', !hasChecked);
+        });
+        // Activer/Désactiver le bouton #print-selected-additional en fonction des cases cochées
+        $('#additional-payments-table').on('change', '.row-checkbox', function () {
+            const hasChecked = $('#additional-payments-table tbody .row-checkbox:checked').length > 0;
+            $('#print-selected-additional').prop('disabled', !hasChecked);
+        });
+        // Activer/Désactiver le bouton #print-selected-transport en fonction des cases cochées
+        $('#transport-payments-table').on('change', '.row-checkbox', function () {
+            const hasChecked = $('#transport-payments-table tbody .row-checkbox:checked').length > 0;
+            $('#print-selected-transport').prop('disabled', !hasChecked);
+        });
+
+        
+        // Activer/Désactiver les cases à cocher
+        $('#toggle-checkboxes-base').on('click', function () {
+            const isDisabled = $('#select-all-base').prop('disabled');
+
+            $('#select-all-base').prop('disabled', !isDisabled);
+            $('#select-all-base').prop('checked', false); // Décocher la case "Tout sélectionner"
+            if(!isDisabled) $('#select-all-base').trigger('click'); // Décocher toutes les cases à cocher
+            $('#base-payments-table tbody input[type="checkbox"]').prop('disabled', !isDisabled);
+            // Réinitialiser le bouton d'impression
+            $('#print-selected-base').prop('disabled', true);
+
+
+            // Modifier le texte du bouton
+            $(this).text(isDisabled ? 'Désactiver les cases à cocher' : 'Activer les cases à cocher');
+            if(isDisabled){
+                $('#base-payments-table .print-payment').hide(); // Cacher les boutons d'impression
+                $('#base-payments-table .cancel-payment').hide(); // Cacher les boutons d'annulation
+            }else{
+                $('#base-payments-table .print-payment').show(); // Afficher les boutons d'impression
+                $('#base-payments-table .cancel-payment').show(); // Afficher les boutons d'annulation
+            }
+        });
+        $('input[type="checkbox"]').on('click',()=>{alert('ok')})
+
+        // Sélectionner/Désélectionner toutes les lignes
+        $('#select-all-base').on('click', function () {
+            alert('ok')
+            const isChecked = $(this).prop('checked');
+            $('#base-payments-table tbody .row-checkbox').prop('checked', isChecked);
+            $('#base-payments-table tbody tr').toggleClass('selected', isChecked);
+            lastCheckedIndexbase = null;
+            firstCheckedIndexbase = null; // Réinitialiser les indices de sélection
+        });
+
+        // Gestion de la sélection des lignes
+        $('#base-payments-table tbody').on('click', 'tr', function (e) {
+            if ($(e.target).is('input[type="checkbox"]')) {
+                $(this).toggleClass('selected', $(e.target).prop('checked'));
+            }
+        });
+        let lastCheckedIndexbase = null;
+        let firstCheckedIndexbase = null;
+        // Gestion des cases à cocher individuelles
+        $('#base-payments-table tbody').on('click', '.row-checkbox', function (e) {
+            const $checkbox = $(this);
+            const $checkboxes = $('#base-payments-table tbody .row-checkbox');
+            const currentIndex = $checkboxes.index(this);
+
+            // Si la case est cochée
+            if ($checkbox.prop('checked')) {
+                if (firstCheckedIndexbase === null || currentIndex < firstCheckedIndexbase) {
+                    //firstCheckedIndexbase = currentIndex; // Mettre à jour la première case cochée
+                    firstCheckedIndexbase = 0;
+                }
+                if (lastCheckedIndexbase === null || currentIndex > lastCheckedIndexbase) {
+                    lastCheckedIndexbase = currentIndex; // Mettre à jour la dernière case cochée
+                }
+
+                // Cocher toutes les cases intermédiaires
+                $checkboxes.slice(firstCheckedIndexbase, lastCheckedIndexbase + 1).prop('checked', true).closest('tr').addClass('selected');
+            } else {
+                // Si une case d'extrémité est décochée
+                if (currentIndex === firstCheckedIndexbase || currentIndex === lastCheckedIndexbase) {
+                    // Réinitialiser les extrémités si elles sont décochées
+                    if (currentIndex === firstCheckedIndexbase) {
+                        //firstCheckedIndexbase = currentIndex+1;
+                        firstCheckedIndexbase = 0;
+                    }
+                    if (currentIndex === lastCheckedIndexbase) {
+                        lastCheckedIndexbase = currentIndex-(currentIndex>0 ? 1 : 0);
+                    }
+
+                    // Si aucune case n'est cochée, réinitialiser les indices
+                    if (firstCheckedIndexbase === -1 || lastCheckedIndexbase === -1) {
+                        firstCheckedIndexbase = null;
+                        lastCheckedIndexbase = null;
+                    }
+
+                    // Mettre à jour les cases intermédiaires
+                    $checkboxes.slice(firstCheckedIndexbase, lastCheckedIndexbase + 1).prop('checked', true).closest('tr').addClass('selected');
+                } else {
+                    // Empêcher la désélection des cases intermédiaires
+                    $checkbox.prop('checked', true);
+                }
+            }
+
+            // Mettre à jour la case "Tout sélectionner"
+            const allChecked = $checkboxes.filter(':checked').length === $checkboxes.length;
+            $('#select-all-base').prop('checked', allChecked);
+        });
+
+
+        // Répéter pour les autres tableaux
+        $('#toggle-checkboxes-additional').on('click', function () {
+            const isDisabled = $('#select-all-additional').prop('disabled');
+            $('#select-all-additional').prop('disabled', !isDisabled);
+            $('#select-all-additional').prop('checked', false); // Décocher la case "Tout sélectionner"
+            if(!isDisabled) $('#select-all-additional').trigger('click'); // Décocher toutes les cases à cocher
+            $('#additional-payments-table tbody input[type="checkbox"]').prop('disabled', !isDisabled);
+            $(this).text(isDisabled ? 'Désactiver les cases à cocher' : 'Activer les cases à cocher');
+             if(isDisabled){
+                $('#additional-payments-table .print-payment').hide(); // Cacher les boutons d'impression
+                $('#additional-payments-table .cancel-payment').hide(); // Cacher les boutons d'annulation
+            }else{
+                $('#additional-payments-table .print-payment').show(); // Afficher les boutons d'impression
+                $('#additional-payments-table .cancel-payment').show(); // Afficher les boutons d'annulation
+            }
+        });
+
+        $('#select-all-additional').on('click', function () {
+            const isChecked = $(this).prop('checked');
+            $('#additional-payments-table tbody .row-checkbox').prop('checked', isChecked);
+            $('#additional-payments-table tbody tr').toggleClass('selected', isChecked);
+
+        });
+
+        $('#additional-payments-table tbody').on('click', 'tr', function (e) {
+            if ($(e.target).is('input[type="checkbox"]')) {
+                $(this).toggleClass('selected', $(e.target).prop('checked'));
+            }
+        });
+
+        let lastCheckedIndexadditional=null;
+        let firstCheckedIndexadditional=null;
+
+        $('#additional-payments-table tbody').on('click','.row-checkbox',function (e){
+            const $checkbox = $(this);
+            const $checkboxes = $('#additional-payments-table tbody .row-checkbox');
+            const currentIndex = $checkboxes.index(this);
+
+            if($checkbox.prop('checked')){
+                if(firstCheckedIndexadditional===null || currentIndex<firstCheckedIndexadditional){
+                    firstCheckedIndexadditional = 0; // Mettre à jour la première case cochée
+                }
+            if (lastCheckedIndexadditional === null || currentIndex > lastCheckedIndexadditional) {
+                        lastCheckedIndexadditional = currentIndex; // Mettre à jour la dernière case cochée
+                    }
+
+                    // Cocher toutes les cases intermédiaires
+                    $checkboxes.slice(firstCheckedIndexadditional, lastCheckedIndexadditional + 1).prop('checked', true).closest('tr').addClass('selected');
+                } else {
+                    // Si une case d'extrémité est décochée
+                    if (currentIndex === firstCheckedIndexadditional || currentIndex === lastCheckedIndexadditional) {
+                        // Réinitialiser les extrémités si elles sont décochées
+                        if (currentIndex === firstCheckedIndexadditional) {
+                            firstCheckedIndexadditional = 0;
+                        }
+                        if (currentIndex === lastCheckedIndexadditional) {
+                            lastCheckedIndexadditional = currentIndex-1;
+                        }
+
+                        // Si aucune case n'est cochée, réinitialiser les indices
+                        if (firstCheckedIndexadditional === -1 || lastCheckedIndexadditional === -1) {
+                            firstCheckedIndexadditional = null;
+                            lastCheckedIndexadditional = null;
+                        }
+
+                        // Mettre à jour les cases intermédiaires
+                        $checkboxes.slice(firstCheckedIndexadditional, lastCheckedIndexadditional + 1).prop('checked', true).closest('tr').addClass('selected');
+                    } else {
+                        // Empêcher la désélection des cases intermédiaires
+                        $checkbox.prop('checked', true);
+                    }
+                }
+
+                // Mettre à jour la case "Tout sélectionner"
+                const allChecked = $checkboxes.filter(':checked').length === $checkboxes.length;
+                $('#select-all-additional').prop('checked', allChecked);
+        });
+
+        $('#toggle-checkboxes-transport').on('click', function () {
+            const isDisabled = $('#select-all-transport').prop('disabled');
+            $('#select-all-transport').prop('disabled', !isDisabled);
+            $('#select-all-transport').prop('checked', false); // Décocher la case "Tout sélectionner"
+            if(!isDisabled) $('#select-all-transport').trigger('click'); // Décocher toutes les cases à cocher
+            $('#transport-payments-table tbody input[type="checkbox"]').prop('disabled', !isDisabled);
+            $(this).text(isDisabled ? 'Désactiver les cases à cocher' : 'Activer les cases à cocher');
+             if(isDisabled){
+                $('#transport-payments-table .print-payment').hide(); // Cacher les boutons d'impression
+                $('#transport-payments-table .cancel-payment').hide(); // Cacher les boutons d'annulation
+            }else{
+                $('#transport-payments-table .print-payment').show(); // Afficher les boutons d'impression
+                $('#transport-payments-table .cancel-payment').show(); // Afficher les boutons d'annulation
+            }
+        });
+
+        $('#select-all-transport').on('click', function () {
+            const isChecked = $(this).prop('checked');
+            $('#transport-payments-table tbody .row-checkbox').prop('checked', isChecked);
+            $('#transport-payments-table tbody tr').toggleClass('selected', isChecked);
+        });
+
+        let lastCheckedIndextransport=null;
+        let firstCheckedIndextransport=null;
+
+        $('#transport-payments-table tbody').on('click','.row-checkbox',function (e){
+            const $checkbox = $(this);
+            const $checkboxes = $('#transport-payments-table tbody .row-checkbox');
+            const currentIndex = $checkboxes.index(this);
+
+            if($checkbox.prop('checked')){
+                if(firstCheckedIndextransport===null || currentIndex<firstCheckedIndextransport){
+                    firstCheckedIndextransport = 0; // Mettre à jour la première case cochée
+                }
+            if (lastCheckedIndextransport === null || currentIndex > lastCheckedIndextransport) {
+                        lastCheckedIndextransport = currentIndex; // Mettre à jour la dernière case cochée
+                    }
+
+                    // Cocher toutes les cases intermédiaires
+                    $checkboxes.slice(firstCheckedIndextransport, lastCheckedIndextransport + 1).prop('checked', true).closest('tr').addClass('selected');
+                } else {
+                    // Si une case d'extrémité est décochée
+                    if (currentIndex === firstCheckedIndextransport || currentIndex === lastCheckedIndextransport) {
+                        // Réinitialiser les extrémités si elles sont décochées
+                        if (currentIndex === firstCheckedIndextransport) {
+                            firstCheckedIndextransport = 0;
+                        }
+                        if (currentIndex === lastCheckedIndextransport) {
+                            lastCheckedIndextransport = currentIndex-1;
+                        }
+
+                        // Si aucune case n'est cochée, réinitialiser les indices
+                        if (firstCheckedIndextransport === -1 || lastCheckedIndextransport === -1) {
+                            firstCheckedIndextransport = null;
+                            lastCheckedIndextransport = null;
+                        }
+
+                        // Mettre à jour les cases intermédiaires
+                        $checkboxes.slice(firstCheckedIndextransport, lastCheckedIndextransport + 1).prop('checked', true).closest('tr').addClass('selected');
+                    } else {
+                        // Empêcher la désélection des cases intermédiaires
+                        $checkbox.prop('checked', true);
+                    }
+                }
+
+                // Mettre à jour la case "Tout sélectionner"
+                const allChecked = $checkboxes.filter(':checked').length === $checkboxes.length;
+                $('#select-all-transport').prop('checked', allChecked);
+        });
+
+
+        $('#transport-payments-table tbody').on('click', 'tr', function (e) {
+            if ($(e.target).is('input[type="checkbox"]')) {
+                $(this).toggleClass('selected', $(e.target).prop('checked'));
+            }
+        });
+
+        $(document).on('click', '.pay-transport-subscription', function () {
+    const subscriptionId = $(this).data('id');
+    $('#transport-subscription-id').val(subscriptionId);
+    $('#transport-payment-date-modal').val(getCurrentDateTimeLocal());
+    $('#transport-payment-amount-modal').val('');
+    var modal = new bootstrap.Modal(document.getElementById('transportPaymentModal'));
+    modal.show();
+});
+
+        $('#transport-payment-form-modal').on('submit', function(e) {
+    e.preventDefault();
+    const formData = $(this).serialize();
+    $.ajax({
+        url: '{{ path("app_save_transport_payment") }}', // À adapter selon ta route Symfony
+        method: 'POST',
+        data: formData,
+        success: function () {
+            $.notify('Paiement de transport enregistré avec succès.', 'success');
+            $('#transportPaymentModal').modal('hide');
+            // Recharge les données si besoin
+        },
+        error: function (xhr) {
+            $.notify(xhr.responseJSON.error, 'error');
+        }
+    });
+});
+
+  // Ouvrir le modal et charger les infos du paiement
+  $(document).on('click', '.update-payment', function () {
+    const paymentId = $(this).data('id');
+    $.ajax({
+      url: '{{ path("app_get_payment_info") }}', // À adapter selon ta route Symfony
+      method: 'GET',
+      data: { id: paymentId },
+      success: function(data) {
+        $('#update-payment-id').val(data.id);
+        $('#update-payment-amount').val(data.amount);
+        $('#update-payment-date').val(data.date);
+        let options = '';
+        data.modalites.forEach(function(mod) {
+          options += `<option value="${mod.id}" ${mod.id==data.modaliteId?'selected':''}>${mod.label}</option>`;
+        });
+        $('#update-payment-modalite').html(options);
+        $('#update-payment-error').text('');
+      },
+      error: function() {
+        $('#update-payment-error').text('Erreur lors du chargement du paiement.');
+      }
+    });
+  });
+
+  // Soumission du formulaire de modification
+  $('#update-payment-form').on('submit', function(e) {
+    e.preventDefault();
+    const formData = $(this).serialize();
+    $.ajax({
+      url: '{{ path("app_update_payment") }}', // À adapter selon ta route Symfony
+      method: 'POST',
+      data: formData,
+      success: function() {
+        $('#updatePaymentModal').modal('hide');
+        $.notify('Paiement modifié avec succès.', 'success');
+        // Recharger les données si besoin (ex: updateTabs(...))
+        updateTabs($('#principales-student-id').val(),$('#principales-class-id').val());
+      },
+      error: function(xhr) {
+        $('#update-payment-error').text(xhr.responseJSON && xhr.responseJSON.error ? xhr.responseJSON.error : 'Erreur lors de la modification.');
+      }
+    });
+  });
+});
+
+
+    function loadTransportSubscriptions(studentId, classId) {
+    $.ajax({
+        url: '{{ path("app_load_transport_subscriptions") }}',
+        data: { studentId: studentId, classId: classId },
+        success: function (data) {
+            const table = $('#transport-subscriptions-table').DataTable();
+            table.clear();
+            data.forEach(function (subscription) {
+                subscription.amount /= subscription.subscriptionType !== 'full' ? 2 : 1; // Diviser le montant par 2 si demi-tarif
+                table.row.add([
+                    subscription.modalLabel,
+                    subscription.subscriptionType === 'full' ? 'Plein tarif' : 'Demi tarif',
+                    subscription.periodicity === 'full' ? 'Plein temps' :
+                    subscription.periodicity === 'morning only' ? 'Matin uniquement' : 'Soir uniquement',
+                    subscription.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 }) + ' ',
+                    `<button class="btn btn-sm btn-primary pay-transport-subscription" data-id="${subscription.id}">Faire un paiement</button><button class="btn btn-sm btn-danger cancel-transport-subscription" data-id="${subscription.id}">Annuler</button>`
+                ]);
+            });
+            table.draw();
+        }
+    });
+
+    $('#print-selected-base').on('click', function () {
+        const studentId=$(this).data('student-id');
+        const classId=$(this).data('class-id');
+        printSelectedRows('base-payments-table',studentId,classId,'base');
+    });
+
+    $('#print-selected-additional').on('click', function () {
+        const studentId=$(this).data('student-id');
+        const classId=$(this).data('class-id');
+        printSelectedRows('additional-payments-table',studentId,classId,'additional');
+    });
+
+    $('#print-selected-transport').on('click', function () {
+        const studentId=$(this).data('student-id');
+        const classId=$(this).data('class-id');
+        printSelectedRows('transport-payments-table',studentId,classId,'transport');
+    });
+
+}
+function getCurrentDateTimeLocal() {
+    const now = new Date();
+    const offset = now.getTimezoneOffset();
+    const localDate = new Date(now.getTime() - offset * 60 * 1000);
+    return localDate.toISOString().slice(0, 16);
+}
+
+    // Fonction pour imprimer les lignes sélectionnées
+    function printSelectedRows(tableId,studentId,classId,modalType) {
+        const $checkboxes = $(`#${tableId} tbody .row-checkbox:checked`);
+        if ($checkboxes.length === 0) {
+            alert('Veuillez sélectionner au moins une ligne à imprimer.');
+            return;
+        }
+
+        // Récupérer les IDs des paiements sélectionnés
+        const selectedIds = $checkboxes.map(function () {
+            return $(this).data('id');
+        }).get();
+        
+        window.open(`/receipt?paymentId=`+JSON.stringify(selectedIds)+`&studentId=${studentId}&classId=${classId}&modalType=${modalType}`, '_blank');
+    }
+    
+    function reloadAdditionalModalities(studentId, classId) {
+        $.ajax({
+            url: '{{ path("app_optional_modals") }}',
+            data: { classId: classId, studentId: studentId },
+            success: function (data) {
+                let secondairesHtml = '';
+                let totalSecondaires = 0;
+                let totalPaiementsSecondaires = 0;
+                let totalRestesSecondaires = 0;
+                let hasActiveSubscriptions = false;
+
+                // Remplir la liste déroulante des modalités dans le formulaire
+                let modalOptionsHtml = '<option></option>';
+
+                data.forEach(function (modal) {
+                    if (modal.enabled) {
+                        hasActiveSubscriptions = true; // Au moins une modalité est activée
+                        const totalPaid = modal.totalPaid || 0; // Paiements effectués pour cette modalité
+                        const remaining = modal.amount - totalPaid; // Calcul du reste à payer
+
+                        secondairesHtml += `
+                            <div>
+                                <strong>${modal.label}</strong>: ${modal.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} 
+                                <br>
+                                <span class="text-success">Total payé : ${totalPaid.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} </span>
+                                <br>
+                                <span class="${remaining > 0 ? 'text-danger' : 'text-success'}">Reste à payer : ${remaining.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} </span>
+                            </div>
+                            <hr>
+                        `;
+
+                        modalOptionsHtml += `
+                            <option value="${modal.id}">${modal.label} (${modal.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} )</option>
+                        `;
+
+                        totalSecondaires += modal.amount;
+                        totalPaiementsSecondaires += totalPaid;
+                        totalRestesSecondaires += remaining;
+                    }
+                });
+
+                // Si aucune modalité n'est activée, afficher le message "Aucune souscription"
+                if (!hasActiveSubscriptions) {
+                    secondairesHtml = `
+                        <div class="alert alert-info text-center text-muted">
+                            <strong>Aucune souscription</strong>
+                        </div>
+                    `;
+                }
+
+                $('#secondaires-student-id').val(studentId);
+                $('#secondaires-class-id').val(classId);
+
+                // Ajouter le contenu des modalités secondaires
+                $('#secondaires-list').html(secondairesHtml);
+
+                // Ajouter les options dans la liste déroulante du formulaire
+                $('#secondaires-payment-modal').html(modalOptionsHtml);
+
+                // Afficher les totaux globaux pour les modalités additionnelles uniquement si des souscriptions existent
+                $('#secondaires-total').text(totalSecondaires.toLocaleString('fr-FR', { minimumFractionDigits: 0 }));
+                $('#secondaires-total-payments').text(totalPaiementsSecondaires.toLocaleString('fr-FR', { minimumFractionDigits: 0 }));
+                $('#secondaires-total-remaining').text(totalRestesSecondaires.toLocaleString('fr-FR', { minimumFractionDigits: 0 }));
+            }
+        });
+    }
+
+    function validateForm(formId) {
+        let isValid = true;
+        const form = $(`#${formId}`);
+        form.find('input, select').each(function () {
+            const field = $(this);
+            if (field.prop('required') && !field.val()) {
+                field.addClass('is-invalid'); // Ajoute une classe pour indiquer une erreur
+                isValid = false;
+            } else {
+                field.removeClass('is-invalid'); // Supprime la classe si le champ est valide
+            }
+        });
+        return isValid;
+    }
+
+    function updateTabs(studentId, classId) {
+        $('#secondaires-student-id').val(studentId);
+        $('#secondaires-class-id').val(classId);
+        $('#transport-subscription-student-id').val(studentId);
+        $('#transport-subscription-class-id').val(classId);
+        $('#print-selected-base').attr('data-student-id',studentId);
+        $('#print-selected-base').attr('data-class-id',classId);
+        $('#print-selected-additional').attr('data-student-id',studentId);
+        $('#print-selected-additional').attr('data-class-id',classId);
+        $('#print-selected-transport').attr('data-student-id',studentId);
+        $('#print-selected-transport').attr('data-class-id',classId);
+        // Mettre à jour l'onglet Sommaire
+        $.ajax({
+            url: '{{ path("app_payment_summary") }}',
+            data: { studentId: studentId, classId: classId },
+            success: function (data) {
+                // Bloc 1 : Liste des modalités à payer
+                let modalitiesHtml = '';
+                let totalModalities = 0;
+
+                data.forEach(function (modal) {
+                    has_reduction=modal.hasReduction ? '<span class="text-danger fa-2x" title="Réduction : '+modal.reductionAmount.toLocaleString('fr-FR',{minimumFractionDigits:0})+'">*</span>' : '';
+                    modalitiesHtml += `
+                        <div>
+                            <strong>${modal.type}</strong>: ${modal.label} (${modal.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 })}) ${has_reduction}
+                        </div>
+                    `;
+                    totalModalities += modal.amount;
+                });
+                
+                modalitiesHtml += `
+                    <div class="mt-3 text-bg-primary p-2 rounded block-total">
+                        <strong>Total des modalités à payer :</strong> ${totalModalities.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} 
+                    </div>
+                `;
+                $('#summary-modalities-list').html(modalitiesHtml);
+
+                // Bloc 2 : Total des paiements
+                let totalPaymentsHtml = '';
+                let totalPayments = 0;
+
+                data.forEach(function (modal) {
+                    totalPaymentsHtml += `
+                        <div>
+                            <strong>${modal.type}</strong>: ${modal.label} (<span id="${modal.id}-total-paid">${modal.totalPaid.toLocaleString('fr-FR', { minimumFractionDigits: 0 })}</span>)
+                        </div>
+                    `;
+                    totalPayments += modal.totalPaid;
+                });
+
+                const totalPaymentsBlockHtml = `
+                    <div class="mt-3 text-bg-primary p-2 rounded block-total">
+                        <strong>Total des paiements :</strong> ${totalPayments.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} 
+                    </div>
+                `;
+                $('#summary-total-payments').html(totalPaymentsHtml);
+                $('#summary-total-payments-block').html(totalPaymentsBlockHtml);
+
+                // Bloc 3 : Restes à payer
+                let remainingHtml = '';
+                let totalRemaining = 0;
+
+                data.forEach(function (modal) {
+                    const colorClass = modal.remaining > 0 ? 'text-danger' : 'text-success';
+                    remainingHtml += `
+                        <div class="${colorClass}">
+                            <strong>${modal.type}</strong>: ${modal.label} (<span id="${modal.id}-total-remaining">${modal.remaining.toLocaleString('fr-FR', { minimumFractionDigits: 0 })}</span>)
+                        </div>
+                    `;
+                    totalRemaining += modal.remaining;
+                });
+
+                const remainingBlockHtml = `
+                    <div class="mt-3 text-bg-primary p-2 rounded block-total">
+                        <strong>Total des restes à payer :</strong> ${totalRemaining.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} 
+                    </div>
+                `;
+                $('#summary-remaining-payments').html(remainingHtml);
+                $('#summary-remaining-payments-block').html(remainingBlockHtml);
+            }
+        });
+
+        // Mettre à jour l'onglet Modalités Standard
+        $.ajax({
+            url: '{{ path("app_principales_modals") }}',
+            data: { classId: classId },
+            success: function (data) {
+                let principalesHtml = '';
+                let modalOptionsHtml = '<option></option>';
+                let totalPrincipales = 0;
+                m=[];
+
+                data.forEach(function (modal) {
+                    principalesHtml += `
+                        <div>
+                            <strong>${modal.label}</strong> : ${modal.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 })}<br>Payé : <span id="total-base-paid-${modal.id}"></span><br>Reste à payer : <span id="total-base-remaining-${modal.id}"></span><hr>
+                        </div>
+                    `;
+                    modalOptionsHtml += `
+                        <option value="${modal.id}">${modal.label} (${modal.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} )</option>
+                    `;
+                    totalPrincipales += modal.amount;
+                    m.push(modal.id);
+                });
+
+                $('#principales-list').html(principalesHtml);
+                totalPaid=0;
+                totalRemaining=0;
+                m.forEach(function (s) {
+                    $('#total-base-paid-'+s).text($(`#${s}-total-paid`).text().toLocaleString('fr-FR', { minimumFractionDigits: 0 }));
+                    totalPaid+=parseInt($(`#${s}-total-paid`).text().toLocaleString('fr-FR', { minimumFractionDigits: 0 }).replace(/\s/g, ''));
+                    $('#total-base-remaining-'+s).text($(`#${s}-total-remaining`).text().toLocaleString('fr-FR', { minimumFractionDigits: 0 })).addClass(parseInt($(`#${s}-total-remaining`).text().toLocaleString('fr-FR', { minimumFractionDigits: 0 }))>0 ? 'text-danger' : 'text-success');
+                    totalRemaining+=parseInt($(`#${s}-total-remaining`).text().toLocaleString('fr-FR', { minimumFractionDigits: 0 }).replace(/\s/g, ''));
+                })
+                $('#principales-payment-modal').html(modalOptionsHtml);
+                $('#principales-total').html(totalPrincipales.toLocaleString('fr-FR', { minimumFractionDigits: 0 })+'<br/>Payé : '+totalPaid.toLocaleString('fr-FR', { minimumFractionDigits: 0 })+'<br>Reste à payer : <span class="'+(totalRemaining>0 ? 'text-danger' : 'text-success')+'">'+totalRemaining.toLocaleString('fr-FR', { minimumFractionDigits: 0 })+'</span>');
+            }
+        });
+
+        // Mettre à jour l'onglet Modalités Additionnelles
+        reloadAdditionalModalities(studentId, classId);
+
+        // Mettre à jour l'onglet Configuration
+        $.ajax({
+            url: '{{ path("app_optional_modals") }}',
+            data: { classId: classId, studentId: studentId },
+            success: function (data) {
+                let additionalModalitiesHtml = '';
+                let hasCheckboxes = false;
+
+                data.forEach(function (modal) {
+                    if (modal.hasPayments && modal.enabled) {
+                        additionalModalitiesHtml += `
+                            <div class="text-muted">
+                                <strong>${modal.label}</strong> (Souscris - en cours de paiement)
+                            </div>
+                        `;
+                    } else {
+                        hasCheckboxes = true;
+                        additionalModalitiesHtml += `
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="modal-${modal.id}" name="modalities[]" value="${modal.id}" ${modal.enabled ? 'checked' : ''}>
+                                <label class="form-check-label" for="modal-${modal.id}">
+                                    ${modal.label} (${modal.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} )
+                                </label>
+                            </div>
+                        `;
+                    }
+                });
+
+                $('#additional-modalities').html(additionalModalitiesHtml);
+            }
+        });
+
+        // Initialiser ou recharger le DataTable pour l'historique des paiements
+            if (!$.fn.DataTable.isDataTable('#payment-history-table')) {
+                $('#payment-history-table').DataTable({
+                    ajax: {
+                        url: '{{ path("app_payment_history") }}',
+                        data: { classId: classId, studentId: studentId },
+                        dataSrc: ''
+                    },
+                    columns: [
+                        { data: 'date' }, // Colonne pour la date
+                        { data: 'amount', render: $.fn.dataTable.render.number(',', '.', 0, ' ') }, // Colonne pour le montant
+                        { // Nouvelle colonne pour le bouton d'impression
+                            data: 'id',
+                            orderable: false,
+                            render: function (data, type, row) {
+                                return `<button class="btn btn-sm btn-secondary print-receipt-button" data-id="${row.id}" data-student-id="${studentId}">Imprimer</button>`;
+                            }
+                        }
+                    ],
+                    language: {
+                        emptyTable: "Aucun paiement trouvé pour cet élève.",
+                        loadingRecords: "Chargement...",
+                        processing: "Traitement...",
+                        search: "Rechercher :",
+                        lengthMenu: "Afficher _MENU_ entrées",
+                        info: "Affichage de _START_ à _END_ sur _TOTAL_ entrées",
+                        infoEmpty: "Aucune entrée disponible",
+                        infoFiltered: "(filtré à partir de _MAX_ entrées totales)",
+                        zeroRecords: "Aucun enregistrement correspondant trouvé"
+                    }
+                });
+            } else {
+                const table = $('#payment-history-table').DataTable();
+                table.destroy();
+                $('#payment-history-table').DataTable({
+                    ajax: {
+                        url: '{{ path("app_payment_history") }}',
+                        data: { classId: classId, studentId: studentId },
+                        dataSrc: ''
+                    },
+                    columns: [
+                        { data: 'date' }, // Colonne pour la date
+                        { data: 'amount', render: $.fn.dataTable.render.number(',', '.', 0, ' ') }, // Colonne pour le montant
+                        { // Nouvelle colonne pour le bouton d'impression
+                            data: 'id',
+                            orderable: false,
+                            render: function (data, type, row) {
+                                return `<button class="btn btn-sm btn-secondary print-receipt-button" data-id="${row.id}" data-student-id="${studentId}">Imprimer</button>`;
+                            }
+                        }
+                    ],
+                    language: {
+                        emptyTable: "Aucun paiement trouvé pour cet élève.",
+                        loadingRecords: "Chargement...",
+                        processing: "Traitement...",
+                        search: "Rechercher :",
+                        lengthMenu: "Afficher _MENU_ entrées",
+                        info: "Affichage de _START_ à _END_ sur _TOTAL_ entrées",
+                        infoEmpty: "Aucune entrée disponible",
+                        infoFiltered: "(filtré à partir de _MAX_ entrées totales)",
+                        zeroRecords: "Aucun enregistrement correspondant trouvé"
+                    }
+                });
+            }
+        $('#payment-form-container').removeClass('hidden');
+        // Gestion du clic sur le bouton d'impression
+        $('#payment-history-table').off('click','.print-receipt-button')
+            $('#payment-history-table').on('click', '.print-receipt-button', function () {
+                const paymentId = $(this).data('id');
+                const studentId=$(this).data('student-id')
+                // Rediriger vers l'URL de génération du reçu pour ce paiement
+                window.open(`/receipt?paymentId=${paymentId}&classId=${classId}&studentId=${studentId}`, '_blank');
+            });
+
+            
+
+    
+
+        // Gérer la dépendance entre Type de souscription et Périodicité
+        $('#subscription-type').on('change', function () {
+            const type = $(this).val();
+            const $periodicity = $('#subscription-periodicity');
+            $periodicity.empty().append('<option></option>');
+
+            if (type === 'full') {
+                $periodicity.append('<option value="full">Plein temps</option>');
+            } else if (type === 'half') {
+                $periodicity.append('<option value="morning only">Matin uniquement</option>');
+                $periodicity.append('<option value="evening only">Soir uniquement</option>');
+            }
+        });
+        loadSubscriptions(studentId, classId);
+        loadAvailableModalities(studentId, classId);
+        loadReductions(studentId, classId);
+        loadAllModalities(studentId, classId);
+        loadTransportSubscriptions(studentId, classId);
+        loadAvailableTransportModalities(studentId, classId);
+        loadPaymentHistory(studentId, classId, 'base', 'base-payments-table','toggle-checkboxes-base');
+        loadPaymentHistory(studentId, classId, 'additional', 'additional-payments-table','toggle-checkboxes-additional');
+        loadPaymentHistory(studentId, classId, 'transport', 'transport-payments-table','toggle-checkboxes-transport');
+    }
+
+    function loadSubscriptions(studentId, classId) {
+            $('#subscriptions-table').off('click', '.cancel-subscription')
+            $.ajax({
+                url: '{{ path("app_load_subscriptions") }}',
+                data: { studentId: studentId, classId: classId },
+                success: function (data) {
+                    const table = $('#subscriptions-table').DataTable();
+                    table.clear();
+                    data.forEach(function (subscription) {
+                        subscription.amount/=subscription.subscriptionType!=='full' ? 2 : 1; // Diviser le montant par 2 si demi-tarif
+                        table.row.add([
+                            subscription.modalLabel,
+                            subscription.subscriptionType === 'full' ? 'Plein tarif' : 'Demi tarif',
+                            subscription.periodicity === 'full' ? 'Plein temps' :
+                            subscription.periodicity === 'morning only' ? 'Matin uniquement' : 'Soir uniquement',
+                            subscription.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 }) + ' ',
+                            `<button class="btn btn-sm btn-danger cancel-subscription" data-id="${subscription.id}">Annuler</button>`
+                        ]);
+                    });
+                    table.draw();
+                    $('#subscriptions-table').off('click', '.cancel-subscription')
+                    $('#subscriptions-table').on('click', '.cancel-subscription', function () {
+                        const subscriptionId = $(this).data('id');
+                        if (confirm('Êtes-vous sûr de vouloir annuler cette souscription ?')) {
+                            const cancelType = confirm('Voulez-vous effectuer une annulation définitive ?') ? 'definitive' : 'partial';
+                            $.ajax({
+                                url: '{{ path("app_cancel_subscription") }}',
+                                method: 'POST',
+                                data: { subscriptionId: subscriptionId, cancelType: cancelType },
+                                success: function () {
+                                    $.notify('Souscription annulée avec succès.', 'success');
+                                    updateTabs(studentId, classId); // Mettre à jour les onglets après l'annulation
+                                },
+                                error: function () {
+                                    $.notify('Une erreur est survenue lors de l\'annulation de la souscription.', 'error');
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        }
+
+        // Charger les modalités non souscrites
+    function loadAvailableModalities(studentId, classId) {
+        $.ajax({
+            url: '{{ path("app_load_available_modalities") }}',
+            data: { studentId: studentId, classId: classId },
+            success: function (data) {
+                const $modalSelect = $('#subscription-modal');
+                $modalSelect.empty().append('<option></option>');
+                $('#subscription-student-id').val(studentId)
+                $('#subscription-class-id').val(classId)
+                // Convertir l'objet en tableau
+                const modalitiesArray = Object.values(data);
+                modalitiesArray.forEach(function (modal) {
+                    $modalSelect.append(`<option value="${modal.id}">${modal.label}</option>`);
+                });
+                $modalSelect.select2({
+                    placeholder:'Sélectionner une modalité',
+                    allowClear: true,
+                }); // Réinitialiser Select2 après avoir ajouté les options
+            }
+        });
+    }
+
+    function loadReductions(studentId, classId) {
+        $.ajax({
+            url: '{{ path("app_list_reductions") }}',
+            data: { studentId: studentId, classId: classId },
+            success: function (data) {
+                const table = $('#reductions-table').DataTable();
+                table.clear();
+                data.forEach(function (reduction) {
+                    table.row.add([
+                        reduction.type,
+                        reduction.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 }) + ' ',
+                        reduction.date,
+                        `
+                        <div class="btn-group"><button class="btn btn-sm btn-primary edit-reduction" data-id="${reduction.id}" data-modal-id="${reduction.modalId}" data-amount="${reduction.amount}">Modifier</button>
+                        <button class="btn btn-sm btn-danger delete-reduction" data-id="${reduction.id}">Supprimer</button></div>
+                        `
+                    ]);
+                });
+                table.draw();
+                $('#reduction-student-id').val(studentId);
+                $('#reduction-class-id').val(classId);
+            }
+        });
+    }
+
+    function loadAllModalities(studentId, classId) {
+        $.ajax({
+            url: '{{ path("app_load_all_modalities") }}', // Remplacez par la route correcte dans votre application
+            data: { studentId: studentId, classId: classId },
+            success: function (data) {
+                const $reductionModalSelect = $('#reduction-modal');
+                $reductionModalSelect.empty().append('<option></option>');
+
+                // Parcourir les modalités et les ajouter au champ select
+                data.forEach(function (modal) {
+                    $reductionModalSelect.append(`<option value="${modal.id}">${modal.label} (${modal.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} )</option>`);
+                });
+                $reductionModalSelect.select2({
+                    placeholder: 'Sélectionner une modalité',
+                    allowClear: true,
+                }); // Réinitialiser Select2 après avoir ajouté les options
+            },
+            error: function () {
+                $.notify('Une erreur est survenue lors du chargement des modalités.', 'error');
+            }
+        });
+    }
+
+    function loadAvailableTransportModalities(studentId, classId) {
+    $.ajax({
+        url: '{{ path("app_load_available_transport_modalities") }}',
+        data: { studentId: studentId, classId: classId },
+        success: function (data) {
+            const $modalSelect = $('#transport-subscription-modal');
+            $modalSelect.empty().append('<option></option>'); // Réinitialiser les options
+
+            // Ajouter les modalités disponibles
+           Object.values(data).forEach(function (modal) {
+                $modalSelect.append(`<option value="${modal.id}">${modal.label} (${modal.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} )</option>`);
+            });
+
+            // Initialiser ou réinitialiser Select2
+            $modalSelect.select2({
+                placeholder: 'Sélectionner un itinéraire',
+                allowClear: true,
+            });
+        },
+        error: function () {
+            $.notify('Une erreur est survenue lors du chargement des modalités de transport.', 'error');
+        }
+    });
+}
+
+function loadPaymentHistory(studentId, classId, modalType, tableId,btnId) {
+    $(`#${btnId}`).prop('disabled',true)
+    $.ajax({
+        url: '{{ path("app_payment_history_data") }}',
+        method: 'GET',
+        data: { studentId: studentId, classId: classId, modalType: modalType },
+        success: function (data) {
+            if($.fn.DataTable.isDataTable(`#${tableId}`)) {
+                $(`#${tableId}`).DataTable().destroy(); // Détruire l'instance existante de DataTable
+            }
+            // Réinitialiser le tableau
+            const $table = $(`#${tableId}`).DataTable({columnDefs: [
+            { orderable: false, targets: [0,1,2,3,4] } // Désactiver le tri pour la première colonne (cases à cocher)
+        ]});
+            $table.clear();
+
+            data.forEach(function (payment) {
+                $table.row.add([`<input type="checkbox" class="row-checkbox" data-id="${payment.id}" disabled/>`,
+                    payment.date,
+                    `${payment.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 })} `,
+                    payment.modalLabel,
+                    `
+                    <button class="btn btn-sm btn-secondary update-payment" data-id="${payment.id}" data-bs-toggle="modal" data-bs-target="#updatePaymentModal">Modifier</button>    
+                    <button class="btn btn-sm btn-secondary print-payment" data-id="${payment.id}" data-student-id="${studentId}" data-class-id="${classId}">Imprimer</button>
+                        <button class="btn btn-sm btn-danger cancel-payment" data-id="${payment.id}">Annuler</button>
+                    `
+                ]);
+            });
+
+            $table.draw();
+            $(`#${btnId}`).prop('disabled',false)
+        },
+        error: function () {
+            $.notify('Une erreur est survenue lors du chargement des paiements.', 'error');
+        }
+    });
+
+    // Initialiser ou reconfigurer DataTable
+    if ($.fn.DataTable.isDataTable(`#${tableId}`)) {
+        $(`#${tableId}`).DataTable().destroy(); // Détruire l'instance existante de DataTable
+    }
+    // Réinitialiser le tableau
+    $(`#${tableId}`).DataTable({
+        columnDefs: [
+            { orderable: false, targets: [0,1,2,3,4] } // Désactiver le tri pour la première colonne (cases à cocher)
+        ],
+        language: {
+            emptyTable: "Aucun paiement trouvé pour cet élève.",
+            loadingRecords: "Chargement...",
+            processing: "Traitement...",
+            search: "Rechercher :",
+            lengthMenu: "Afficher _MENU_ entrées",
+            info: "Affichage de _START_ à _END_ sur _TOTAL_ entrées",
+            infoEmpty: "Aucune entrée disponible",
+            infoFiltered: "(filtré à partir de _MAX_ entrées totales)",
+            zeroRecords: "Aucun enregistrement correspondant trouvé"
+        }
+    });
+}
+
+function toggleAllChecked(el,tableId,btnId){
+    const isChecked = el.checked;
+    const $checkboxes = $(`#${tableId} tbody .row-checkbox`);
+    $checkboxes.prop('checked', isChecked).closest('tr').toggleClass('selected', isChecked);
+    $checkboxes.each(function () {
+        const $checkbox = $(this);
+        if (isChecked) {
+            $checkbox.closest('tr').addClass('selected');
+        } else {
+            $checkbox.closest('tr').removeClass('selected');
+        }
+    });
+    $(`#${btnId}`).prop('disabled', !isChecked); // Activer ou désactiver le bouton en fonction de l'état de la case à cocher
+}
+
+</script>
+<style>
+    .equal-height {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        height: 100%; /* Permet de remplir toute la hauteur disponible */
+    }
+
+    .equal-height .block-content {
+        flex-grow: 1; /* Permet au contenu de s'étendre */
+    }
+
+    .equal-height .block-total {
+        margin-top: auto; /* Fixe le total en bas */
+    }
+
+    .row {
+        display: flex;
+    }
+
+    .col-md-4 {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .floating-button {
+        position: fixed;
+        bottom: 100px;
+        right: 20px;
+        z-index: 1000;
+        padding: 10px 20px;
+        border-radius: 50px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+</style>
+{% endblock %}

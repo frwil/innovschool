@@ -1,0 +1,228 @@
+{# filepath: d:\wamp64\www\innovschool\templates\timetable\_grid.html.twig #}
+<table class="table table-bordered">
+	<thead>
+		<tr>
+			<th>Plage horaire</th>
+			{% for dayName in days %}
+			<th>
+				{{ dayName }}
+				<a href="#" class="btn btn-light add-slot-btn" data-day="{{ loop.index0 + 1 }}"
+					title="Ajouter une plage horaire">
+					<i class="fa fa-plus fa-2x"></i>
+				</a>
+			</th>
+			{% endfor %}
+		</tr>
+	</thead>
+	<tbody>
+		{% for time in times %}
+		<tr>
+			<td>{{ time }}</td>
+			{% for dayNum, dayName in days %}
+			<td>
+				{% set slot = slotsByDayAndTime[time][dayNum] ?? null %}
+				{% if slot %}
+				<strong>{{ slot.subject.name }}</strong>
+				<form method="post" class="d-inline delete-slot-form" data-slot-id="{{ slot.id }}"
+					action="{{ path('app_timetable_slot_delete', {'id': slot.id}) }}" style="display:inline;">
+					<input type="hidden" name="id" value="{{ slot.id }}" id="slotId">
+					<input type="hidden" name="_token" value="{{ csrf_token('delete_timetable_slot_' ~ slot.id) }}">
+					<button type="submit" class="btn btn-danger btn-sm btn-delete-slot" title="Supprimer ce créneau">
+						<i class="fa fa-trash"></i>
+					</button>
+				</form><br>
+				<small>{{ slot.notes }}</small>
+
+				{% endif %}
+			</td>
+			{% endfor %}
+		</tr>
+		{% endfor %}
+		{# Ligne de total d'heures par matière pour chaque jour #}
+		<tr class="table-info">
+			<td><strong>Total heures par matière</strong></td>
+			{% for dayNum, dayName in days %}
+			<td>
+				{% set matieres = {} %}
+				{% for time in times %}
+				{% set slot = slotsByDayAndTime[time][dayNum] ?? null %}
+				{% if slot %}
+				{# Calcul de la durée du créneau #}
+				{% set start = slot.startTime|date('H:i') %}
+				{% set end = slot.endTime|date('H:i') %}
+				{% set startParts = start|split(':') %}
+				{% set endParts = end|split(':') %}
+				{% set startHour = startParts[0]|number_format(0, '', '') %}
+				{% set startMinute = startParts[1]|number_format(0, '', '') %}
+				{% set endHour = endParts[0]|number_format(0, '', '') %}
+				{% set endMinute = endParts[1]|number_format(0, '', '') %}
+				{% set startMinutes = (startHour + 0) * 60 + (startMinute + 0) %}
+				{% set endMinutes = (endHour + 0) * 60 + (endMinute + 0) %}
+				{% set duree = (endMinutes - startMinutes) / 60 %}
+				{% set matieres = matieres|merge({ (slot.subject.name): (matieres[slot.subject.name]|default(0) + duree)
+				}) %}
+				{% endif %}
+				{% endfor %}
+				{% for matiere, total in matieres %}
+				<span class="badge bg-primary">{{ matiere }}: {{ total|number_format(2, ',', ' ') }}h</span><br>
+				{% else %}
+				<em>-</em>
+				{% endfor %}
+			</td>
+			{% endfor %}
+		</tr>
+	</tbody>
+</table>
+
+{# Bloc total d'heures de la classe sur la semaine #}
+{% set totalHeuresClasse = 0 %}
+{% for dayNum, dayName in days %}
+{% for time in times %}
+{% set slot = slotsByDayAndTime[time][dayNum] ?? null %}
+{% if slot %}
+{% set start = slot.startTime|date('H:i') %}
+{% set end = slot.endTime|date('H:i') %}
+{% set startParts = start|split(':') %}
+{% set endParts = end|split(':') %}
+{% set startHour = startParts[0]|number_format(0, '', '') %}
+{% set startMinute = startParts[1]|number_format(0, '', '') %}
+{% set endHour = endParts[0]|number_format(0, '', '') %}
+{% set endMinute = endParts[1]|number_format(0, '', '') %}
+{% set startMinutes = (startHour + 0) * 60 + (startMinute + 0) %}
+{% set endMinutes = (endHour + 0) * 60 + (endMinute + 0) %}
+{% set duree = (endMinutes - startMinutes) / 60 %}
+{% set totalHeuresClasse = totalHeuresClasse + duree %}
+{% endif %}
+{% endfor %}
+{% endfor %}
+<div class="alert alert-info mt-3">
+	<strong>Total d'heures de la classe sur la semaine :</strong> {{ totalHeuresClasse|number_format(2, ',', ' ') }} h
+</div>
+
+<!-- Modal pour ajouter une plage horaire -->
+<div class="modal fade" id="addSlotModal" tabindex="-1" aria-labelledby="addSlotModalLabel" aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form id="addSlotForm" method="post">
+				<div class="modal-header">
+					<input type="hidden" name="timetableId" value="{{ timetable.id }}">
+					<input type="hidden" name="classId" value="{{ class.id }}">
+					<h5 class="modal-title" id="addSlotModalLabel">Ajouter une plage horaire</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+				</div>
+				<div class="modal-body">
+					<input type="hidden" name="dayOfWeek" id="modalDayOfWeek">
+					<div class="mb-3">
+						<label for="startTime" class="form-label">Heure de début</label>
+						<input type="text" class="form-control" name="startTime" id="startTime" required>
+					</div>
+					<div class="mb-3">
+						<label for="endTime" class="form-label">Durée</label>
+						<input type="text" class="form-control" name="endTime" id="endTime" required>
+					</div>
+					<div class="mb-3">
+						<label for="subject" class="form-label">Matière</label>
+						<select class="form-select select2" name="subject" id="subject" required>
+							{% for subject in subjects %}
+							<option value="{{ subject.id }}">{{ subject.name }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="mb-3">
+						<label for="notes" class="form-label">Notes</label>
+						<textarea class="form-control" name="notes" id="notes"></textarea>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary close-modal-btn"
+						data-bs-dismiss="modal">Annuler</button>
+					<button type="submit" class="btn btn-success">Ajouter</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+{% block javascripts %}
+
+<script>
+	$(function () { // Timepicker configuration
+		$('#endTime').timepicker({
+			timeFormat: 'H:i',
+			interval: 30,
+			minTime: '1:00',
+			maxTime: '8:30',
+			dynamic: false,
+			dropdown: true,
+			scrollbar: true
+		});
+
+		$('#startTime').timepicker({
+			timeFormat: 'H:i',
+			interval: 30,
+			minTime: '7:00',
+			maxTime: '17:00',
+			dynamic: false,
+			dropdown: true,
+			scrollbar: true
+		});
+
+		// Ouvre le modal et passe le jour sélectionné
+		$('.add-slot-btn').on('click', function (e) {
+			e.preventDefault();
+			var day = $(this).data('day');
+			$('#modalDayOfWeek').val(day);
+			var modal = new bootstrap.Modal(document.getElementById('addSlotModal'));
+			modal.show();
+		});
+
+		// Gère la soumission du formulaire pour ajouter un slot
+		$('#addSlotForm').on('submit', function (e) {
+			e.preventDefault();
+			var form = $(this);
+			$.ajax({
+				url: "{{ path('app_timetable_slot_add') }}",
+				method: "POST",
+				data: form.serialize(),
+				success: function (response) { 
+					$.notify('Plage horaire ajoutée avec succès.', 'success');
+					// Met à jour le tableau des slots
+					$('#class-select-form').trigger('submit');
+					// Recharger le tableau
+					// Ferme le modal
+					$('#addSlotModal .close-modal-btn').click();
+					// Réinitialise le formulaire
+					form[0].reset();
+				},
+				error: function (xhr) {
+					$.notify(xhr.responseJSON.message || 'Erreur lors de l\'ajout de la plage horaire.', 'error');
+				}
+			});
+		});
+
+		$('.delete-slot-form').on('submit', function (e) {
+			e.preventDefault();
+			if (!confirm('Supprimer ce créneau ?'))
+				return;
+
+			var form = $(this);
+			var slotId = $('#slotId').val();
+			var token = form.find('input[name="_token"]').val();
+			$.ajax({
+				url: form.attr('action'),
+				method: "POST",
+				data: {
+					id: slotId,
+					_token: token
+				},
+				success: function (response) {
+					$('#class-select-form').trigger('submit');
+				},
+				error: function (xhr) {
+					$.notify(xhr.responseJSON?.message || "Erreur lors de la suppression.", 'error');
+				}
+			});
+		});
+	});
+</script>
+{% endblock %}

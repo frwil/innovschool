@@ -1,0 +1,381 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Cartes Scolaires{% endblock %}
+
+{% block body %}
+    <div class="three"><h1>Cartes Scolaires</h1></div>
+    <p class="alert alert-info">Bienvenue dans la gestion des cartes scolaires.</p>
+
+    <div class="row">
+        <div class="form-group col-md-4">
+            <label for="section-select">Sections</label>
+            <select id="section-select" class="form-control select2" name="section">
+                <option value="">-- Sélectionnez une section --</option>
+                {% for section in sections %}
+                    <option value="{{ section.id }}">{{ section.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group col-md-4">
+            <label for="class-select">Classes</label>
+            <select id="class-select" class="form-control select2" name="class" disabled>
+                <option value="">-- Sélectionnez une classe --</option>
+            </select>
+        </div>
+        <div class="form-group col-md-4">
+            
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <table id="students-table" class="table table-bordered table-striped">
+                <thead>
+                    <tr>
+                        <th>Matricule</th>
+                        <th>Nom</th>
+                        <th>Photo</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Les données seront chargées dynamiquement -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12 text-right">
+            <div class="btn-group">
+                <button id="export-json" class="btn btn-success" disabled>
+                    <i class="fa fa-download"></i> Exporter en JSON
+                </button>
+                <button id="import-json" class="btn btn-primary">
+                    <i class="fa fa-upload"></i> Importer JSON
+                </button>
+                <button id="print-all-cards" class="btn btn-danger">
+                    <i class="fa fa-print"></i> Imprimer toutes les cartes
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12 text-right">
+            
+            <input type="file" id="json-input" accept="application/json" style="display: none;">
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-12">
+            <div class="progress" style="height: 25px; display: none;" id="import-progress">
+                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%;" id="progress-bar">
+                    0%
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+    <form id="upload-photo-form" style="display: none;">
+        <input type="file" id="photo-input" name="photo" accept="image/*">
+        <input type="hidden" id="matricule-input" name="matricule">
+    </form>
+
+    <script>
+    
+        $(function () {
+            // Écouter le changement de la section
+            $('#section-select').on('change', function () {
+                const sectionId = $(this).val();
+                const $classSelect = $('#class-select');
+
+                if (sectionId) {
+                    // Désactiver le champ des classes pendant le chargement
+                    $classSelect.prop('disabled', true).empty().append('<option>Chargement...</option>');
+
+                    // Faire une requête AJAX pour récupérer les classes
+                    $.ajax({
+                        url: "{{ path('app_registration_card_classes', { sectionId: '__SECTION_ID__' }) }}".replace('__SECTION_ID__', sectionId),
+                        method: 'GET',
+                        success: function (data) {
+                            // Réinitialiser le champ des classes
+                            $classSelect.empty().append('<option></option>');
+
+                            // Ajouter les classes récupérées
+                            data.forEach(function (classItem) {
+                                $classSelect.append(`<option value="${classItem.id}">${classItem.name}</option>`);
+                            });
+
+                            // Réactiver le champ des classes
+                            $classSelect.prop('disabled', false);
+                        },
+                        error: function (xhr) {
+                            // Gérer l'erreur ici
+                            if(xhr.responseJSON && xhr.responseJSON.error) {
+                                $.notify(xhr.responseJSON.error);
+                            } else {
+                                $.notify('Une erreur est survenue lors du chargement des classes.');
+                            }
+                        }
+                    });
+                } else {
+                    // Réinitialiser le champ des classes si aucune section n'est sélectionnée
+                    $classSelect.prop('disabled', true).empty().append('<option value="">-- Sélectionnez une classe --</option>');
+                }
+            });
+
+            // Écouter le changement de la classe
+            $('#class-select').on('change', function () {
+                const classId = $(this).val();
+
+                if (classId) {
+                    // Charger les élèves via AJAX
+                    $.ajax({
+                        url: "{{ path('app_registration_card_students', { classId: '__CLASS_ID__' }) }}".replace('__CLASS_ID__', classId),
+                        method: 'GET',
+                        success: function (data) {
+                            const studentsTable = $('#students-table').DataTable({
+                                destroy: true, // Pour réinitialiser le tableau à chaque chargement
+                                data: [], // Initialiser avec un tableau vide
+                                columns: [
+                                    { title: "Matricule" },
+                                    { title: "Nom" },
+                                    { 
+                                        title: "Photo",
+                                        render: function (data, type, row) {
+                                            // Afficher une image par défaut si aucune photo n'est disponible
+                                            const photoUrl = row[2] ? `/uploads/${row[2]}` : '/img/default_student.png';
+                                            return `<img src="${photoUrl}" alt="Photo" class="student-photo" style="width: 50px; height: 50px; object-fit: cover; border-radius: 50%;">`;
+                                        }
+                                    },
+                                    { 
+                                        title: "Actions",
+                                        render: function (data, type, row) {
+                                            // Ajouter un bouton pour imprimer la carte scolaire
+                                            return `<div class="btn-group">
+                                                        <button class="btn btn-primary btn-print-card" data-matricule="${row[0]}" data-name="${row[1]}">
+                                                            <i class="fa fa-print"></i> Imprimer
+                                                        </button>
+                                                        <button class="btn btn-secondary btn-upload-photo" data-matricule="${row[0]}" data-name="${row[1]}">
+                                                            <i class="fa fa-upload"></i> Uploader Photo
+                                                        </button>
+                                                    </div>`;
+                                        }
+                                    }
+                                ]
+                            });
+
+                            // Vider le tableau avant de le remplir
+                            studentsTable.clear();
+
+                            // Ajouter les élèves au tableau
+                            data.forEach(function (student) {
+                                studentsTable.row.add([
+                                    student.matricule,
+                                    student.name,
+                                    student.photo // Ajouter la photo (nom du fichier ou URL)
+                                ]).draw();
+                            });
+                            $('#export-json').prop('disabled', false); // Activer le bouton d'exportation
+                        },
+                        error: function (xhr) {
+                            // Gérer l'erreur ici
+                            if(xhr.responseJSON && xhr.responseJSON.error) {
+                                $.notify(xhr.responseJSON.error);
+                            } else {
+                                $.notify('Une erreur est survenue lors du chargement des élèves.');
+                            }
+                        }
+                    });
+                } else {
+                    // Vider le tableau si aucune classe n'est sélectionnée
+                    studentsTable.clear().draw();
+                }
+            });
+
+            // Écouter les clics sur les boutons "Imprimer"
+            $('#students-table').on('click', '.btn-print-card', function () {
+                const matricule = $(this).data('matricule');
+                const name = $(this).data('name');
+
+                // Rediriger vers une route pour imprimer la carte scolaire
+                window.open("{{ path('app_registration_card_print', { matricule: '__MATRICULE__',classe:'__CLASS_ID__' }) }}".replace('__MATRICULE__', matricule).replace('__CLASS_ID__',$('#class-select').val()), '_blank');
+            });
+
+            $('#students-table').on('click', '.btn-upload-photo', function () {
+                const matricule = $(this).data('matricule');
+                $('#matricule-input').val(matricule); // Remplir le champ matricule caché
+                $('#photo-input').click(); // Ouvrir le sélecteur de fichier
+            });
+
+            $('#photo-input').on('change', function () {
+                const formData = new FormData($('#upload-photo-form')[0]);
+
+                $.ajax({
+                    url: "{{ path('app_registration_card_upload_photo') }}",
+                    method: 'POST',
+                    data: formData,
+                    processData: false,
+                    contentType: false,
+                    success: function (response) {
+                        $.notify(response.success,'success');
+                        // Rafraîchir le tableau pour afficher la nouvelle photo
+                        $('#class-select').trigger('change');
+                    },
+                    error: function (xhr) {
+                        $.notify(xhr.responseJSON.error || 'Une erreur est survenue lors de l\'upload.','error');
+                    }
+                });
+            });
+
+            // Écouter le clic sur le bouton d'exportation
+            $('#export-json').on('click', async function () {
+                const studentsTable = $('#students-table').DataTable();
+
+                // Récupérer toutes les données du DataTable
+                const data = studentsTable.rows().data().toArray();
+
+                // Afficher la barre de progression
+                $('#export-progress').show();
+                const progressBar = $('#export-progress-bar');
+
+                // Nombre total d'éléments à exporter
+                const totalItems = data.length;
+                let processedItems = 0;
+
+                // Fonction pour convertir une image en Base64
+                async function convertImageToBase64(url) {
+                    return new Promise((resolve, reject) => {
+                        const xhr = new XMLHttpRequest();
+                        xhr.onload = function () {
+                            const reader = new FileReader();
+                            reader.onloadend = function () {
+                                resolve(reader.result);
+                            };
+                            reader.readAsDataURL(xhr.response);
+                        };
+                        xhr.onerror = function () {
+                            reject('Erreur lors de la conversion de l\'image en Base64.');
+                        };
+                        xhr.open('GET', url);
+                        xhr.responseType = 'blob';
+                        xhr.send();
+                    });
+                }
+
+                // Ajouter les photos en Base64 aux données
+                for (let i = 0; i < data.length; i++) {
+                    const photoUrl = data[i][2] ? `/uploads/${data[i][2]}` : '/img/default_student.png';
+                    data[i][2] = await convertImageToBase64(photoUrl); // Convertir la photo en Base64
+
+                    // Mettre à jour la progression
+                    processedItems++;
+                    const progress = Math.round((processedItems / totalItems) * 100);
+                    progressBar.css('width', progress + '%').text(progress + '%');
+                }
+
+                // Convertir les données en JSON
+                const jsonData = JSON.stringify(data, null, 4);
+
+                // Créer un fichier texte contenant les données JSON
+                const blob = new Blob([jsonData], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+
+                // Créer un lien pour télécharger le fichier
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'students_data.json';
+                document.body.appendChild(a);
+                a.click();
+
+                // Nettoyer l'URL pour libérer la mémoire
+                URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+
+                // Cacher la barre de progression une fois terminé
+                $('#export-progress').hide();
+                $.notify('Exportation terminée avec succès.', 'success');
+            });
+
+            $('#import-json').on('click', function () {
+                // Ouvrir le sélecteur de fichier JSON
+                $('#json-input').click();
+            });
+
+            $('#json-input').on('change', function () {
+                const file = this.files[0];
+
+                if (file) {
+                    const reader = new FileReader();
+
+                    reader.onload = async function (event) {
+                        try {
+                            // Lire et parser le contenu du fichier JSON
+                            const jsonData = JSON.parse(event.target.result);
+
+                            // Afficher la barre de progression
+                            $('#import-progress').show();
+                            const progressBar = $('#progress-bar');
+
+                            // Nombre total d'éléments à importer
+                            const totalItems = jsonData.length;
+                            let processedItems = 0;
+
+                            // Importer les données une par une
+                            for (const studentData of jsonData) {
+                                await $.ajax({
+                                    url: "{{ path('app_registration_card_import_json') }}",
+                                    method: 'POST',
+                                    contentType: 'application/json',
+                                    data: JSON.stringify([studentData]), // Envoyer un seul élément à la fois
+                                    success: function () {
+                                        processedItems++;
+                                        const progress = Math.round((processedItems / totalItems) * 100);
+                                        progressBar.css('width', progress + '%').text(progress + '%');
+                                    },
+                                    error: function () {
+                                        processedItems++;
+                                        const progress = Math.round((processedItems / totalItems) * 100);
+                                        progressBar.css('width', progress + '%').text(progress + '%');
+                                    }
+                                });
+                            }
+
+                            // Cacher la barre de progression une fois terminé
+                            $.notify('Importation terminée avec succès.', 'success');
+                            $('#import-progress').hide();
+                            $('#class-select').trigger('change'); // Rafraîchir le tableau
+                        } catch (error) {
+                            $.notify('Le fichier JSON est invalide.', 'error');
+                            $('#import-progress').hide();
+                        }
+                    };
+
+                    reader.readAsText(file);
+                }
+            });
+
+            $('#print-all-cards').on('click', function () {
+                const studentsTable = $('#students-table').DataTable();
+
+                // Récupérer toutes les données du tableau
+                const data = studentsTable.rows().data().toArray();
+
+                if (data.length === 0) {
+                    $.notify('Aucune carte à imprimer.', 'error');
+                    return;
+                }
+
+                // Récupérer les matricules des élèves
+                const matricules = data.map(row => row[0]); // Supposons que le matricule est dans la première colonne
+
+                // Rediriger vers une route pour imprimer toutes les cartes
+                window.open("{{ path('app_registration_card_print_all') }}?matricules=" + encodeURIComponent(JSON.stringify(matricules)), '_blank');
+            });
+        });
+    </script>
+{% endblock %}

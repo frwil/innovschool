@@ -1,0 +1,115 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Nouvelle classe
+{% endblock %}
+
+{% block body %}
+<div class="three">
+	<h1>Créer une nouvelle classe</h1>
+</div>
+
+{% for label, messages in app.flashes %}
+{% for message in messages %}
+<div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+	{{ message }}
+	<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+</div>
+{% endfor %}
+{% endfor %}
+
+<form method="post" action="{{ path('app_school_class_new') }}" id="new-class-form">
+	<div class="row">
+		<div class="col-md-6">
+			<div class="mb-3">
+				<label for="section" class="form-label">Niveau d'études</label>
+				<select id="section" name="section" class="form-control select2" required>
+					<option value="">Sélectionner un niveau d'études</option>
+					{% for section in sections %}
+					<option value="{{ section.id }}">{{ section.name }}</option>
+					{% endfor %}
+				</select>
+			</div>
+			<div class="mb-3">
+				<label for="section_category" class="form-label">Catégorie d'étude</label>
+				<select id="section_category" name="section_category" class="form-control select2" required>
+					<option value="">Sélectionner une catégorie</option>
+				</select>
+			</div>
+		</div>
+		<div class="col-md-6">
+			<div class="mb-3">
+				<label for="class_count" class="form-label">Nombre de classes à créer</label>
+				<input type="number" id="class_count" name="class_count" class="form-control" min="1" value="1"
+					required>
+			</div>
+			<div class="mb-3">
+				<label for="numbering_type" class="form-label">Type de numérotation</label>
+				<select id="numbering_type" name="numbering_type" class="form-select select2" required>
+					<option value="numeric">1, 2, 3, ...</option>
+					<option value="alpha">A, B, C, ...</option>
+				</select>
+			</div>
+		</div>
+	</div>
+	<button type="submit" class="btn btn-primary" id="create-class-btn">Créer</button>
+	<a href="{{ path('app_school_class_index') }}" class="btn btn-secondary">Retour à la liste</a>
+</form>
+
+<script>
+	$('#section').on('change', function () {
+		var sectionId = $(this).val();
+		var $categorySelect = $('#section_category');
+		$categorySelect.html('<option value="">Chargement...</option>');
+		if (sectionId) {
+			$.ajax({
+				url: "{{ path('get_section_categories', {'id': 'SECTION_ID'}) }}".replace('SECTION_ID', sectionId),
+				type: 'GET',
+				success: function (categories) {
+					var options = '<option value="">Sélectionner une catégorie</option>';
+					$.each(categories, function (i, category) {
+						options += '<option value="' + category.id + '">' + category.name + '</option>';
+					});
+					$categorySelect.html(options);
+				},
+				error: function () {
+					$categorySelect.html('<option value="">Aucune catégorie trouvée</option>');
+				}
+			});
+		} else {
+			$categorySelect.html('<option value="">Sélectionner une catégorie</option>');
+		}
+	});
+
+	$('#new-class-form').on('submit', function (e) {
+		e.preventDefault();
+		var $form = $(this);
+		var formData = $form.serialize();
+		$('#create-class-btn').prop('disabled', true).text('Création en cours...');
+		$.ajax({
+			url: $form.attr('action'),
+			type: 'POST',
+			data: formData,
+			success: function (response) {
+				if (response.success) {
+					$.notify('Classe (s) créée(s) avec succès !');
+					window.location.href = "{{ path('app_school_class_index') }}";
+					$('#create-class-btn').prop('disabled', false).text('Créer');
+				} else {
+					$.notify('Erreur lors de la création : ' + (response.message || 'Erreur code source'), { type: 'danger' });
+				}
+			},
+			error: function (xhr) {
+				$.notify('Erreur lors de la création de la classe.'+(xhr.status==0 ? '\nVérifiez votre connexion Internet.' : xhr.statusText), { type: 'danger' });
+				$('#create-class-btn').prop('disabled', false).text('Créer');
+			},
+			complete: function () {
+				$('#create-class-btn').prop('disabled', false).text('Créer');
+			},
+			fail: function (xhr) {
+				$.notify('Erreur lors de la création de la classe.'+(xhr.status==0 ? '\nVérifiez votre connexion Internet.' : xhr.statusText), { type: 'danger' });
+				$('#create-class-btn').prop('disabled', false).text('Créer');
+			}
+		});
+	});
+</script>
+{% endblock %}

@@ -1,0 +1,382 @@
+{% extends 'base.up.html.twig' %}
+{% block title %}Gestion des Présences/Absences{% endblock %}
+{% block body %}
+<div class="container mt-4">
+    <div class="three">
+        <h1 class="mb-4">Gestion des Présences/Absences</h1>
+    </div>
+    <div class="row mb-3">
+        <div class="col-md-3">
+            <label for="sectionId" class="form-label">Niveau d'étude</label>
+            <select id="sectionId" class="form-select select2">
+                <option value="">Sélectionnez un niveau</option>
+                {% for section in sections %}
+                <option value="{{ section.id }}">{{ section.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="classId" class="form-label">Classe</label>
+            <select id="classId" class="form-select select2">
+                <option value="">Sélectionnez une classe</option>
+            </select>
+        </div>
+        <div class="col-md-3 mt-2">
+            <label for="evaluationTimeId" class="form-label">Période d'évaluation</label>
+            <select id="evaluationTimeId" class="form-select select2">
+                <option value="">Sélectionnez une période</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="dayOfWeek" class="form-label">Jour</label>
+            <select id="dayOfWeek" class="form-select select2" disabled>
+                <option value="1">Lundi</option>
+                <option value="2">Mardi</option>
+                <option value="3">Mercredi</option>
+                <option value="4">Jeudi</option>
+                <option value="5">Vendredi</option>
+                <option value="6">Samedi</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="slotId" class="form-label">Plage horaire</label>
+            <select id="slotId" class="form-select select2" disabled>
+                <option value="">Sélectionnez une plage horaire</option>
+            </select>
+        </div>
+        <div class="col-md-3 mt-2">
+            <label for="datePresence" class="form-label">Date</label>
+            <input type="text" id="datePresence" class="form-control" disabled autocomplete="off">
+        </div>
+    </div>
+    <div id="students-table-container" style="display:none;">
+        <table id="students-table" class="table table-bordered">
+            <thead>
+                <tr>
+                    <th>Élève</th>
+                    <th>Statut</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        <div class="mb-2" id="lock-unlock-btn-container"></div>
+    </div>
+</div>
+<link rel="stylesheet" href="https://code.jquery.com/ui/1.13.2/themes/base/jquery-ui.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/switchery/0.8.2/switchery.min.css">
+<link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+<script src="https://code.jquery.com/ui/1.13.2/jquery-ui.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/switchery/0.8.2/switchery.min.js"></script>
+<script>
+    function loadSlots() {
+        const classId = $('#classId').val();
+        const dayOfWeek = $('#dayOfWeek').val();
+        $('#slotId').empty().append('<option value="">Sélectionnez une plage horaire</option>');
+        $('#students-table-container').hide();
+        if (classId && dayOfWeek) {
+            $.ajax({
+                url: '{{ path("app_timetable_slots_by_class") }}',
+                data: { classId: classId, dayOfWeek: dayOfWeek },
+                success: function (data) {
+                    // Filtrer les slots uniques par id
+                    const unique = {};
+                    data.forEach(function (slot) {
+                        if (!unique[slot.id]) {
+                            unique[slot.id] = slot;
+                        }
+                    });
+                    Object.values(unique).forEach(function (slot) {
+                        $('#slotId').append(`<option value="${slot.id}">${slot.label}</option>`);
+                    });
+                }
+            });
+        }
+    }
+
+    function loadEvaluationTimes() {
+        $('#evaluationTimeId').empty().append('<option value="">Sélectionnez une période</option>');
+        $.ajax({
+            url: '{{ path("app_get_evaluations") }}',
+            success: function (data) {
+                // Filtrer les périodes uniques par id
+                const unique = {};
+                data.forEach(function (period) {
+                    if (!unique[period.id]) {
+                        unique[period.id] = period;
+                    }
+                });
+                Object.values(unique).forEach(function (period) {
+                    $('#evaluationTimeId').append(`<option value="${period.id}">${period.evaluationFrameName ? period.evaluationFrameName + ' - ' : ''}${period.evaluationTimeName || period.name}</option>`);
+                });
+            }
+        });
+    }
+
+    $(document).ready(function () {
+        // Charger les classes selon le niveau
+        $('#sectionId').on('change', function () {
+            const sectionId = $(this).val();
+            $('#classId').empty().append('<option value="">Sélectionnez une classe</option>');
+            $('#slotId').empty().append('<option value="">Sélectionnez une plage horaire</option>');
+            $('#students-table-container').hide();
+            if (sectionId) {
+                $.ajax({
+                    url: '{{ path("app_classes_by_section") }}',
+                    data: { sectionId: sectionId },
+                    success: function (data) {
+                        data.forEach(function (classe) {
+                            $('#classId').append(`<option value="${classe.id}">${classe.name}</option>`);
+                        });
+                    }
+                });
+            }
+        });
+        // Sélectionner le jour courant par défaut
+        const today = new Date();
+        let jsDay = today.getDay(); // 0=dimanche, 1=lundi, ...
+        if (jsDay === 0) jsDay = 1; // Si dimanche, on met lundi
+        $('#dayOfWeek').val(jsDay);
+
+
+        $('#classId').on('change', function () {
+            loadSlots();
+            $('#dayOfWeek').prop('disabled', true);
+            $('#slotId').prop('disabled', true);
+            $('#evaluationTimeId').val('');
+        });
+        loadEvaluationTimes();
+        $('#dayOfWeek').on('change', loadSlots);
+
+        // Activer les champs jour et plage horaire quand une période d'évaluation est choisie
+        $('#evaluationTimeId').on('change', function () {
+            if ($(this).val()) {
+                $('#dayOfWeek').prop('disabled', false);
+                $('#slotId').prop('disabled', false);
+                $('#datePresence').prop('disabled', false);
+            } else {
+                $('#dayOfWeek').prop('disabled', true);
+                $('#slotId').prop('disabled', true);
+                $('#datePresence').prop('disabled', true);
+            }
+        });
+        // Action bouton Valider (lock)
+        $('#lock-btn').off('click').on('click', function () {
+            const slotId = $('#slotId').val();
+            const classId = $('#classId').val();
+            const datePresence = $('#datePresence').val();
+            const evaluationTimeId = $('#evaluationTimeId').val();
+            $.post(
+                '{{ path("app_presence_lock") }}',
+                { classId, slotId, datePresence, evaluationTimeId, locked: true },
+                function () { $('#slotId, #datePresence, #evaluationTimeId').trigger('change'); }
+            );
+        });
+        {% if is_granted('ROLE_ADMIN') or is_granted('ROLE_SUPER_ADMIN') %}
+        // Action bouton Débloquer (unlock)
+        $('#unlock-btn').off('click').on('click', function () {
+            const slotId = $('#slotId').val();
+            const classId = $('#classId').val();
+            const datePresence = $('#datePresence').val();
+            const evaluationTimeId = $('#evaluationTimeId').val();
+            $.post(
+                '{{ path("app_presence_lock") }}',
+                { classId, slotId, datePresence, evaluationTimeId, locked: false },
+                function () { $('#slotId, #datePresence, #evaluationTimeId').trigger('change'); }
+            );
+        });
+        {% endif %}
+
+        // Initialiser le datepicker avec restriction sur le jour sélectionné
+        function updateDatepickerDayRestriction() {
+            const selectedDay = parseInt($('#dayOfWeek').val(), 10); // 1=lundi, 2=mardi, ...
+            $('#datePresence').datepicker('option', 'beforeShowDay', function (date) {
+                // JS: 0=dimanche, 1=lundi, ...
+                let jsDay = date.getDay();
+                // Adapter pour que lundi=1, ..., samedi=6
+                let allowed = (jsDay === selectedDay) || (selectedDay === 7 && jsDay === 0);
+                // selectedDay: 1=lundi, jsDay: 1=lundi
+                if (selectedDay === 7) allowed = (jsDay === 6); // samedi
+                if (selectedDay === 1) allowed = (jsDay === 1); // lundi
+                if (selectedDay === 2) allowed = (jsDay === 2); // mardi
+                if (selectedDay === 3) allowed = (jsDay === 3); // mercredi
+                if (selectedDay === 4) allowed = (jsDay === 4); // jeudi
+                if (selectedDay === 5) allowed = (jsDay === 5); // vendredi
+                if (selectedDay === 6) allowed = (jsDay === 6); // samedi
+                return [allowed, allowed ? '' : 'ui-state-disabled'];
+            });
+        }
+
+        // Initialisation du datepicker
+
+        // Initialiser le datepicker avec la date du jour par défaut
+        // Utiliser une variable différente pour éviter la redéclaration
+        const todayDatepicker = new Date();
+        const yyyy = todayDatepicker.getFullYear();
+        const mm = String(todayDatepicker.getMonth() + 1).padStart(2, '0');
+        const dd = String(todayDatepicker.getDate()).padStart(2, '0');
+        $('#datePresence').val(`${yyyy}-${mm}-${dd}`);
+        $('#datePresence').datepicker({
+            dateFormat: 'yy-mm-dd',
+            beforeShowDay: function (date) {
+                // Par défaut, autoriser tous les jours
+                return [true, ''];
+            }
+        });
+
+        // Quand on change le jour, mettre à jour la restriction du datepicker
+        $('#dayOfWeek').on('change', function () {
+            updateDatepickerDayRestriction();
+            // Forcer la date à être sur le bon jour si besoin
+            $('#datePresence').val('');
+        });
+
+        // Quand on active la période d'évaluation, activer le datepicker
+        $('#evaluationTimeId').on('change', function () {
+            if ($(this).val()) {
+                $('#datePresence').prop('disabled', false);
+                $('#datePresence').datepicker('enable');
+                updateDatepickerDayRestriction();
+            } else {
+                $('#datePresence').prop('disabled', true);
+                $('#datePresence').datepicker('disable');
+            }
+        });
+        // Charger les élèves et présences selon la plage horaire
+        $('#slotId, #datePresence, #evaluationTimeId').on('change', function () {
+            const slotId = $('#slotId').val();
+            const classId = $('#classId').val();
+            const datePresence = $('#datePresence').val();
+            const evaluationTimeId = $('#evaluationTimeId').val();
+            if (slotId && classId && datePresence && evaluationTimeId) {
+                $.ajax({
+                    url: '{{ path("app_presence_students_by_slot") }}',
+                    data: { classId: classId, slotId: slotId, datePresence: datePresence, evaluationTimeId: evaluationTimeId },
+                    success: function (data) {
+                        // Initialiser ou recharger DataTable
+                        if ($.fn.DataTable.isDataTable('#students-table')) {
+                            $('#students-table').DataTable().clear().destroy();
+                        }
+                        const tbody = $('#students-table tbody');
+                        tbody.empty();
+                        let lockedCount = 0;
+                        data.forEach(function (row) {
+                            if (row.locked) lockedCount++;
+                            tbody.append(`
+                                <tr>
+                                    <td>${row.studentName.toUpperCase()}</td>
+                                    <td>
+                                        <input class="presence-switch" type="checkbox" data-id="${row.presenceId || ''}" data-student-class-id="${row.studentClassId}" ${row.status === 'present' ? 'checked' : ''} ${row.locked ? 'disabled' : ''} autocomplete="off">
+                                        <span class="switchery-label">${row.status === 'present' ? 'Présent' : 'Absent'}</span>
+                                    </td>
+                                </tr>
+                        `);
+                        });
+                        // Affichage conditionnel des boutons (un seul dans le DOM)
+                        const btnContainer = $('#lock-unlock-btn-container');
+                        btnContainer.empty();
+                        if (lockedCount === data.length && data.length > 0) {
+                            // Tous locked
+                            $('.presence-switch').prop('disabled', true);
+                            {% if is_granted('ROLE_ADMIN') or is_granted('ROLE_SUPER_ADMIN') %}
+                            btnContainer.append('<button id="unlock-btn" class="btn btn-warning">Débloquer</button>');
+                            // Attacher le handler uniquement si le bouton est présent
+                            $('#unlock-btn').off('click').on('click', function () {
+                                const slotId = $('#slotId').val();
+                                const classId = $('#classId').val();
+                                const datePresence = $('#datePresence').val();
+                                const evaluationTimeId = $('#evaluationTimeId').val();
+                                $.post(
+                                    '{{ path("app_presence_lock") }}',
+                                    { classId, slotId, datePresence, evaluationTimeId, locked: false },
+                                    function () { $('#slotId, #datePresence, #evaluationTimeId').trigger('change'); }
+                                );
+                            });
+                            {% endif %}
+                        } else if (lockedCount === 0 && data.length > 0) {
+                            // Aucun locked
+                            $('.presence-switch').prop('disabled', false);
+                            btnContainer.append('<button id="lock-btn" class="btn btn-success">Valider</button>');
+                            // Attacher le handler uniquement si le bouton est présent
+                            $('#lock-btn').off('click').on('click', function () {
+                                const slotId = $('#slotId').val();
+                                const classId = $('#classId').val();
+                                const datePresence = $('#datePresence').val();
+                                const evaluationTimeId = $('#evaluationTimeId').val();
+                                $.post(
+                                    '{{ path("app_presence_lock") }}',
+                                    { classId, slotId, datePresence, evaluationTimeId, locked: true },
+                                    function () { $('#slotId, #datePresence, #evaluationTimeId').trigger('change'); }
+                                );
+                            });
+                        } else {
+                            // Cas mixte (jamais censé arriver, mais sécurité)
+                            $('.presence-switch').prop('disabled', true);
+                        }
+
+                        // Initialiser Switchery sur tous les nouveaux switches
+                        $('.presence-switch').each(function () {
+                            if (!this.switchery) {
+                                new Switchery(this, { color: '#4caf50', secondaryColor: '#f44336', size: 'small' });
+                            }
+                        });
+
+                        $('#students-table').DataTable({
+                            paging: true,
+                            searching: true,
+                            info: false,
+                            ordering: true, // Permet le tri initial
+                            order: [[0, 'asc']], // Trie initialement par nom
+                            pageLength: 10,
+                            language: {
+                                paginate: {
+                                    previous: 'Précédent',
+                                    next: 'Suivant'
+                                },
+                                emptyTable: 'Aucun élève à afficher'
+                            },
+                            columnDefs: [
+                                { targets: 0, orderable: false }, // Désactive le tri par clic sur la colonne nom
+                                { targets: 1, orderable: false }
+                            ]
+                        });
+                        $('#students-table-container').show();
+                    }
+                });
+            } else {
+                $('#students-table-container').hide();
+            }
+        });
+        // Sauvegarder le statut présence/absence
+        $('#students-table').on('change', '.presence-switch', function () {
+            const checkbox = $(this);
+            const presenceId = checkbox.data('id');
+            const studentClassId = checkbox.data('student-class-id');
+            const slotId = $('#slotId').val();
+            const datePresence = $('#datePresence').val();
+            const evaluationTimeId = $('#evaluationTimeId').val();
+            const status = checkbox.is(':checked') ? 'present' : 'absent';
+            // Mettre à jour dynamiquement le label
+            const label = checkbox.closest('td').find('.switchery-label');
+            label.text(checkbox.is(':checked') ? 'Présent' : 'Absent');
+            $.ajax({
+                url: '{{ path("app_presence_update_status") }}',
+                method: 'POST',
+                data: {
+                    presenceId: presenceId,
+                    studentClassId: studentClassId,
+                    slotId: slotId,
+                    datePresence: datePresence,
+                    evaluationTimeId: evaluationTimeId,
+                    status: status
+                },
+                success: function () {
+                    $.notify('Statut mis à jour', 'success');
+                },
+                error: function () {
+                    $.notify('Erreur lors de la mise à jour', 'error');
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

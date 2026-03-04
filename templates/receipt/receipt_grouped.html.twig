@@ -1,0 +1,179 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ docTitle }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            font-size:0.7rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            line-height: 1;
+            vertical-align: top;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+        .total {
+            font-weight: bold;
+        }
+        .header-table td{
+            border: none !important;
+            width: 33%;
+            vertical-align: top;
+            line-height: 1;
+        }
+        .racap-table td:nth-child(0), .recap-table td:nth-child(1), .recap-table td:nth-child(2),.recap-table td:nth-child(3),.recap-table td:nth-child(4) {
+            width:12%;
+        }
+    </style>
+</head>
+<body>
+    <!-- En-tête -->
+    <table class="header-table" style="width:100%">
+        <tr>
+            <!-- Bloc 1 : Informations de l'école -->
+            <td class="school-info">
+                <p><strong>{{ school.name }}</strong></p>
+                <p>{{ school.address }}</p>
+                <p>{{ school.phone }}</p>
+            </td>
+
+            <!-- Bloc 2 : Logo -->
+            <td class="logo" style="text-align:center">
+                <img src="{{ asset('img/logo_test.png') }}" alt="Logo" style="max-width: 100px;">
+            </td>
+
+            <!-- Bloc 3 : Informations du reçu -->
+            <td class="receipt-info">
+                <p><strong>{{ docTitle }}</strong></p>
+                <p>Numéro : {{ receiptNumber }}</p>
+            </td>
+        </tr>
+    </table>
+    <p>Nom  de l'élève : <strong>{{ student.name }}</strong></p>
+    <p>Matricule : <strong>{{ student.matricule }}</strong></p>
+    <p>Matricule National : <strong>{{ student.nationalRegistrationNumber }}</strong></p>
+    <p>Année scolaire : <strong>{{ period.name }}</strong></p>
+    <p>Classe : <strong>{{ classe.name }}</strong></p>
+        <table>
+            <thead>
+                <tr>
+                    <th>Libellé</th>
+                    <th>Date de paiement</th>
+                    <th>Montant payé</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set total = 0 %}
+                {% set md ="" %}
+                {% for modalite, details in groupedPayments %}
+                    {% if md != details.modalite %}
+                        <tr>
+                            <td colspan="3" style="background-color:#f4f4f4"><strong>{{ modalite }}</strong></td>
+                        </tr>
+                        {% set md = details.modalite %}
+                    {% endif %}
+                    {% for payment in details.payments %}
+                        <tr>
+                            <td style="width:60%"></td>
+                            <td style="width:20%">{{ payment.paymentDate|date('d/m/Y H:i:s') }} </td>
+                            <td style="text-align:right;width:20%">{{ payment.paymentAmount|number_format(0, ',', ' ') }} </td>
+                        </tr>
+                        {% set total = total + payment.paymentAmount %}
+                    {% endfor %}
+                {% endfor %}
+                <tr class="total">
+                    <td colspan="2"><strong>Total</strong></td>
+                    <td style="text-align:right;font-size:1.2rem"><strong>{{ total|number_format(0, ',', ' ') }} </strong></td>
+                </tr>
+            </tbody>
+        </table>
+        <div style="padding:5px;margin-top:-10px">Arrêté, le présent reçu à la somme de <strong>{{amountInNumbers}}</div>
+        <table style="width:100%;" class="recap-table">
+            <thead>
+                <tr>
+                    <th>Libellé</th>
+                    <th>Montant à payer</th>
+                    <th>Réductions</th>
+                    <th>Montant payé</th>
+                    <th>Reste à payer</th>
+                    <th style="border:none;background:none"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set groupedTotals = {} %}
+                {% for payment in allPayments %}
+                    {% set modalite = payment.paymentModal.label %}
+                    {% if groupedTotals[modalite] is not defined %}
+                        {% set groupedTotals = groupedTotals|merge({ (modalite): {
+                            'totalAmountToPay': payment.paymentModal.amount,
+                            'totalPaymentAmount': payment.paymentAmount,
+                            'totalReductionAmount':allReductions[modalite]
+                        } }) %}
+                    {% else %}
+                        {% set groupedTotals = groupedTotals|merge({ (modalite): {
+                            'totalAmountToPay': payment.paymentModal.amount,
+                            'totalPaymentAmount': groupedTotals[modalite].totalPaymentAmount + payment.paymentAmount,
+                            'totalReductionAmount':allReductions[modalite]
+                        } }) %}
+                    {% endif %}
+                {% endfor %}
+                {# Calcul du reste à payer #}
+                {% for modalite, totals in groupedTotals %}
+                    {% set groupedTotals = groupedTotals|merge({ (modalite): totals|merge({
+                        'totalRemainingAmount': totals.totalAmountToPay - totals.totalPaymentAmount - totals.totalReductionAmount
+                    }) }) %}
+                {% endfor %}
+                {# Afficher les totaux par modalité #}
+                {% set i=0 %}
+                {% for modalite, totals in groupedTotals %}
+                    <tr>
+                        <td>{{ modalite }}</td>
+                        <td>{{ totals.totalAmountToPay|number_format(0, ',', ' ') }} </td>
+                        <td>{{ totals.totalReductionAmount|number_format(0, ',', ' ') }} </td>
+                        <td>{{ totals.totalPaymentAmount|number_format(0, ',', ' ') }} </td>
+                        <td>{{ totals.totalRemainingAmount|number_format(0, ',', ' ') }} </td>
+                        {% if i==0 %}
+                            <td style="border:none;background:none;text-align:right" rowspan="{{ groupedTotals|length}}">
+                                <div>Fait à {{ school.address }}, le {{ "now"|date('d/m/Y H:i:s') }}</div>
+                                <div >Imprimé par : {{ currentUser }}</div>
+                                <div >Signature</div>
+                                <div >__________________________</div>
+                            </td>
+                        {% endif %}
+                        {% set i=i+1 %}
+                    </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="total">
+                    <td><strong>Total</strong></td>
+                    <td><strong>{{ totalAmountToPay|number_format(0, ',', ' ') }} </strong></td>
+                    <td><strong>{{ totalReductionAmount|number_format(0, ',', ' ') }} </strong></td>
+                    <td><strong>{{ totalPaymentAmount|number_format(0, ',', ' ') }} </strong></td>
+                    <td><strong>{{ totalRemainingAmount|number_format(0, ',', ' ') }} </strong></td>
+                </tr>
+            </tfoot>
+        </table>
+        <script>
+    document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        window.print();
+        if(confirm('Cette Fenêtre va se fermer')) self.close()
+    }, 3000);
+});
+</script>
+</body>
+</html>

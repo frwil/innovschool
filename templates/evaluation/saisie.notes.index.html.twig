@@ -1,0 +1,823 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Saisie des Notes{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="three">
+        <h1 class="mb-4">Saisie des Notes</h1>
+    </div>
+
+    <div class="row" id="form-row">
+        <!-- Bloc 1 : Formulaire de sélection -->
+        <div class="col-md-4">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label for="sectionId" class="form-label">Niveau d'étude</label>
+                        <select id="sectionId" name="sectionId" class="form-select select2">
+                            <option value="">Sélectionnez un niveau</option>
+                            {% for section in sections %}
+                            <option value="{{ section.id }}">{{ section.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="classId" class="form-label">Classe</label>
+                        <select id="classId" name="classId" class="form-select select2">
+                            <option value="">Sélectionnez une classe</option>
+                            <!-- Options dynamiques chargées via JavaScript -->
+                        </select>
+                        <span id="sp-classId"></span><span id="sp-classId-text"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bloc 2 : Liste des évaluations -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-body">
+                    <div class="three">
+                        <h1 class="card-title">Liste des Évaluations <span id="sp-liste"></span><span
+                                id="sp-liste-text"></span></h1>
+                    </div>
+                    <table id="evaluations-table" class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Période</th>
+                                <th>Sous-période</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+
+
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toggle button to show #form-row (hidden by default) -->
+    <div id="toggle-form-row-btn-top" class="mb-3" style="display: none; text-align: right;">
+        <button class="btn btn-secondary btn-sm">Afficher la sélection</button>
+    </div>
+    <!-- Bloc 3 : Tableau SheetJS -->
+    <div id="sheetjs-container" class="mt-4" style="display: none; width: 100%;">
+        <div class="card">
+            <div class="card-body">
+                <div class="three">
+                    <h1 class="card-title">Saisie des Notes <span id="saisie-notes-display"></span></h1>
+                </div>
+                <div id="sheetjs-table"></div>
+            </div>
+        </div>
+    </div>
+    <!-- Toggle button to show #form-row (hidden by default) -->
+    <div id="toggle-form-row-btn-bottom" class="mt-3" style="display: none; text-align: right;">
+        <button class="btn btn-secondary btn-sm">Afficher la sélection</button>
+    </div>
+</div>
+
+<style>
+    .number-cell {
+        text-align: right;
+    }
+
+    .striped-cell {
+        background: repeating-linear-gradient(45deg,
+                #f9f9f9,
+                #f9f9f9 10px,
+                #e0e0e0 10px,
+                #e0e0e0 20px);
+    }
+
+    .highlight-cell {
+        background-color: #f0f0f0 !important;
+        font-weight: bold;
+        font-style: italic;
+    }
+</style>
+
+<script>
+    $(document).ready(function () {
+        // Initialisation de DataTables
+        const evaluationsTable = initDTable();
+
+        function initDTable() {
+            return $('#evaluations-table').DataTable({
+                language: {
+                    url: "{{asset('i18n/fr-FR.json')}}"
+                },
+                data: [], // Données initiales vides
+                columns: [
+                    { data: 'evaluationFrameName', title: 'Période' },
+                    { data: 'evaluationTimeName', title: 'Sous-période' },
+                    {
+                        data: null, // Colonne pour le bouton et le champ select
+                        title: 'Actions',
+                        orderable: false, // Désactiver le tri sur cette colonne
+                        render: function (data, type, row) {
+                            //console.log(row);
+                            return `
+                                <div class="d-flex align-items-center">
+                                    <select class="form-select form-select-sm me-2 select-matiere select2" data-frame="${row.evaluationFrameName}" data-time="${row.evaluationTimeName}" data-id="${row.evaluationFrameId}${row.evaluationTimeId}">
+                                        <option value="">Sélectionnez une matière</option>
+                                    </select>
+                                    <button class="btn btn-primary btn-sm saisir-notes-btn" data-frame="${row.evaluationFrameId}" data-time="${row.evaluationTimeId}" data-for="${row.evaluationFrameId}${row.evaluationTimeId}">
+                                        Saisir les notes
+                                    </button>
+                                </div>
+                            `;
+                        }
+                    }
+                ]
+            });
+        }
+
+        // Fonction pour effectuer une requête AJAX avec réessai en cas d'erreur 502
+        function ajaxWithRetry(options, maxRetries = 3, baseDelay = 1000) {
+            return new Promise((resolve, reject) => {
+                let attempts = 0;
+
+                function attempt() {
+                    $.ajax({
+                        ...options,
+                        success: function (response) {
+                            resolve(response);
+                        },
+                        error: function (xhr, status, error) {
+                            attempts++;
+
+                            // Vérifier si c'est une erreur 502 ou timeout
+                            const isRetryable = xhr.status === 502 ||
+                                xhr.status === 503 ||
+                                xhr.status === 504 ||
+                                status === 'timeout' ||
+                                error === 'Gateway Timeout';
+
+                            if (isRetryable && attempts <= maxRetries) {
+                                // Calcul du délai exponentiel avec jitter
+                                const delay = baseDelay * Math.pow(2, attempts - 1) + Math.random() * 1000;
+
+                                //console.log(`Tentative ${attempts}/${maxRetries} échouée. Nouvelle tentative dans ${Math.round(delay)}ms`);
+
+                                // Afficher une notification d'attente
+                                if (attempts === 1) {
+                                    $.notify('Connexion temporairement interrompue. Réessai...', 'warning');
+                                }
+
+                                setTimeout(attempt, delay);
+                            } else {
+                                reject({ xhr, status, error, attempts });
+                            }
+                        }
+                    });
+                }
+
+                attempt();
+            });
+        }
+
+        // Fonction pour réessayer les notes en attente stockées dans le localStorage
+        function retryPendingNotes() {
+            const pendingNotes = JSON.parse(localStorage.getItem('pending_notes') || '[]');
+            if (pendingNotes.length === 0) return;
+
+            //console.log(`Tentative de reprise pour ${pendingNotes.length} note(s) en attente`);
+
+            // Trier par timestamp (les plus anciennes d'abord)
+            pendingNotes.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            // Prendre la première note en attente
+            const note = pendingNotes[0];
+
+            ajaxWithRetry({
+                url: '{{ path("app_update_evaluation") }}',
+                method: 'POST',
+                data: {
+                    studentId: note.studentId,
+                    moduleId: note.moduleId,
+                    value: note.value,
+                    timeId: note.timeId,
+                    classId: note.classId
+                }
+            }, 2, 2000).then(function (response) {
+                if (response.success) {
+                    // Supprimer la note réussie de localStorage
+                    const updatedNotes = pendingNotes.filter(n =>
+                        !(n.studentId === note.studentId &&
+                            n.moduleId === note.moduleId &&
+                            n.timeId === note.timeId)
+                    );
+                    localStorage.setItem('pending_notes', JSON.stringify(updatedNotes));
+
+                    $.notify('Note réessayée avec succès.', 'success');
+
+                    // Si il reste des notes, réessayer la suivante
+                    if (updatedNotes.length > 0) {
+                        setTimeout(retryPendingNotes, 2000);
+                    }
+                }
+            }).catch(function (err) {
+                console.error('Échec de la reprise:', err);
+                // Garder la note dans localStorage pour reprise ultérieure
+            });
+        }
+
+        // Gestion du changement de niveau d'étude
+        $('#sectionId').on('change', function () {
+            const sectionId = $(this).val();
+            const classSelect = $('#classId');
+            $('#sp-classId').addClass("spinner-border");
+            $('#sp-classId-text').html('Chargement en cours...');
+
+            // Effacer les options actuelles
+            classSelect.empty();
+            classSelect.append(new Option('Chargement en cours...', ''));
+
+            if (sectionId) {
+                // Charger les classes via AJAX
+                ajaxWithRetry({
+                    url: '{{ path("app_classes_by_section") }}',
+                    method: 'GET',
+                    data: { sectionId: sectionId }
+                }).then(function (data) {
+                    classSelect.empty();
+                    classSelect.append(new Option('Sélectionner une classe', ''));
+                    data.forEach(function (classItem) {
+                        classSelect.append(new Option(classItem.name, classItem.id));
+                    });
+                    $('#sp-classId').removeClass("spinner-border");
+                    $('#sp-classId-text').html('');
+                }).catch(function (err) {
+                    $.notify('Une erreur est survenue lors du chargement des classes.', 'error');
+                    $('#sp-classId').removeClass("spinner-border");
+                    $('#sp-classId-text').html('');
+                });
+            }
+        });
+
+        // Gestion du changement de classe
+        $('#classId').on('change', function () {
+            const classId = $(this).val();
+
+            $('#sp-classId').addClass("spinner-border");
+            $('#sp-classId-text').html('Chargement en cours...');
+
+            if (classId) {
+                // Charger les évaluations via AJAX
+                ajaxWithRetry({
+                    url: '{{ path("app_evaluations_by_class") }}',
+                    method: 'GET',
+                    data: { classId: classId }
+                }).then(function (data) {
+                    // Mettre à jour le DataTable avec les nouvelles données
+                    evaluationsTable.clear();
+                    evaluationsTable.rows.add(data);
+                    evaluationsTable.draw();
+                    $('#sp-classId').removeClass("spinner-border");
+                    $('#sp-classId-text').html('');
+                    $('#sp-liste').addClass("spinner-border");
+                    $('#sp-liste-text').html('Chargement en cours...');
+                    // Charger les matières pour chaque ligne
+                    $('.select-matiere').each(function () {
+                        const select = $(this);
+                        select.select2({
+                            placeholder: 'Sélectionnez une matière',
+                            allowClear: true,
+                            width: '100%'
+                        });
+                        select.prop('disabled', true);
+
+                        ajaxWithRetry({
+                            url: '{{ path("app_subjects_by_class") }}',
+                            method: 'GET',
+                            data: { classId: classId }
+                        }).then(function (subjects) {
+                            subjects.forEach(subject => {
+                                select.append(new Option(subject.name, subject.id));
+                            });
+                            evaluationsTable.columns.adjust().draw();
+                            evaluationsTable.draw();
+                            $('#sp-liste').removeClass("spinner-border");
+                            $('#sp-liste-text').html('');
+                            select.prop('disabled', false);
+                        }).catch(function (err) {
+                            $.notify('Une erreur est survenue lors du chargement des matières.', 'error');
+                            $('#sp-liste').removeClass("spinner-border");
+                            $('#sp-liste-text').html('');
+                            select.prop('disabled', false);
+                        });
+                    });
+                }).catch(function (err) {
+                    $.notify('Une erreur est survenue lors du chargement des évaluations.', 'error');
+                    $('#sp-classId').removeClass("spinner-border");
+                    $('#sp-classId-text').html('');
+                });
+            } else {
+                // Vider le tableau si aucune classe n'est sélectionnée
+                evaluationsTable.clear().draw();
+            }
+        });
+
+        // Gestion du clic sur le bouton "Saisir les notes"
+        $('#evaluations-table').on('click', '.saisir-notes-btn', function () {
+            const frameId = $(this).data('frame');
+            const timeId = $(this).data('time');
+            const subjectId = $('.select-matiere[data-id="' + $(this).data('for') + '"]').val();
+            const saisirBtn = $(this)
+
+            if (!subjectId) {
+                $.notify('Veuillez sélectionner une matière.', 'warning');
+                return;
+            }
+
+            // Masquer le bloc de sélection et afficher les boutons toggle
+            $('#form-row').hide();
+            $('#toggle-form-row-btn-top, #toggle-form-row-btn-bottom').show();
+
+            // Charger les données pour le tableau SheetJS via AJAX
+            ajaxWithRetry({
+                url: '{{ path("app_modules_and_students") }}',
+                method: 'GET',
+                data: {
+                    frame: frameId,
+                    time: timeId,
+                    classId: $('#classId').val(),
+                    subjectId: subjectId
+                }
+            }).then(function (data) {
+                // Afficher le bloc SheetJS
+                $('#sheetjs-container').show();
+
+
+                $('#saisie-notes-display').text(`(${data.subject} - ${data.className} - ${data.frameName} - ${data.timeName})`);
+                if ($('#applicable-btn')) $('#applicable-btn').remove()
+
+                if (data.isNotApplicable) {
+                    const container = $('#sheetjs-table');
+                    container.empty();
+                    container.html('<div class="alert alert-info"><p>Cette matière a été définie comme non-applicable pour ' + data.timeName + ' pour tous les élèves.</p><p>Elle ne sera pas prise en compte lors du calcul des moyennes de la période</p></div>');
+                    $('#saisie-notes-display').after('<button class="btn btn-success m-3" id="applicable-btn">Définir comme Applicable</button>');
+                } else {
+                    $('#saisie-notes-display').after('<button class="btn btn-primary m-3" id="applicable-btn">Définir comme Non-Applicable</button>');
+                    // Générer le tableau SheetJS
+                    generateSheetJSTable(data.modules, data.students, data.timeId, subjectId, data.classId);
+                }
+                $('#applicable-btn').on('click', function (e) {
+                    $.ajax({
+                        url: "{{ path('app_toggle_not_applicable')}}",
+                        data: {
+                            applicableId: data.notApplicableId ? data.notApplicableId : 0,
+                            subjectId: data.schoolClassSubjectId,
+                            timeId: data.timeId
+                        }
+                    }).done((e) => {
+                        if (e.success) {
+                            $.notify(e.success, 'success');
+                            saisirBtn.click();
+                        } else {
+                            $.notify(e.error);
+                        }
+                    })
+                });
+            }).catch(function (err) {
+                $.notify('Une erreur est survenue lors du chargement des données.', 'error');
+                $('#sheetjs-container').hide();
+            });
+        });
+
+        // Gestion du clic sur les boutons toggle pour réafficher #form-row
+        $('#toggle-form-row-btn-top, #toggle-form-row-btn-bottom').on('click', 'button', function () {
+            $('#form-row').show();
+            $('#sheetjs-container').hide();
+            $('#toggle-form-row-btn-top, #toggle-form-row-btn-bottom').hide();
+        });
+
+        // Fonction pour générer le tableau SheetJS
+        function generateSheetJSTable(modules, students, timeId, subjectId, classId) {
+            const container = $('#sheetjs-table');
+            container.empty();
+
+            // Créer une table HTML
+            const table = $('<table>').addClass('table table-bordered');
+            const thead = $('<thead>');
+            const tbody = $('<tbody>');
+
+            // Calculer la somme des moduleNotation
+            const totalModuleNotation = modules.reduce((sum, module) => sum + (module.moduleNotation || 0), 0);
+
+            // Générer l'en-tête
+            const headerRow = $('<tr>');
+            headerRow.append('<th>Élève</th>');
+            modules.forEach(module => {
+                headerRow.append(`<th>${module.name} (${module.moduleNotation})</th>`);
+            });
+            headerRow.append('<th>Barême</th>');
+            headerRow.append('<th>Total des Notes</th>');
+            headerRow.append('<th>Moyenne Pondérée</th>');
+            thead.append(headerRow);
+
+            // Charger les notes existantes via AJAX
+            ajaxWithRetry({
+                url: '{{ path("app_get_evaluation_notes") }}',
+                method: 'GET',
+                data: {
+                    classId: classId,
+                    timeId: timeId,
+                    subjectId: subjectId,
+                    moduleId: modules.map(module => module.id).join(',')
+                }
+            }).then(function (notes) {
+                // Générer les lignes (élèves et notes)
+                students.forEach(student => {
+                    const row = $('<tr>');
+                    row.append(`<td>${student.name}</td>`);
+
+                    let totalNotes = 0;
+
+                    modules.forEach(module => {
+                        // Trouver la note correspondante
+                        const evaluation = notes.find(note =>
+                            note.studentId === student.id && note.moduleId === module.id
+                        );
+
+                        let cellValue = '';
+                        if (evaluation) {
+                            if (evaluation.note === 0 && evaluation.createdAt === evaluation.updatedAt) {
+                                cellValue = '';
+                            } else {
+                                cellValue = evaluation.note;
+                                totalNotes += parseFloat(cellValue);
+                            }
+                        } else {
+                            cellValue = '';
+                        }
+
+                        row.append(`
+                            <td contenteditable="true" 
+                                class="${!isNaN(cellValue) && cellValue !== '' ? 'number-cell' : ''}" 
+                                data-student-id="${student.id}" 
+                                data-module-id="${module.id}"
+                                data-subject-id="${subjectId}"
+                                data-time-id="${timeId}"
+                                data-class-id="${classId}">
+                                ${cellValue}
+                            </td>
+                        `);
+                    });
+
+                    // Ajouter les colonnes de calcul
+                    row.append(`<td class="number-cell highlight-cell">${totalModuleNotation}</td>`);
+                    row.append(`<td class="total-notes-cell number-cell highlight-cell">${totalNotes}</td>`);
+
+                    const weightedAverage = totalModuleNotation > 0 ? (totalNotes / totalModuleNotation * 20).toFixed(2) : '';
+                    row.append(`<td class="weighted-average-cell number-cell highlight-cell">${weightedAverage}</td>`);
+
+                    tbody.append(row);
+                });
+
+                // Ajouter les statistiques
+                addStatisticsRows(modules, students, notes, tbody);
+
+                // Ajouter l'en-tête et le corps au tableau
+                table.append(thead);
+                table.append(tbody);
+
+                // Ajouter le tableau au conteneur
+                container.append(table);
+
+                // Configurer les événements des cellules
+                setupCellEvents(table, modules, students, timeId, subjectId, classId, tbody);
+
+            }).catch(function (err) {
+                $.notify('Une erreur est survenue lors du chargement des notes.', 'error');
+            });
+        }
+
+        // Fonction pour ajouter les lignes de statistiques
+        function addStatisticsRows(modules, students, notes, tbody) {
+            const statsRowMax = $('<tr>').append('<td><strong>Note la plus forte</strong></td>');
+            const statsRowMin = $('<tr>').append('<td><strong>Note la plus faible</strong></td>');
+            const statsRowAvg = $('<tr>').append('<td><strong>Moyenne générale</strong></td>');
+
+            modules.forEach(module => {
+                const moduleNotes = [];
+
+                // Collecter les notes pour ce module
+                students.forEach(student => {
+                    const evaluation = notes.find(note =>
+                        note.studentId === student.id && note.moduleId === module.id
+                    );
+                    if (evaluation && evaluation.note !== null && evaluation.note !== '' &&
+                        evaluation.createdAt !== evaluation.updatedAt) {
+                        moduleNotes.push(parseFloat(evaluation.note));
+                    }
+                });
+
+                // Calculer les statistiques
+                const maxNote = moduleNotes.length > 0 ? Math.max(...moduleNotes) : '';
+                const minNote = moduleNotes.length > 0 ? Math.min(...moduleNotes) : '';
+                const avgNote = moduleNotes.length > 0
+                    ? (moduleNotes.reduce((sum, note) => sum + note, 0) / moduleNotes.length).toFixed(1)
+                    : '';
+
+                statsRowMax.append(`<td class="number-cell highlight-cell"><strong>${maxNote}</strong></td>`);
+                statsRowMin.append(`<td class="number-cell highlight-cell"><strong>${minNote}</strong></td>`);
+                statsRowAvg.append(`<td class="number-cell highlight-cell"><strong>${avgNote}</strong></td>`);
+            });
+
+            // Ajouter des cellules vides pour les colonnes supplémentaires
+            statsRowMax.append('<td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td>');
+            statsRowMin.append('<td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td>');
+            statsRowAvg.append('<td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td>');
+
+            tbody.append(statsRowMax);
+            tbody.append(statsRowMin);
+            tbody.append(statsRowAvg);
+        }
+
+        // Fonction pour configurer les événements des cellules
+        function setupCellEvents(table, modules, students, timeId, subjectId, classId, tbody) {
+            // Navigation au clavier
+            table.find('td[contenteditable="true"]').on('keydown', function (event) {
+                const cell = $(this);
+
+                if (event.key === 'Enter' || event.key === 'Tab') {
+                    event.preventDefault();
+                    const $cells = cell.closest('tr').find('td[contenteditable="true"]');
+                    const idx = $cells.index(cell);
+
+                    if (event.shiftKey && event.key === 'Tab') {
+                        if (idx > 0) {
+                            $cells.eq(idx - 1).focus();
+                        }
+                    } else {
+                        if (idx < $cells.length - 1) {
+                            $cells.eq(idx + 1).focus();
+                        } else {
+                            const $nextRow = cell.closest('tr').next('tr');
+                            if ($nextRow.length) {
+                                $nextRow.find('td[contenteditable="true"]').first().focus();
+                            }
+                        }
+                    }
+                } else if (event.key === 'Delete') {
+                    event.preventDefault();
+                    cell.text('0');
+                    cell.trigger('blur');
+                } else if (event.key === 'Escape') {
+                    event.preventDefault();
+                    cell.text(cell.data('old-value') || '');
+                    cell.removeClass('number-cell');
+                } else if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
+                    event.preventDefault();
+                    let targetCell;
+
+                    if (event.key === 'ArrowUp') {
+                        targetCell = cell.closest('tr').prev('tr').find(`td:eq(${cell.index()})`);
+                    } else if (event.key === 'ArrowDown') {
+                        targetCell = cell.closest('tr').next('tr').find(`td:eq(${cell.index()})`);
+                    } else if (event.key === 'ArrowLeft') {
+                        targetCell = cell.prev('td[contenteditable="true"]');
+                    } else if (event.key === 'ArrowRight') {
+                        targetCell = cell.next('td[contenteditable="true"]');
+                    }
+
+                    if (targetCell && targetCell.length && targetCell.attr('contenteditable') === 'true') {
+                        targetCell.focus();
+                    }
+                }
+            });
+
+            // Sauvegarde au blur
+            table.find('td[contenteditable="true"]').on('blur', function () {
+                const cell = $(this);
+                const studentId = cell.data('student-id');
+                const moduleId = cell.data('module-id');
+                const timeId = cell.data('time-id');
+                const subjectId = cell.data('subject-id');
+                const classId = cell.data('class-id');
+                let newValue = cell.text().trim();
+                const moduleNotation = modules.find(module => module.id === moduleId)?.moduleNotation || 0;
+
+                // Validation
+                if (isNaN(newValue) || newValue === '') {
+                    cell.text('');
+                    cell.removeClass('number-cell');
+                    recalculateStatistics(modules, students, tbody);
+                    return;
+                }
+
+                if (parseFloat(newValue) < 0 || parseFloat(newValue) > moduleNotation) {
+                    $.notify(`La note doit être comprise entre 0 et ${moduleNotation}.`, 'error');
+                    cell.text(cell.data('old-value') || '');
+                    cell.removeClass('number-cell');
+                    recalculateStatistics(modules, students, tbody);
+                    return;
+                }
+
+                cell.addClass('number-cell');
+                recalculateStatistics(modules, students, tbody);
+
+                // Sauvegarde de l'ancienne valeur
+                const oldValue = cell.data('old-value') || '';
+                cell.data('old-value', newValue);
+
+                // Désactiver temporairement la cellule
+                const originalContentEditable = cell.attr('contenteditable');
+                cell.attr('contenteditable', 'false');
+                cell.css('opacity', '0.7');
+
+                // Sauvegarder avec retry
+                saveNoteWithRetry(studentId, moduleId, newValue, timeId, classId, cell, oldValue, originalContentEditable);
+            });
+
+            // Sélection du texte au focus
+            table.find('td[contenteditable="true"]').on('focus', function () {
+                const cell = $(this);
+                const value = cell.text().trim();
+
+                // Sauvegarder l'ancienne valeur
+                if (!cell.data('old-value')) {
+                    cell.data('old-value', value);
+                }
+
+                // Sélectionner tout le contenu
+                setTimeout(() => {
+                    const range = document.createRange();
+                    const selection = window.getSelection();
+                    range.selectNodeContents(cell[0]);
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                }, 0);
+            });
+        }
+
+        // Fonction pour sauvegarder une note avec retry
+        function saveNoteWithRetry(studentId, moduleId, value, timeId, classId, cell, oldValue, originalContentEditable) {
+            ajaxWithRetry({
+                url: '{{ path("app_update_evaluation") }}',
+                method: 'POST',
+                data: {
+                    studentId: studentId,
+                    moduleId: moduleId,
+                    value: value,
+                    timeId: timeId,
+                    classId: classId
+                },
+                timeout: 15000
+            }, 3, 1000).then(function (response) {
+                if (response.success) {
+                    $.notify('Note mise à jour avec succès.', 'success');
+                    // Supprimer la sauvegarde de l'ancienne valeur
+                    cell.removeData('old-value');
+
+                    // Retirer la note du localStorage si elle y était
+                    const pendingNotes = JSON.parse(localStorage.getItem('pending_notes') || '[]');
+                    const updatedNotes = pendingNotes.filter(note =>
+                        !(note.studentId === studentId &&
+                            note.moduleId === moduleId &&
+                            note.timeId === timeId)
+                    );
+                    localStorage.setItem('pending_notes', JSON.stringify(updatedNotes));
+                } else if (response.error) {
+                    throw new Error(response.error);
+                }
+            }).catch(function (err) {
+                console.error('Erreur après tentatives:', err);
+
+                if (err.xhr && err.xhr.status === 502) {
+                    $.notify('Erreur temporaire du serveur. La note est sauvegardée localement.', 'warning');
+
+                    // Stocker dans localStorage
+                    const pendingNotes = JSON.parse(localStorage.getItem('pending_notes') || '[]');
+                    pendingNotes.push({
+                        studentId: studentId,
+                        moduleId: moduleId,
+                        value: value,
+                        timeId: timeId,
+                        classId: classId,
+                        timestamp: new Date().toISOString()
+                    });
+                    localStorage.setItem('pending_notes', JSON.stringify(pendingNotes));
+
+                    // Planifier une reprise
+                    setTimeout(retryPendingNotes, 3000);
+                } else {
+                    $.notify('Erreur lors de la sauvegarde. Valeur restaurée.', 'error');
+                    cell.text(oldValue);
+                    if (oldValue === '') {
+                        cell.removeClass('number-cell');
+                    }
+                }
+            }).finally(function () {
+                // Réactiver la cellule
+                cell.attr('contenteditable', originalContentEditable);
+                cell.css('opacity', '');
+            });
+        }
+
+        // Fonction pour recalculer les statistiques
+        function recalculateStatistics(modules, students, tbody) {
+            // Réinitialiser les lignes des statistiques
+            const statsRowMax = $('<tr>').append('<td><strong>Note la plus forte</strong></td>');
+            const statsRowMin = $('<tr>').append('<td><strong>Note la plus faible</strong></td>');
+            const statsRowAvg = $('<tr>').append('<td><strong>Moyenne générale</strong></td>');
+
+            // Recalcul pour chaque élève
+            tbody.find('tr').each(function () {
+                const row = $(this);
+                // Sauter les lignes de stats
+                const firstCellText = row.find('td').first().text();
+                if (firstCellText.includes('Note la plus forte') ||
+                    firstCellText.includes('Note la plus faible') ||
+                    firstCellText.includes('Moyenne générale')) {
+                    return;
+                }
+
+                let totalNotes = 0;
+                let totalModuleNotation = 0;
+
+                modules.forEach(module => {
+                    const cell = row.find(`td[data-module-id="${module.id}"]`);
+                    const note = parseFloat(cell.text().trim());
+                    if (!isNaN(note)) {
+                        totalNotes += note;
+                    }
+                    totalModuleNotation += module.moduleNotation || 0;
+                });
+
+                row.find('.total-notes-cell').text(totalNotes);
+                const weightedAverage = totalModuleNotation > 0 ? (totalNotes / totalModuleNotation * 20).toFixed(2) : '';
+                row.find('.weighted-average-cell').text(weightedAverage);
+            });
+
+            // Recalcul des statistiques par module
+            modules.forEach(module => {
+                const moduleNotes = [];
+
+                students.forEach(student => {
+                    const cell = tbody.find(`td[data-student-id="${student.id}"][data-module-id="${module.id}"]`);
+                    const note = parseFloat(cell.text().trim());
+                    if (!isNaN(note)) {
+                        moduleNotes.push(note);
+                    }
+                });
+
+                const maxNote = moduleNotes.length > 0 ? Math.max(...moduleNotes) : '';
+                const minNote = moduleNotes.length > 0 ? Math.min(...moduleNotes) : '';
+                const avgNote = moduleNotes.length > 0
+                    ? (moduleNotes.reduce((sum, note) => sum + note, 0) / moduleNotes.length).toFixed(1)
+                    : '';
+
+                statsRowMax.append(`<td class="number-cell highlight-cell"><strong>${maxNote}</strong></td>`);
+                statsRowMin.append(`<td class="number-cell highlight-cell"><strong>${minNote}</strong></td>`);
+                statsRowAvg.append(`<td class="number-cell highlight-cell"><strong>${avgNote}</strong></td>`);
+            });
+
+            // Cellules vides pour les colonnes supplémentaires
+            statsRowMax.append('<td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td>');
+            statsRowMin.append('<td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td>');
+            statsRowAvg.append('<td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td>');
+
+            // Supprimer et recréer les lignes de stats
+            tbody.find('tr').slice(-3).remove();
+            tbody.append(statsRowMax);
+            tbody.append(statsRowMin);
+            tbody.append(statsRowAvg);
+        }
+
+        // Vérifier les notes en attente au chargement de la page
+        setTimeout(() => {
+            const pendingNotes = JSON.parse(localStorage.getItem('pending_notes') || '[]');
+            if (pendingNotes.length > 0) {
+                $.notify(`${pendingNotes.length} note(s) en attente de synchronisation...`, 'info');
+                setTimeout(retryPendingNotes, 3000);
+            }
+        }, 2000);
+
+        // Fonction pour afficher le statut des notes en attente
+        function showPendingNotesStatus() {
+            const pendingNotes = JSON.parse(localStorage.getItem('pending_notes') || '[]');
+            if (pendingNotes.length > 0) {
+                return `<span class="badge bg-warning" title="${pendingNotes.length} note(s) en attente">${pendingNotes.length}</span>`;
+            }
+            return '';
+        }
+
+        // Mettre à jour régulièrement le statut
+        setInterval(() => {
+            const status = showPendingNotesStatus();
+            if (status) {
+                $('.pending-notes-status').remove();
+                $('#sheetjs-container .card-title').append(` <span class="pending-notes-status">${status}</span>`);
+            }
+        }, 5000);
+    });
+</script>
+{% endblock %}

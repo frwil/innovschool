@@ -1,0 +1,56 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}User index{% endblock %}
+
+{% block dataturbo %}true{% endblock %}
+
+{% block body %}
+<div class="three">
+    <h1 class="display-4 mb-4">Liste des utilisateurs</h1>
+</div>
+        <table class="table display data-table text-nowrap">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Login</th>
+                    {% if is_granted('ROLE_SUPER_ADMIN') %}
+                        <th>Etablissement</th>
+                    {% endif %}
+                    <th>Classe(s)</th>
+                    <th>Role</th>
+                    <th>Téléphone</th>
+                    <th>Adresse</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in users %}
+                <tr>
+                    <td><a href="{{ path('app_user_edit', {'id': user.id}) }}">{{ user.fullName }}</a>
+                        <a class="ml-3" href="{{path("app_homepage", {"_switch_user": user.userIdentifier})}}">
+                            <i class="fas fa-external-link-alt"></i> Switch
+                        </a>
+                    </td>
+                    <td>{{user.userIdentifier}}</td>
+                    {% if is_granted('ROLE_SUPER_ADMIN') %}
+                    <td>{{ user.schoolName }}</td>
+                    {% endif %}
+                    <td>
+                        {{ user.classeList}}
+                    </td>
+                    <td>{{ user.roles | role_name }}</td>
+                    <td>{{ user.phone }}</td>
+                    <td>{{ user.address }}</td>
+                    <td>
+                        
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6">Aucun enregistrement</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+{% endblock %}

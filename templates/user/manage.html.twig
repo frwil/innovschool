@@ -1,0 +1,281 @@
+{% extends 'base.up.html.twig' %}
+{% block stylesheets %}
+    {{ parent() }}
+{% endblock %}
+
+{% block header %}
+    <h1>Gestion des utilisateurs</h1>
+{% endblock %}
+{% block title %}Gestion des utilisateurs{% endblock %}
+
+{% block body %}
+<div class="three">
+  <h1>Gestion des utilisateurs</h1>
+</div>
+<div id="datatable-container">
+    <table id="userTable" class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Email</th>
+                <th>Rôles</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+                {% if user.email != app.user.email %}
+                <tr>
+                    <td>{{ user.id }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>{{ user.roles|join(', ') }}</td>
+                    <td>
+                        {% if is_granted('ROLE_EDIT_USER') or is_granted('ROLE_SUPER_ADMIN') %}
+                            <a href="{{ path('app_user_manage_edit',{'id':user.id}) }}" class="btn btn-warning edit-user" data-id="{{ user.id }}">Modifier</a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div id="form-container" style="display: none;">
+    <ul class="nav nav-tabs" id="userTabs" role="tablist">
+        <li class="nav-item">
+            <a class="nav-link active" id="base-tab" data-bs-toggle="tab" href="#base" role="tab" aria-controls="base" aria-selected="true">Base</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="roles-tab" data-bs-toggle="tab" href="#roles" role="tab" aria-controls="roles" aria-selected="false">Rôles</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" id="others-tab" data-bs-toggle="tab" href="#others" role="tab" aria-controls="others" aria-selected="false">Autres</a>
+        </li>
+    </ul>
+
+    <div class="tab-content mt-3">
+        <!-- Onglet Base -->
+        <div class="tab-pane fade show active" id="base" role="tabpanel" aria-labelledby="base-tab">
+            <form id="edit-form" method="post">
+                <input type="hidden" id="user-id" name="id">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="username">Nom d'utilisateur</label>
+                            <input type="text" id="username" name="username" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="password">Mot de passe</label>
+                            <input type="password" id="password" name="password" class="form-control">
+                            <small class="form-text text-danger">Laissez vide pour ne pas modifier le mot de passe.</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="fullname">Nom complet</label>
+                            <input type="text" id="fullname" name="fullname" class="form-control" required>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="email">Email</label>
+                            <input type="email" id="email" name="email" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">Téléphone</label>
+                            <input type="text" id="phone" name="phone" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="address">Adresse</label>
+                            <input type="text" id="address" name="address" class="form-control">
+                        </div>
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3">Enregistrer</button>
+            </form>
+        </div>
+
+        <!-- Onglet Rôles -->
+        <div class="tab-pane fade" id="roles" role="tabpanel" aria-labelledby="roles-tab">
+            <form id="roles-form" method="post">
+                <input type="hidden" id="user-id-roles" name="id">
+                <div class="form-group">
+                    <label for="roles">Rôles</label>
+                    <select id="roles" name="roles[]" class="form-control select2" multiple>
+                        <option value="ROLE_USER">Utilisateur</option>
+                        <option value="ROLE_ADMIN">Administrateur</option>
+                        <option value="ROLE_SUPER_ADMIN">Super Administrateur</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3">Enregistrer les rôles</button>
+            </form>
+        </div>
+
+        <!-- Onglet Autres -->
+        <div class="tab-pane fade" id="others" role="tabpanel" aria-labelledby="others-tab">
+            <form id="sections-classes-form" method="post">
+                <input type="hidden" id="user-id-sections" name="id">
+                <div class="form-group">
+                    <label for="sections">Sections</label>
+                    <select id="sections" name="sections[]" class="form-control select2" multiple>
+                        {% for section in sections %}
+                            <option value="{{ section.id }}">{{ section.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="classes">Classes</label>
+                    <select id="classes" name="classes[]" class="form-control select2" multiple>
+                        {% for classe in classes %}
+                            <option value="{{ classe.id }}">{{ classe.classOccurence.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary mt-3">Enregistrer les sections et classes</button>
+            </form>
+        </div>
+    </div>
+
+    <button type="button" class="btn btn-secondary mt-3" id="cancel-edit">Annuler</button>
+</div>
+
+{% if is_granted('ROLE_ADD_USER') %}
+<a href="{{ path('app_user_add') }}" class="btn btn-success">Ajouter un utilisateur</a>
+{% endif %}
+{% endblock %}
+
+
+{% block javascripts %}
+    {{ parent() }}
+    <script>
+        $(document).ready(function () {
+            $('#userTable').DataTable({
+                language: {
+                    url: "{{asset('i18n/fr-FR.json')}}"
+                },
+                paging: true,
+                searching: true,
+                ordering: true,
+                columnDefs: [
+                    { orderable: false, targets: 3 }
+                ]
+            });
+            // Charger les données utilisateur via AJAX
+            $('.edit-user').on('click', function (e) {
+                e.preventDefault();
+                const userId = $(this).data('id');
+                const url = `/users/user/${userId}/manage`;
+                $.get(url, function (data) {
+                    if (data.error) {
+                        alert(data.error);
+                    } else {
+                        $('#user-id').val(data.id);
+                        $('#username').val(data.username);
+                        $('#fullname').val(data.fullname);
+                        $('#email').val(data.email);
+                        $('#phone').val(data.phone);
+                        $('#address').val(data.address);
+                        $('#roles').val(data.roles).trigger('change');
+                        // Préremplir les sections et classes si elles existent
+                        $('#sections-classes-form').append('<input type="hidden" id="class_selected" value="' + data.classes + '">');
+                        $('#sections').val(data.sections).trigger('change');
+                        $('#classes').val(data.classes).trigger('change');
+                        // Afficher le formulaire
+                        $('#form-container').show();
+                        $('#datatable-container').hide();
+                    }
+                });
+            });
+            // Charger les classes dynamiquement en fonction des sections sélectionnées
+            $('#sections').on('change', function () {
+                const selectedSections = $(this).val();
+                if (!selectedSections || selectedSections.length === 0) {
+                    $('#classes').empty().trigger('change');
+                    return;
+                }
+                $.ajax({
+                    url: '/users/user/get-classes',
+                    method: 'POST',
+                    data: { sections: selectedSections },
+                    success: function (data) {
+                        if (data.error) {
+                            alert(data.error);
+                        } else {
+                            const $classes = $('#classes');
+                            $classes.empty();
+                            $.each(data, function (index, classe) {
+                                $classes.append(new Option(classe.name, classe.id));
+                            });
+                            $classes.trigger('change');
+                            if($('#class_selected') != null){
+                                $('#classes').val($('#class_selected').val()).trigger('change');
+                                $('#class_selected').remove();
+                            }
+                        }
+                    },
+                    error: function () {
+                        alert('Une erreur est survenue lors du chargement des classes.');
+                    }
+                });
+            });
+            // Soumission AJAX du formulaire d'édition utilisateur
+            $('#edit-form').on('submit', function(e) {
+                e.preventDefault();
+                var formData = $(this).serialize();
+                $.ajax({
+                    url: '/users/user/update', // À adapter selon votre route Symfony
+                    method: 'POST',
+                    data: formData,
+                    success: function(data) {
+                        if (data.error) {
+                            alert(data.error);
+                        } else {
+                            alert(data.success || 'Utilisateur mis à jour avec succès.');
+                            $('#form-container').hide();
+                            $('#datatable-container').show();
+                            // Optionnel: recharger la page ou le tableau pour voir les changements
+                            location.reload();
+                        }
+                    },
+                    error: function() {
+                        alert('Une erreur est survenue lors de la mise à jour de l\'utilisateur.');
+                    }
+                });
+            });
+            $('#sections-classes-form').on('submit', function (e) {
+                e.preventDefault();
+                const userId = $('#user-id').val();
+                const selectedSections = $('#sections').val();
+                const selectedClasses = $('#classes').val();
+                if (!selectedSections || selectedSections.length === 0) {
+                    alert('La section ne peut pas être vide.');
+                    return;
+                }
+                $.ajax({
+                    url: '/users/user/save-configuration',
+                    method: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({
+                        id: userId,
+                        sections: selectedSections,
+                        classes: selectedClasses
+                    }),
+                    success: function (data) {
+                        if (data.error) {
+                            alert(data.error);
+                        } else {
+                            alert(data.success);
+                            $('#form-container').hide();
+                            $('#datatable-container').show();
+                        }
+                    },
+                    error: function () {
+                        alert('Une erreur est survenue lors de l\'enregistrement.');
+                    }
+                });
+            });
+            $('#cancel-edit').on('click', function () {
+                $('#form-container').hide();
+                $('#datatable-container').show();
+            });
+        });
+    </script>
+{% endblock %}

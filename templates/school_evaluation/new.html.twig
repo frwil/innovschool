@@ -1,0 +1,11 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}New SchoolEvaluation{% endblock %}
+
+{% block body %}
+    <h1>Create new SchoolEvaluation</h1>
+
+    {{ include('school_evaluation/_form.html.twig') }}
+
+    <a href="{{ path('app_school_evaluation_index') }}">back to list</a>
+{% endblock %}

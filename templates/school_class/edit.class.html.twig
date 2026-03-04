@@ -1,0 +1,31 @@
+{# filepath: d:\wamp64\www\innovschool\templates\school_class\edit.class.html.twig #}
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Modifier la Classe
+{% endblock %}
+
+{% block body %}
+	<div class="row">
+		<div class="col-md-6">
+			<div class="three"><h1>Modifier la Classe</h1></div>
+			<form action="{{ path('app_school_classes_edit', {'id': classe.id}) }}" id="edit-class-form" method="post">
+				<div class="mb-3">
+					<label for="name" class="form-label">Nom</label>
+					<input type="text" id="name" name="name" class="form-control" value="{{ classe.name }}" required>
+				</div>
+				<div class="mb-3">
+					<label for="sections" class="form-label">Niveau d'études</label>
+					<select id="sections" name="sections" class="form-control select2" required>
+						<option value="">Sélectionner un niveau d'études</option>
+						{% for section in sections %}
+							<option value="{{ section.id }}" {% if section.id == classe.studyLevel.id %} selected {% endif %}>{{ section.name }}</option>
+						{% endfor %}
+					</select>
+				</div>
+				{# Ajoute d'autres champs si besoin #}
+				<button type="submit" class="btn btn-primary">Enregistrer</button>
+				<a href="{{ path('app_school_class_show', {'id': classe.id}) }}" class="btn btn-secondary">Retour à la liste</a>
+			</form>
+		</div>
+	</div>
+{% endblock %}

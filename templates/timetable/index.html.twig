@@ -1,0 +1,67 @@
+{# filepath: d:\wamp64\www\innovschool\templates\timetable\index.html.twig #}
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Gestion des emplois du temps{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="row">
+        <!-- Bloc 1 : Liste des enseignants -->
+        <div class="col-md-8">
+            <div class="three"><h1>Liste des enseignants</h1></div>
+            <table id="teachersTable" class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Nom</th>
+                        <th>Email</th>
+                        <th>Téléphone</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for teacher in existingteachers %}
+                    <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ teacher.fullName }}</td>
+                        <td>{{ teacher.email }}</td>
+                        <td>{{ teacher.phone }}</td>
+                        <td>
+                            <a href="{{ path('app_timetable_show', {'id': teacher.id}) }}" class="btn btn-primary btn-sm">
+                                Voir les emplois du temps
+                            </a>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Bloc 2 : Formulaire de création d'emploi du temps -->
+        <div class="col-md-4 border rounded p-3">
+            <div class="three"><h1>Créer un emploi du temps</h1></div>
+            <form method="post" action="{{ path('app_timetable_new') }}">
+                <div class="mb-3">
+                    <label for="teacher" class="form-label">Enseignant</label>
+                    <select id="teacher" name="teacher" class="form-select select2" required>
+                        <option value="">Sélectionner</option>
+                        {% for teacher in teachers %}
+                            <option value="{{ teacher.id }}">{{ teacher.fullName }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-success">Créer</button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script>
+        $(document).ready(function() {
+            $('#teachersTable').DataTable();
+        });
+    </script>
+{% endblock %}

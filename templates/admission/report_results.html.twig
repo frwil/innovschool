@@ -1,0 +1,340 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Rapports d'admission{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="three"><h1>Rapports d'admission</h1></div>
+    <form id="admission-report-form" class="mb-4">
+        <div class="row">
+            <div class="col-md-4">
+                <label for="section-select" class="form-label">Section</label>
+                <select id="section-select" class="form-select select2" name="section" onchange="sectionChange(this)">
+                    <option value="">-- Sélectionnez une section --</option>
+                    <!-- Options dynamiques -->
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="class-select" class="form-label">Classe</label>
+                <select id="class-select" class="form-select select2" name="class" disabled onchange="classChange(this)">
+                    <option value="">-- Sélectionnez une classe --</option>
+                    <!-- Options dynamiques -->
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="modalities-select" class="form-label">Modalités</label>
+                <select id="modalities-select" class="form-select select2" name="modalities[]" multiple disabled>
+                    <!-- Options dynamiques -->
+                </select>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-4">
+                <label for="payment-status" class="form-label">Statut de paiement</label>
+                <select id="payment-status" class="form-select select2" name="paymentStatus">
+                    <option value="all">-- Tout --</option>
+                    <option value="partial">Partiellement payé</option>
+                    <option value="full">Totalement payé</option>
+                    <option value="unpaid">Totalement impayé</option>
+                    <option value="partial_unpaid">Partiellement payé + impayés (insolvables réels)</option> <!-- Nouvelle option -->
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label for="export-format" class="form-label">Exporter sous</label>
+                <select id="export-format" class="form-select select2" name="exportFormat">
+                    <option value="html">HTML</option>
+                    <option value="excel">Excel</option>
+                    <option value="pdf">PDF</option> <!-- Nouvelle option ajoutée -->
+                </select>
+            </div>
+        </div>
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <button type="submit" class="btn btn-primary">Générer le rapport</button>
+            </div>
+        </div>
+    </form>
+
+    <div id="report-results">
+        {% if reportData is defined and reportData is not empty %}
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Nom</th>
+                         <th>Matricule</th>
+                        {#<th>Total Payé</th>
+                        <th>Reste à Payer</th>
+                        <th>Jours Restants avant Échéance</th> #}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for student in reportData %}
+                        <tr>
+                            <td>{{ student.name }}</td>
+                             <td>{{ student.matricule }}</td>
+                            {#<td>{{ student.totalPaid }}</td>
+                            <td>{{ student.remainingAmount }}</td>
+                            <td>{{ student.daysBeforeDueDate }}</td> #}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p>Aucun résultat trouvé.</p>
+        {% endif %}
+    </div>
+</div>
+<script>
+function sectionChange(el) {
+    const sectionId = $(el).val();
+            $('#class-select').prop('disabled', true).empty().append('<option value="">-- Sélectionnez une classe --</option>');
+
+            if (sectionId) {
+                $.ajax({
+                    url: '{{ path("app_classes_by_section") }}', // Route pour récupérer les classes par section
+                    data: { sectionId: sectionId },
+                    success: function (data) {
+                        data.forEach(function (classItem) {
+                            $('#class-select').append(`<option value="${classItem.id}">${classItem.name}</option>`);
+                        });
+                        $('#class-select').prop('disabled', false);
+                    },
+                    error: function () {
+                        alert('Une erreur est survenue lors du chargement des classes.');
+                    }
+                });
+            }
+}
+
+function classChange(el) {
+    const classId = $(el).val();
+            $('#modalities-select').prop('disabled', true).empty().append('<option value="">-- Sélectionnez des modalités --</option>');
+
+            if (classId) {
+                $.ajax({
+                    url: '{{ path("app_modalities_by_class") }}', // Route pour récupérer les modalités par classe
+                    data: { classId: classId },
+                    success: function (data) {
+                        data.forEach(function (modality) {
+                            $('#modalities-select').append(`<option value="${modality.id}">${modality.label}</option>`);
+                        });
+                        $('#modalities-select').prop('disabled', false);
+                    },
+                    error: function () {
+                        alert('Une erreur est survenue lors du chargement des modalités.');
+                    }
+                });
+            }
+}
+    $(document).ready(function () {
+        // Initialiser Select2 pour les sélecteurs
+        $('#modalities-select').select2({
+            placeholder: '-- Sélectionnez des modalités --',
+            allowClear: true,
+            width: '100%'
+        });
+        $('#section-select').select2({
+            placeholder: '-- Sélectionnez une section --',
+            allowClear: true,
+            width: '100%'
+        });
+        $('#class-select').select2({
+            placeholder: '-- Sélectionnez une classe --',
+            allowClear: true,
+            width: '100%'
+        });
+        $('#payment-status').select2({
+            placeholder: '-- Sélectionnez un statut de paiement --',
+            allowClear: true,
+            width: '100%'
+        }); 
+        $('#export-format').select2({
+            placeholder: '-- Sélectionnez un format d\'exportation --',
+            allowClear: true,
+            width: '100%'
+        });
+
+        // Charger les sections dynamiquement
+        $.ajax({
+            url: '{{ path("app_get_sections") }}', // Route pour récupérer les sections
+            method: 'GET',
+            success: function (response) {
+                const $sectionSelect = $('#section-select');
+                $sectionSelect.empty().append('<option value=""></option>');
+                response.forEach(function (section) {
+                    $sectionSelect.append(`<option value="${section.id}">${section.name}</option>`);
+                });
+            },
+            error: function () {
+                alert('Une erreur est survenue lors du chargement des sections.');
+            }
+        });
+
+    });
+
+    $('#admission-report-form').on('submit', function (e) {
+        e.preventDefault();
+
+        // Vérifier que tous les champs sont remplis
+        const section = $('#section-select').val();
+        const classId = $('#class-select').val();
+        const modalities = $('#modalities-select').val();
+        const paymentStatus = $('#payment-status').val();
+        const exportFormat = $('#export-format').val();
+
+        if (!section || !classId || !modalities || !paymentStatus || !exportFormat) {
+            alert('Tous les champs sont obligatoires.');
+            return;
+        }
+        if (exportFormat === 'excel') {
+            const modalitiesParam = modalities.join(',');
+            const excelUrl = `{{ path('app_generate_excel_report') }}?classId=${classId}&paymentStatus=${paymentStatus}&modalities=${modalitiesParam}`;
+            window.open(excelUrl, '_blank');
+            return;
+        }
+
+        if (exportFormat === 'pdf') {
+                    const modalitiesParam = modalities.join(',');
+                    const pdfUrl = `{{ path('app_generate_pdf_report') }}?classId=${classId}&paymentStatus=${paymentStatus}&modalities=${modalitiesParam}`;
+                    window.open(pdfUrl, '_blank');
+                    return;
+                }
+
+        // Soumettre le formulaire via AJAX
+        const formData = $(this).serialize();
+
+        $.ajax({
+            url: '{{ path("app_generate_admission_report") }}', // Route pour générer le rapport
+            method: 'POST',
+            data: formData,
+            success: function (response) {
+                if (response.error) {
+                    alert(response.error);
+                    return;
+                }
+
+
+                // Filtrer les résultats en fonction du statut de paiement
+                const filteredResponse = response.filter(student => {
+                    let totalPaid = 0;
+                    let totalRemaining = 0;
+
+                    // Calculer le total payé et le reste à payer pour chaque étudiant
+                    Object.keys(student.modalities).forEach(modality => {
+                        const paid = student.modalities[modality].totalPaid;
+                        const remaining = student.modalities[modality].remainingAmount;
+
+                        totalPaid += paid;
+                        totalRemaining += remaining;
+                    });
+
+                    // Appliquer le filtre en fonction du statut de paiement
+                    if (paymentStatus === 'partial') {
+                        return totalPaid > 0 && totalRemaining > 0; // Partiellement payé
+                    } else if (paymentStatus === 'full') {
+                        return totalRemaining === 0; // Totalement payé
+                    } else if (paymentStatus === 'unpaid') {
+                        return totalPaid === 0; // Totalement impayé
+                    } else if (paymentStatus === 'partial_unpaid') {
+                        return totalRemaining > 0; // Partiellement payé + impayés
+                    } else if (paymentStatus === 'all') {
+                        return true; // Inclure tous les étudiants
+                    }
+
+                    return true; // Par défaut, inclure tous les étudiants
+                });
+
+                // Générer le tableau croisé dynamique
+                const $table = $('<table class="table table-bordered"></table>');
+                const $thead = $('<thead></thead>');
+                const $tbody = $('<tbody></tbody>');
+                const $tfoot = $('<tfoot></tfoot>'); // Ajouter un pied de tableau
+
+                // Construire l'en-tête
+                const modalities = Object.keys(response[0].modalities);
+                const modal = response[0].modalities;
+                const $headerRow1 = $('<tr></tr>');
+                $headerRow1.append('<th>Matricule</th><th>Nom</th>');
+                modalities.forEach(modality => {
+                    $headerRow1.append(`<th colspan="2">${modal[modality].modalLabel}</th>`);
+                });
+                $headerRow1.append('<th colspan="2">Total</th>'); // Ajouter une colonne pour les totaux
+                $thead.append($headerRow1);
+
+                const $headerRow2 = $('<tr></tr>');
+                $headerRow2.append('<th></th><th></th>');
+                modalities.forEach(() => {
+                    $headerRow2.append('<th>Payé</th><th>Reste</th>');
+                });
+                $headerRow2.append('<th>Payé</th><th>Reste</th>'); // Ajouter les sous-colonnes pour les totaux
+                $thead.append($headerRow2);
+
+                // Initialiser les totaux par modalité
+                const totals = {};
+                modalities.forEach(modality => {
+                    totals[modality] = { totalPaid: 0, totalRemaining: 0 };
+                });
+                let grandTotalPaid = 0;
+                let grandTotalRemaining = 0;
+
+                // Construire le corps du tableau
+                filteredResponse.forEach(student => {
+                    const $row = $('<tr></tr>');
+                    $row.append(`<td>${student.matricule}</td>`);
+                    $row.append(`<td>${student.name}</td>`);
+
+                    let totalPaid = 0;
+                    let totalRemaining = 0;
+
+                    modalities.forEach(modality => {
+                        if (student.modalities[modality]) {
+                            const paid = student.modalities[modality].totalPaid;
+                            const remaining = student.modalities[modality].remainingAmount;
+
+                            totalPaid += paid; // Ajouter au total payé de l'étudiant
+                            totalRemaining += remaining; // Ajouter au total restant de l'étudiant
+
+                            // Ajouter aux totaux par modalité
+                            totals[modality].totalPaid += paid;
+                            totals[modality].totalRemaining += remaining;
+
+                            $row.append(`<td>${paid.toLocaleString()} FCFA</td>`);
+                            $row.append(`<td>${remaining.toLocaleString()} FCFA</td>`);
+                        } else {
+                            $row.append('<td>-</td><td>-</td>');
+                        }
+                    });
+
+                    // Ajouter les totaux dans la dernière colonne
+                    $row.append(`<td>${totalPaid.toLocaleString()} FCFA</td>`);
+                    $row.append(`<td>${totalRemaining.toLocaleString()} FCFA</td>`);
+
+                    // Ajouter aux totaux globaux
+                    grandTotalPaid += totalPaid;
+                    grandTotalRemaining += totalRemaining;
+
+                    $tbody.append($row);
+                });
+
+                // Construire le pied de tableau
+                const $footerRow = $('<tr></tr>');
+                $footerRow.append('<th colspan="2">Total</th>');
+                modalities.forEach(modality => {
+                    $footerRow.append(`<td>${totals[modality].totalPaid.toLocaleString()} FCFA</td>`);
+                    $footerRow.append(`<td>${totals[modality].totalRemaining.toLocaleString()} FCFA</td>`);
+                });
+                $footerRow.append(`<td>${grandTotalPaid.toLocaleString()} FCFA</td>`);
+                $footerRow.append(`<td>${grandTotalRemaining.toLocaleString()} FCFA</td>`);
+                $tfoot.append($footerRow);
+
+                // Ajouter les sections au tableau
+                $table.append($thead).append($tbody).append($tfoot);
+                $('#report-results').html($table);
+            },
+            error: function () {
+                alert('Une erreur est survenue lors de la génération du rapport.');
+            }
+        });
+    });
+</script>
+{% endblock %}

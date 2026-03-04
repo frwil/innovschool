@@ -1,0 +1,181 @@
+{# filepath: templates/home/index.html.twig #}
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+  <div class="three d-flex align-items-center justify-content-between flex-wrap">
+    <h1 class="mb-4">Tableau de bord</h1>
+    <div class="mb-3 mb-md-0">
+      <label for="niveauSelect" class="form-label mb-0 me-2">Niveau d'étude :</label>
+      <select id="niveauSelect" class="form-select d-inline-block w-auto" style="min-width:180px;">
+        <option value="all">Tous les niveaux</option>
+        {% for section in sections %}
+          <option value="{{ section.id }}">{{ section.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  <div class="row mb-4">
+    <div class="col-md-3"><div class="card text-center shadow-sm"><div class="card-body"><h5>Élèves</h5><h2 id="count-eleves">0</h2></div></div></div>
+    <div class="col-md-3"><div class="card text-center shadow-sm"><div class="card-body"><h5>Classes</h5><h2 id="count-classes">0</h2></div></div></div>
+    <div class="col-md-3"><div class="card text-center shadow-sm"><div class="card-body"><h5>Enseignants</h5><h2 id="count-enseignants">0</h2></div></div></div>
+    <div class="col-md-3"><div class="card text-center shadow-sm"><div class="card-body"><h5>Matières</h5><h2 id="count-matieres">0</h2></div></div></div>
+  </div>
+  <div class="row mb-4">
+    <div class="col-md-6 mb-4 mb-md-0"><canvas id="admissionsChart" height="180"></canvas></div>
+    <div class="col-md-6"><canvas id="elevesClasseChart" height="180"></canvas></div>
+  </div>
+  <div class="row mb-4">
+    <div class="col-md-6 mb-4 mb-md-0"><canvas id="elevesSexeChart" height="180"></canvas></div>
+    <div class="col-md-6"><canvas id="enseignantsMatiereChart" height="180"></canvas></div>
+  </div>
+  <div class="row mb-4">
+    <div class="col-md-12"><canvas id="notesMoyennesChart" height="120"></canvas></div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Gestion du filtre par niveau d'étude
+
+
+$(function() {
+  function updateStats(niveau) {
+    $.ajax({
+      url: '/dashboard/stats/' + niveau,
+      method: 'GET',
+      dataType: 'json',
+      success: function(data) {
+        $('#count-eleves').text(data.eleves+' ('+data.elevesInscrits+' inscrits)');
+        $('#count-classes').text(data.classes);
+        $('#count-enseignants').text(data.enseignants+' ('+data.enseignantsDansClasses+')');
+        $('#count-matieres').text(data.matieres);
+
+        // Mise à jour des graphiques si les données sont présentes dans la réponse
+        if(data.admissionsChart) {
+          admissionsChart.data.labels = data.admissionsChart.labels;
+          admissionsChart.data.datasets[0].data = data.admissionsChart.data;
+          admissionsChart.update();
+        }
+        if(data.elevesClasseChart) {
+          elevesClasseChart.data.labels = data.elevesClasseChart.labels;
+          elevesClasseChart.data.datasets[0].data = data.elevesClasseChart.data;
+          elevesClasseChart.update();
+        }
+        if(data.elevesSexeChart) {
+          elevesSexeChart.data.labels = data.elevesSexeChart.labels;
+          elevesSexeChart.data.datasets[0].data = data.elevesSexeChart.data;
+          elevesSexeChart.update();
+        }
+        if(data.enseignantsMatiereChart) {
+          enseignantsMatiereChart.data.labels = data.enseignantsMatiereChart.labels;
+          enseignantsMatiereChart.data.datasets[0].data = data.enseignantsMatiereChart.data;
+          enseignantsMatiereChart.update();
+        }
+        if(data.notesMoyennesChart) {
+          notesMoyennesChart.data.labels = data.notesMoyennesChart.labels;
+          notesMoyennesChart.data.datasets[0].data = data.notesMoyennesChart.data;
+          notesMoyennesChart.update();
+        }
+      }
+    });
+  }
+  $('#niveauSelect').on('change', function() {
+    updateStats(this.value);
+  });
+  // Chargement initial
+  updateStats($('#niveauSelect').val());
+});
+
+// Exemple d'initialisation Chart.js (à remplacer par des données dynamiques AJAX)
+const admissionsChart = new Chart(document.getElementById('admissionsChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin'],
+    datasets: [{ label: 'Admissions', data: [12, 19, 7, 15, 10, 14], backgroundColor: '#0d6efd' }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      title: {
+        display: true,
+        text: 'Admissions par mois',
+        font: { size: 18 }
+      }
+    }
+  }
+});
+const elevesClasseChart = new Chart(document.getElementById('elevesClasseChart'), {
+  type: 'pie',
+  data: {
+    labels: ['6e', '5e', '4e', '3e'],
+    datasets: [{ data: [40, 32, 28, 20], backgroundColor: ['#0d6efd','#198754','#ffc107','#dc3545'] }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      title: {
+        display: true,
+        text: 'Répartition des élèves par classe',
+        font: { size: 18 }
+      }
+    }
+  }
+});
+const elevesSexeChart = new Chart(document.getElementById('elevesSexeChart'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Filles', 'Garçons'],
+    datasets: [{ data: [60, 80], backgroundColor: ['#e83e8c','#0dcaf0'] }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      title: {
+        display: true,
+        text: 'Répartition des élèves par sexe',
+        font: { size: 18 }
+      }
+    }
+  }
+});
+const enseignantsMatiereChart = new Chart(document.getElementById('enseignantsMatiereChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Maths', 'Français', 'SVT', 'Anglais'],
+    datasets: [{ label: 'Enseignants', data: [5, 7, 3, 4], backgroundColor: '#198754' }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      legend: { display: false },
+      title: {
+        display: true,
+        text: 'Nombre d\'enseignants par matière',
+        font: { size: 18 }
+      }
+    }
+  }
+});
+const notesMoyennesChart = new Chart(document.getElementById('notesMoyennesChart'), {
+  type: 'radar',
+  data: {
+    labels: ['Maths', 'Français', 'SVT', 'Anglais'],
+    datasets: [{ label: 'Moyenne', data: [12.5, 14.2, 13.1, 11.8], backgroundColor: 'rgba(13,110,253,0.2)', borderColor: '#0d6efd' }]
+  },
+  options: {
+    responsive: true,
+    plugins: {
+      title: {
+        display: true,
+        text: 'Notes moyennes par matière',
+        font: { size: 18 }
+      }
+    }
+  }
+});
+// Les compteurs sont désormais mis à jour dynamiquement via AJAX
+</script>
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Liste des classes
+{% endblock %}
+
+{% block body %}
+	<div class="row">
+		<div class="col-md-8">
+			<div class="three">
+				<h1>Liste des classes</h1>
+				<!-- Dropdown Import -->
+				<div class="btn-group mb-3">
+					<button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+						Importer des classes
+					</button>
+					<ul class="dropdown-menu">
+						<li>
+							<a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#importClassesExcelModal">Format Excel</a>
+						</li>
+						<li>
+							<a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#importClassesJsonModal">Format JSON</a>
+						</li>
+					</ul>
+				</div>
+			</div>
+			<table class="table table-striped responsive" id="classe-table">
+				<thead>
+					<tr>
+						<th>#</th>
+						<th>Nom</th>
+						<th>Niveau d'études</th>
+						<th>Nb Classes</th>
+						<th>Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					{% if classes is not empty %}
+						{% set i = 1 %}
+						{% set countClasses = 0 %}
+						{% for classe in classes %}
+							<tr>
+								<td>{{ i }}</td>
+								{% set i = i + 1 %}
+								<td>{{ classe.name }}</td>
+								<td>{{ classe.studyLevel.name }}</td>
+								<td>{{ sectionC[classe.id] > 0 ? '%02d'|format(sectionC[classe.id]) : '' }}</td>
+								<td>
+									<a href="{{ path('app_school_class_show', {'id': classe.id}) }}" class="btn btn-lg btn-primary">
+										<i class="fas fa-eye" title="Voir"></i>
+									</a>
+									<a href="{{ path('app_school_classes_edit', {'id': classe.id}) }}" class="btn btn-lg btn-secondary">
+										<i class="fas fa-pencil-alt" title="Modifier"></i>
+									</a>
+									<form method="post" action="{{ path('app_school_class_classe_delete', {'id': classe.id}) }}" onsubmit="return confirm('Êtes-vous sûr de vouloir supprimer cette classe ?');">
+										<input type="hidden" name="_token" value="{{ csrf_token('delete' ~ classe.id) }}">
+										<button type="submit" class="btn btn-lg btn-danger">
+											<i class="fas fa-trash" title="Supprimer"></i>
+										</button>
+									</form>
+								</td>
+							</tr>
+						{% endfor %}
+					{% else %}
+						<tr>
+							<td colspan="5">Aucune classe trouvée.</td>
+						</tr>
+					{% endif %}
+				</tbody>
+			</table>
+		</div>
+		<div class="col-md-4 border rounded p-3">
+			{% for label, messages in app.flashes %}
+				{% for message in messages %}
+					<div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+						{{ message }}
+						<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+					</div>
+				{% endfor %}
+			{% endfor %}
+			<div class="three">
+			<h1>Ajouter une nouvelle classe</h1>
+			</div>
+			<form method="post" action="{{ path('app_class_new') }}" id="add-class-form">
+				<div class="mb-3">
+					<label for="name" class="form-label">Nom de la classe</label>
+					<input type="text" id="name" name="name" class="form-control" required>
+				</div>
+				<div class="mb-3">
+					<label for="section" class="form-label">Niveau d'études</label>
+					<select id="section" name="section" class="form-select select2" required>
+						{% for studyLevel in studyLevels %}
+							<option value="{{ studyLevel.id }}">{{ studyLevel.name }}</option>
+						{% endfor %}
+					</select>
+				</div>
+				<button type="submit" class="btn btn-success" id="add-class-button">Ajouter</button>
+			</form>
+			<script>
+			$(function() {
+				$('#add-class-form').on('submit', function(e) {
+					e.preventDefault();
+					var $form = $(this);
+					var $btn = $('#add-class-button');
+					$btn.prop('disabled', true);
+					$btn.html('Enregistrment en cours...')
+					$.ajax({
+						url: $form.attr('action'),
+						method: 'POST',
+						data: $form.serialize(),
+						dataType: 'json',
+						success: function(response) {
+							if (response.status === 'success') {
+								// Afficher un message de succès
+								$.notify(response.message,{className:'success'});
+								// Option : rafraîchir la page ou la liste des classes
+								setTimeout(function(){ location.reload(); }, 1200);
+							} else {
+								$.notify(response.message,{className:'error'});
+							}
+						},
+						error: function(xhr) {
+							console.log(xhr);
+							var msg = 'Erreur lors de l\'ajout de la classe.';
+							if (xhr.responseJSON && xhr.responseJSON.message) {
+								msg = xhr.responseJSON.message;
+							}
+							if(xhr.status == 0) {
+								msg += '\nVérifiez votre connexion Internet.';
+							}
+							$.notify(msg,{className:'error'});
+							$btn.prop('disabled',false);
+							$btn.html('Ajouter')
+						},
+						complete: function() {
+							$btn.prop('disabled', false);
+							$btn.html('Ajouter');
+						},
+						fail: function(xhr) {
+							var msg = 'Erreur lors de l\'ajout de la classe.';
+							if (xhr.responseJSON && xhr.responseJSON.message) {
+								msg = xhr.responseJSON.message;
+							}
+							if(xhr.status == 0) {
+								msg += '\nVérifiez votre connexion Internet.';
+							}
+							$.notify(msg,{className:'error'});
+							$btn.prop('disabled',false);
+							$btn.html('Ajouter');
+						}
+					});
+				});
+			});
+
+			$('#classe-table').DataTable();
+			</script>
+		</div>
+	</div>
+
+	<!-- Modal Import Excel -->
+<div class="modal fade" id="importClassesExcelModal" tabindex="-1" aria-labelledby="importClassesExcelModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+	<div class="modal-content">
+	  <form method="post" action="{{ path('app_class_import_excel') }}" enctype="multipart/form-data">
+		<div class="modal-header">
+		  <h5 class="modal-title" id="importClassesExcelModalLabel">Importer des classes (Excel)</h5>
+		  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+		</div>
+		<div class="modal-body">
+		  <div class="mb-3">
+			<label for="importClassFileExcel" class="form-label">Fichier Excel</label>
+			<input type="file" class="form-control" id="importClassFileExcel" name="importFile" accept=".xlsx,.xls" required>
+		  </div>
+		</div>
+		<div class="modal-footer">
+		  <button type="submit" class="btn btn-primary">Importer</button>
+		</div>
+	  </form>
+	</div>
+  </div>
+</div>
+
+<!-- Modal Import JSON -->
+<div class="modal fade" id="importClassesJsonModal" tabindex="-1" aria-labelledby="importClassesJsonModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+	<div class="modal-content">
+	  <form method="post" action="{{ path('app_class_import_json') }}" enctype="multipart/form-data">
+		<div class="modal-header">
+		  <h5 class="modal-title" id="importClassesJsonModalLabel">Importer des classes (JSON)</h5>
+		  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+		</div>
+		<div class="modal-body">
+		  <div class="mb-3">
+			<label for="importClassFileJson" class="form-label">Fichier JSON</label>
+			<input type="file" class="form-control" id="importClassFileJson" name="importFile" accept=".json" required>
+		  </div>
+		</div>
+		<div class="modal-footer">
+		  <button type="submit" class="btn btn-primary">Importer</button>
+		</div>
+	  </form>
+	</div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,388 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Gestion des élèves
+{% endblock %}
+
+{% block dataturbo %}true
+{% endblock %}
+
+{% block body %}
+<div class="three">
+	<h1>Liste des élèves</h1>
+	<!-- Dropdown Import -->
+	<div class="btn-group mb-3">
+		<button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
+			Importer des élèves
+		</button>
+		<ul class="dropdown-menu">
+			<li>
+				<a class="dropdown-item" href="#" data-bs-toggle="modal"
+					data-bs-target="#importStudentsExcelModal">Format Excel</a>
+			</li>
+			<li>
+				<a class="dropdown-item" href="#" data-bs-toggle="modal"
+					data-bs-target="#importStudentsJsonModal">Format JSON</a>
+			</li>
+		</ul>
+	</div>
+</div>
+<div class="row">
+	<!-- Bloc 1 : Tableau des élèves -->
+	<div class="col-md-8">
+
+		<table class="table table-striped" id="studentsTable">
+			<thead>
+				<tr>
+					<th>#</th>
+					<th>Nom</th>
+					<th>Email</th>
+					<th>Classe</th>
+					<th>Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for student in students %}
+				<tr>
+					<td>{{ loop.index }}</td>
+					<td>{{ student.student.fullName }}</td>
+					<td>{{ student.student.email }}</td>
+					<td>{{ student.schoolClassPeriod.classOccurence.name ?? '-' }}</td>
+					<td>
+						<!-- Actions (ex: voir, éditer, supprimer) -->
+						<a href="{{ path('app_user_show_by_id', {'id': student.student.id}) }}"
+							class="btn btn-sm btn-primary">Voir</a>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+		<hr>
+		<div class="mt-3">
+			<form method="post" action="{{ path('app_student_export') }}">
+				<div class="row">
+					<div class="mb-3 col-md-3">
+						<label for="exportFormat" class="form-label">Format d'export</label>
+						<select id="exportFormat" name="exportFormat" class="form-select select2" required>
+							<option value="">Sélectionner un format</option>
+							<option value="csv">CSV</option>
+							<option value="xlsx">Excel (XLSX)</option>
+						</select>
+					</div>
+					<div class="mb-3 col-md-3">
+						<label for="exportCriteria" class="form-label">Critère</label>
+						<select id="exportCriteria" name="exportCriteria" class="form-select select2" required>
+							<option value="exportClass">Par Classe</option>
+							<option value="exportGender">Par Sexe</option>
+							<option value="exportAll">Par classe et par sexe</option>
+						</select>
+					</div>
+					<div class="mb-3 col-md-3" style="display: none;" id="exportClassDiv">
+						<label for="exportClass" class="form-label">Classe</label>
+						<select id="exportClass" name="exportClass" class="form-select select2" disabled required>
+							<option value="all" selected>Toutes les classes</option>
+							{% for class in classes %}
+							<option value="{{ class.classOccurence.id }}">{{ class.classOccurence.name }}</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="mb-3 col-md-3" style="display: none;" id="exportGenderDiv">
+						<label for="exportGender" class="form-label">Sexe</label>
+						<select id="exportGender" name="exportGender" class="form-select select2" disabled required>
+							<option value="all" selected>Tous</option>
+							{% for gender in genders %}
+							<option value="{{gender.value}}">
+								{% if gender.value == 'male' %}Homme{% elseif gender.value == 'female' %}Femme{% else
+								%}Inconnu
+								{% endif %}
+							</option>
+							{% endfor %}
+						</select>
+					</div>
+					<div class="mb-3 col-md-3" style="padding-top: 33px;">
+
+						<button type="submit" class="btn btn-success btn-lg">Exporter la liste des élèves</button>
+					</div>
+				</div>
+			</form>
+		</div>
+	</div>
+
+	<!-- Bloc 2 : Formulaire d'ajout d'élève -->
+	<div class="col-md-4 border rounded p-3">
+		<div class="three">
+			<h1>Ajouter un élève</h1>
+		</div>
+		{% for label, messages in app.flashes %}
+		{% for message in messages %}
+		<div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+			{{ message }}
+			<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+		</div>
+		{% endfor %}
+		{% endfor %}
+		<form id="app_student_new_form" method="post" action="{{ path('app_student_new') }}"
+			enctype="multipart/form-data">
+			<div class="mb-3">
+				<label for="lastName" class="form-label">Nom</label>
+				<input type="text" id="lastName" name="lastName" class="form-control" required>
+			</div>
+			<div class="mb-3">
+				<label for="gender" class="form-label">Sexe</label>
+				<select id="gender" name="gender" class="form-select select2" required>
+					<option value="">Sélectionner</option>
+					<option value="male">Masculin</option>
+					<option value="female">Féminin</option>
+				</select>
+			</div>
+			<div class="mb-3">
+				<label for="birthDate" class="form-label">Date de naissance</label>
+				<input type="date" id="birthDate" name="birthDate" class="form-control">
+			</div>
+			<div class="mb-3">
+				<label for="birthPlace" class="form-label">Lieu de naissance</label>
+				<input type="text" id="birthPlace" name="birthPlace" class="form-control">
+			</div>
+			<div class="mb-3">
+				<label for="photo" class="form-label">Photo</label>
+				<input type="file" id="photo" name="photo" class="form-control" accept="image/*">
+			</div>
+			<div class="mb-3">
+				<label for="schoolClassPeriod" class="form-label">Classe</label>
+				<select id="schoolClassPeriod" name="schoolClassPeriod" class="form-select select2" required>
+					{% for class in classes %}
+					<option value="{{ class.id }}">{{ class.classOccurence.name }}</option>
+					{% endfor %}
+				</select>
+			</div>
+			<div class="mb-3">
+				<label for="isRepeating" class="form-label">Redoublant</label>
+				<select id="isRepeating" name="isRepeating" class="form-select select2" required>
+					<option value="">Sélectionner</option>
+					<option value="0">Non</option>
+					<option value="1">Oui</option>
+				</select>
+			</div>
+			<div class="mb-3">
+				<label for="parentPhone" class="form-label">Téléphone du parent</label>
+				<input type="text" id="parentPhone" name="parentPhone" class="form-control" autocomplete="off"
+					maxlength="10" pattern="\d{9,10}" title="9 à 10 chiffres" required>
+				<div id="parentSuggestions" class="list-group m-3"></div>
+				<input type="hidden" id="tutor_id" name="tutor_id">
+			</div>
+			<div class="mb-3">
+				<label for="parentName" class="form-label">Nom du parent</label>
+				<input type="text" id="parentName" name="parentName" class="form-control" autocomplete="off">
+			</div>
+			<div class="mb-3">
+				<label for="parentType" class="form-label">Type de parent</label>
+				<select id="parentType" name="parentType" class="form-select select2">
+					<option value="">Sélectionner</option>
+					<option value="pere-mere">Père/Mère</option>
+					<option value="oncle-tante">Oncle/Tante</option>
+					<option value="frere-soeur">Frère/Soeur</option>
+				</select>
+			</div>
+			<div class="mb-3">
+				<label for="parentGender" class="form-label">Sexe</label>
+				<select id="parentGender" name="parentGender" class="form-select select2" required>
+					<option value="">Sélectionner</option>
+					<option value="male">Masculin</option>
+					<option value="female">Féminin</option>
+				</select>
+			</div>
+
+			<button type="submit" class="btn btn-success">Enregistrer</button>
+		</form>
+	</div>
+</div>
+
+<!-- Modal Import Excel -->
+<div class="modal fade" id="importStudentsExcelModal" tabindex="-1" aria-labelledby="importStudentsExcelModalLabel"
+	aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form method="post" action="{{ path('app_student_import_excel') }}" enctype="multipart/form-data">
+				<div class="modal-header">
+					<h5 class="modal-title" id="importStudentsExcelModalLabel">Importer des élèves (Excel)</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+				</div>
+				<div class="modal-body">
+					<div class="mb-3">
+						<label for="importFileExcel" class="form-label">Fichier Excel</label>
+						<input type="file" class="form-control" id="importFileExcel" name="importFile"
+							accept=".xlsx,.xls" required>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="submit" class="btn btn-primary">Importer</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<!-- Modal Import JSON -->
+<div class="modal fade" id="importStudentsJsonModal" tabindex="-1" aria-labelledby="importStudentsJsonModalLabel"
+	aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<form method="post" action="{{ path('app_student_import_json') }}" enctype="multipart/form-data">
+				<div class="modal-header">
+					<h5 class="modal-title" id="importStudentsJsonModalLabel">Importer des élèves (JSON)</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+				</div>
+				<div class="modal-body">
+					<div class="mb-3">
+						<label for="importFileJson" class="form-label">Fichier JSON</label>
+						<input type="file" class="form-control" id="importFileJson" name="importFile" accept=".json"
+							required>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button type="submit" class="btn btn-primary">Importer</button>
+				</div>
+			</form>
+		</div>
+	</div>
+</div>
+
+<script>
+	$('#parentPhone').on('input', function () { // Garde uniquement les chiffres
+		this.value = this.value.replace(/\D/g, '').slice(0, 10);
+		var phone = $(this).val();
+		if (phone.length < 3) {
+			$('#parentSuggestions').empty();
+			$('#parentType,#parentGender').removeAttr('required');
+			$('#parentType').val(null).trigger('change');
+			$('#parentGender').val(null).trigger('change');
+			return;
+		}
+
+		// Rendre le champ type de parent requis si le téléphone est renseigné, sinon non
+		if (this.value.trim() !== '') {
+			$('#parentType,#parentGender').attr('required', true);
+		} else {
+			$('#parentType,#parentGender').removeAttr('required');
+			$('#parentType').val(null).trigger('change');
+			$('#parentGender').val(null).trigger('change');
+		}
+
+		// Recherche AJAX des parents
+		$.ajax({
+			url: "{{ path('app_parent_search') }}",
+			data: {
+				phone: phone
+			},
+			success: function (data) {
+				var suggestions = '';
+				data.forEach(function (parent) {
+					suggestions += '<button type="button" class="list-group-item list-group-item-action" data-id="' + parent.id + '" data-phone="' + parent.phone + '" data-name="' + parent.fullName + '" data-type="'+parent.type+'" data-gender="'+parent.gender+'">' + parent.fullName + ' (' + parent.phone + ')</button>';
+				});
+				$('#parentSuggestions').html(suggestions).show();
+			}
+		});
+	});
+
+	$('#parentSuggestions').on('click', 'button', function () {
+		$('#parentPhone').val($(this).data('phone'));
+		$('#parentName').val($(this).data('name'));
+		$('#tutor_id').val($(this).data('id'));
+$('#parentType').val($(this).data('type')).trigger('change');
+$('#parentGender').val($(this).data('gender')).trigger('change');
+		$('#parentSuggestions').empty();
+	});
+
+	$('#app_student_new_form').on('submit', function (e) {
+		e.preventDefault();
+		var $form = $(this);
+		var formData = new FormData(this);
+		$form.find('button[type="submit"]').prop('disabled', true).text('Enregistrement en cours...');
+		$.ajax({
+			url: $form.attr('action'),
+			type: 'POST',
+			data: formData,
+			processData: false, // important pour FormData
+			contentType: false, // important pour FormData
+			success: function (response) {
+				$.notify('Élève enregistré avec succès !', 'success');
+				setTimeout(()=>{location.reload();},1200);
+			},
+			error: function (xhr) {
+				let msg = 'Erreur lors de l\'enregistrement.';
+				if (xhr.responseJSON && xhr.responseJSON.message) {
+					msg = xhr.responseJSON.message;
+				} else if (xhr.status === 0) {
+					msg += '\nVérifiez votre connexion Internet.';
+				}
+				$.notify(msg);
+			},
+			complete: function () {
+				setTimeout(()=>{$form.find('button[type="submit"]').prop('disabled', false).text('Enregistrer');},5000);
+			},
+			fail: function (xhr) {
+				let msg = 'Erreur lors de l\'enregistrement.';
+				if (xhr.responseJSON && xhr.responseJSON.message) {
+					msg = xhr.responseJSON.message;
+				}else if(xhr.status === 0) {
+					msg += '\nVérifiez votre connexion Internet.';
+				}
+				$.notify(msg, { className: 'error' });
+			}
+		});
+	});
+
+	$(function () {
+		function updateExportCriteria() {
+			var val = $('#exportCriteria').val();
+
+			// Masquer et désactiver tous les critères au départ
+			$('#exportClassDiv, #exportGenderDiv').hide();
+			$('#exportClass, #exportGender').prop('disabled', true);
+
+			if (val === 'exportClass') {
+				$('#exportClassDiv').show();
+				$('#exportClass').prop('disabled', false);
+				$('#exportGenderDiv').hide();
+				$('#exportGender').prop('disabled', true);
+			} else if (val === 'exportGender') {
+				$('#exportGenderDiv').show();
+				$('#exportGender').prop('disabled', false);
+				$('#exportClassDiv').hide();
+				$('#exportClass').prop('disabled', true);
+			} else if (val === 'exportAll') {
+				$('#exportClassDiv, #exportGenderDiv').show();
+				$('#exportClass, #exportGender').prop('disabled', false);
+			}
+
+
+		}
+		var table = $('#studentsTable').DataTable({
+			"order": [
+				[0, "asc"]
+			], // Tri par la première colonne (index)
+			"pageLength": 10, // Nombre de lignes par page
+			"lengthMenu": [
+				10, 25, 50, 100
+			], // Options de pagination
+			"language": {
+				"search": "Rechercher :",
+				"lengthMenu": "Afficher _MENU_ entrées",
+				"info": "Affichage de _START_ à _END_ sur _TOTAL_ entrées",
+				"paginate": {
+					"next": "Suivant",
+					"previous": "Précédent"
+				}
+			}
+		});
+		{% if selClass != null %} table.search('{{ selClass }}').draw(); {% endif %}
+		// Initialisation au chargement
+		updateExportCriteria();
+
+		// Sur changement du critère
+		$('#exportCriteria').on('change', updateExportCriteria);
+
+
+
+	});
+</script>
+{% endblock %}

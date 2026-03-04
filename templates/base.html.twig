@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<meta charset="UTF-8">
+	<title>
+		{% block title %}Welcome!
+		{% endblock %}
+	</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<link rel="icon"
+		href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>⚫️</text><text y=%221.3em%22 x=%220.2em%22 font-size=%2276%22 fill=%22%23fff%22>sf</text></svg>">
+	{% block stylesheets %}
+	<link rel="stylesheet" href="{{asset('css/normalize.css')}}">
+	<!-- Main CSS -->
+	<link rel="stylesheet" href="{{asset('css/main.css')}}">
+	<!-- Custom CSS -->
+	<link rel="stylesheet" href="{{asset('style.css')}}">
+	<!-- Bootstrap CSS -->
+	{#
+	<link rel="stylesheet" href="{{asset('css/bootstrap.min.css')}}"> #}
+	<link rel="stylesheet" href="{{asset('css/bootstrap.min.css')}}"> <!-- Fontawesome CSS -->
+	<link rel="stylesheet" href="{{asset('css/all.min.css')}}">
+	<!-- Flaticon CSS -->
+	<link rel="stylesheet" href="{{asset('fonts/flaticon.css')}}">
+	<!-- Full Calender CSS -->
+	<link rel="stylesheet" href="{{asset('css/fullcalendar.min.css')}}">
+	<!-- Animate CSS -->
+	<link rel="stylesheet" href="{{asset('css/animate.min.css')}}">
+	<!-- Datatable CSS -->
+	<link rel="stylesheet" href="{{asset('css/datatables.min.css')}}">
+
+	<!-- select2 CSS -->
+	<link rel="stylesheet" href="{{asset('css/select2.min.css')}}">
+
+	{% endblock %}
+
+	{% block javascripts %}
+	<!-- jQuery -->
+	<script src="{{asset('js/jquery.min.js')}}"></script>
+	<!-- DataTable -->
+	<script src="{{ asset('js/datatables.min.js') }}"></script>
+	<script src="{{ asset('js/dataTables.bootstrap5.min.js') }}"></script>
+	<!-- select2 -->
+	<script src="{{ asset('js/select2.min.js') }}"></script>
+
+	{# {% block importmap %}{{ importmap('app') }}{% endblock %} #}
+
+	{# <!-- Modernize js -->
+	<script src="{{asset('js/modernizr-3.6.0.min.js')}}"></script>
+	#}
+	<!-- Custom CSS -->
+	<link rel="stylesheet" href="{{asset('style.css')}}"> {% endblock %}
+
+	{# {% block importmap %}{{ importmap('app') }}{% endblock %} #}
+
+</head>
+
+<body data-turbo="{% block dataturbo %}false{% endblock %}">
+	<!-- Preloader Start Here -->
+	<div id="preloader"></div>
+	<!-- Preloader End Here -->
+	<div id="wrapper" class="wrapper bg-ash d-flex flex-column min-vh-100">
+		<!-- Header Menu Area Start Here -->
+		<div class="navbar navbar-expand-md header-menu-one bg-light">
+			<div class="nav-bar-header-one">
+				<div class="header-logo">
+					<a href="{{path('app_homepage')}}">
+						<img src="{{asset('img/logo_innovschool.png')}}" alt="logo">
+					</a>
+				</div>
+				<div class="toggle-button sidebar-toggle">
+					<button type="button" class="item-link">
+						<span class="btn-icon-wrap">
+							<span></span>
+							<span></span>
+							<span></span>
+						</span>
+					</button>
+				</div>
+			</div>
+			<div class="d-md-none mobile-nav-bar">
+				<button class="navbar-toggler pulse-animation" type="button" data-bs-toggle="collapse"
+					data-target="#mobile-navbar" aria-expanded="false">
+					<i class="far fa-arrow-alt-circle-down"></i>
+				</button>
+				<button type="button" class="navbar-toggler sidebar-toggle-mobile">
+					<i class="fas fa-bars"></i>
+				</button>
+			</div>
+			<div class="header-main-menu collapse navbar-collapse" id="mobile-navbar">
+				<ul class="navbar-nav">
+					<li class="navbar-item header-search-bar">
+						<div class="input-group stylish-input-group">
+							<span class="input-group-addon">
+								<button type="submit">
+									<span class="flaticon-search" aria-hidden="true"></span>
+								</button>
+							</span>
+							<input type="text" class="form-control" placeholder="Find Something . . .">
+						</div>
+					</li>
+				</ul>
+				<ul class="navbar-nav">
+					<li class="navbar-item dropdown header-admin">
+						<a class="navbar-nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+							aria-expanded="false">
+							<div class="admin-title">
+								{% if app.user %}
+								<h5 class="item-title">{{ app.user.username }}</h5>
+								<span>{{ app.user.fullname }}</span>
+								{% else %}
+								<h5 class="item-title">Invité</h5>
+								{% endif %}
+							</div>
+							<div class="admin-img">
+								{% if app.user and app.user.photo %}
+								<img src="{{asset('uploads/'~ app.user.photo )}}" alt="Admin"
+									style="object-fit:cover; width:40px; height:40px; border-radius:50%;">
+								{% else %}
+								<img src="{{ asset('img/default_student.png') }}" alt="Admin"
+									style="object-fit:cover; width:40px; height:40px; border-radius:50%;">
+								{% endif %}
+							</div>
+						</a>
+						<div class="dropdown-menu dropdown-menu-right">
+							<div class="item-header">
+								{% if app.user %}
+								<h6 class="item-title">{{ app.user.fullname }}</h6>
+								{% else %}
+								<h6 class="item-title">Invité</h6>
+								{% endif %}
+							</div>
+							<div class="item-content">
+								<ul class="settings-list">
+									<li>
+										<a href="#">
+											<i class="flaticon-user"></i>My Profile</a>
+									</li>
+									<li>
+										<a href="#">
+											<i class="flaticon-list"></i>Task</a>
+									</li>
+									<li>
+										<a href="#">
+											<i
+												class="flaticon-chat-comment-oval-speech-bubble-with-text-lines"></i>Message</a>
+									</li>
+									<li>
+										<a href="#">
+											<i class="flaticon-gear-loading"></i>Account Settings</a>
+									</li>
+									{% if app.user %}
+									<li>
+										<a href="{{ path('app_logout') }}">
+											<i class="flaticon-turn-off"></i>Log Out</a>
+									</li>
+									{% endif %}
+								</ul>
+							</div>
+						</div>
+					</li>
+					<li class="navbar-item dropdown header-message">
+						<a class="navbar-nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+							aria-expanded="false">
+							<i class="far fa-envelope"></i>
+							<div class="item-title d-md-none text-16 mg-l-10">Message</div>
+							<span>5</span>
+						</a>
+
+						<div class="dropdown-menu dropdown-menu-right">
+							<div class="item-header">
+								<h6 class="item-title">05 Message</h6>
+							</div>
+							<div class="item-content">
+								<div class="media">
+									<div class="item-img bg-skyblue author-online">
+										<img src="img/figure/student11.png" alt="img">
+									</div>
+									<div class="media-body space-sm">
+										<div class="item-title">
+											<a href="#">
+												<span class="item-name">Maria Zaman</span>
+												<span class="item-time">18:30</span>
+											</a>
+										</div>
+										<p>What is the reason of buy this item.
+											Is it usefull for me.....</p>
+									</div>
+								</div>
+								<div class="media">
+									<div class="item-img bg-yellow author-online">
+										<img src="img/figure/student12.png" alt="img">
+									</div>
+									<div class="media-body space-sm">
+										<div class="item-title">
+											<a href="#">
+												<span class="item-name">Benny Roy</span>
+												<span class="item-time">10:35</span>
+											</a>
+										</div>
+										<p>What is the reason of buy this item.
+											Is it usefull for me.....</p>
+									</div>
+								</div>
+								<div class="media">
+									<div class="item-img bg-pink">
+										<img src="img/figure/student13.png" alt="img">
+									</div>
+									<div class="media-body space-sm">
+										<div class="item-title">
+											<a href="#">
+												<span class="item-name">Steven</span>
+												<span class="item-time">02:35</span>
+											</a>
+										</div>
+										<p>What is the reason of buy this item.
+											Is it usefull for me.....</p>
+									</div>
+								</div>
+								<div class="media">
+									<div class="item-img bg-violet-blue">
+										<img src="img/figure/student11.png" alt="img">
+									</div>
+									<div class="media-body space-sm">
+										<div class="item-title">
+											<a href="#">
+												<span class="item-name">Joshep Joe</span>
+												<span class="item-time">12:35</span>
+											</a>
+										</div>
+										<p>What is the reason of buy this item.
+											Is it usefull for me.....</p>
+									</div>
+								</div>
+							</div>
+						</div>
+					</li>
+					<li class="navbar-item dropdown header-notification">
+						<a class="navbar-nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+							aria-expanded="false">
+							<i class="far fa-bell"></i>
+							<div class="item-title d-md-none text-16 mg-l-10">Notification</div>
+							<span>8</span>
+						</a>
+
+						<div class="dropdown-menu dropdown-menu-right">
+							<div class="item-header">
+								<h6 class="item-title">03 Notifiacations</h6>
+							</div>
+							<div class="item-content">
+								<div class="media">
+									<div class="item-icon bg-skyblue">
+										<i class="fas fa-check"></i>
+									</div>
+									<div class="media-body space-sm">
+										<div class="post-title">Complete Today Task</div>
+										<span>1 Mins ago</span>
+									</div>
+								</div>
+								<div class="media">
+									<div class="item-icon bg-orange">
+										<i class="fas fa-calendar-alt"></i>
+									</div>
+									<div class="media-body space-sm">
+										<div class="post-title">Director Metting</div>
+										<span>20 Mins ago</span>
+									</div>
+								</div>
+								<div class="media">
+									<div class="item-icon bg-violet-blue">
+										<i class="fas fa-cogs"></i>
+									</div>
+									<div class="media-body space-sm">
+										<div class="post-title">Update Password</div>
+										<span>45 Mins ago</span>
+									</div>
+								</div>
+							</div>
+						</div>
+					</li>
+					<li class="navbar-item dropdown header-language">
+						<a class="navbar-nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown"
+							aria-expanded="false">
+							<i class="fas fa-globe-americas"></i>EN</a>
+						<div class="dropdown-menu dropdown-menu-right">
+							<a class="dropdown-item" href="#">English</a>
+							<a class="dropdown-item" href="#">Spanish</a>
+							<a class="dropdown-item" href="#">Franchis</a>
+							<a class="dropdown-item" href="#">Chiness</a>
+						</div>
+					</li>
+				</ul>
+			</div>
+		</div>
+		<!-- Header Menu Area End Here -->
+		<!-- Page Area Start Here -->
+		<div class="dashboard-page-one flex-grow-1">
+			<!-- Sidebar Area Start Here -->
+			{% if app.session.get('school_id') and app.session.get('period_id') and not isLicenseExpired %}
+			<div class="sidebar-main sidebar-menu-one sidebar-expand-md sidebar-color">
+				<div class="mobile-sidebar-header d-md-none">
+					<div class="header-logo">
+						<a href="{{path('app_home')}}"><img src="img/logo1.png" alt="logo"></a>
+					</div>
+				</div>
+				<div class="sidebar-menu-content">
+					<ul class="nav nav-sidebar-menu sidebar-toggle-view">
+						{% if currentSchool is defined and currentSchool %}
+						<li class="nav-item">
+							<a href="{{ path('app_choose_school') }}" class="nav-link"
+								style="font-weight:bold; color:#fff;" title="Changer d'établissement">
+								<i class="fas fa-home"></i>
+								<span>{{ currentSchool.name }}</span>
+							</a>
+						</li>
+						{% endif %}
+						{% if currentPeriod is defined and currentPeriod %}
+						<li class="nav-item">
+							<a href="{{path('app_choose_school')}}" class="nav-link" style="color:#fff;"
+								title="Changer d'année scolaire">
+								<i class="flaticon-calendar"></i>
+								<span>{{ currentPeriod.name }}</span>
+							</a>
+						</li>
+						{% endif %}
+
+						<li class="nav-item">
+							<a data-turbo="false" href="{{path('app_home')}}" class="nav-link">
+								<i class="fa fa-chart-pie"></i>
+								<span>Tableau de bord</span>
+							</a>
+						</li>
+						{% if is_granted('ROLE_ADMIN') %}
+						<li class="nav-item sidebar-nav-item">
+							<a href="#" class="nav-link">
+								<i class="fa fa-sliders-h"></i>
+								<span>Configurations (base)</span>
+							</a>
+							<ul class="nav sub-group-menu">
+								<li class="nav-item">
+									<a data-turbo="false" href="{{path('app_school_class_index')}}" class="nav-link">
+										<i class="fas fa-angle-right"></i>Classes</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{path('app_study_show')}}" class="nav-link">
+										<i class="fas fa-angle-right"></i>Matières</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{path('app_student_index')}}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										Elèves
+									</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{path('app_teacher_index')}}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										Enseignants
+									</a>
+								</li>
+
+							</ul>
+						</li>
+						{% endif %}
+						{% if module_manager.isEnabled('admission') %}
+						<li class="nav-item sidebar-nav-item">
+							<a href="#" class="nav-link">
+								<i class="fa fa-cash-register"></i>
+								<span>Admissions</span>
+							</a>
+							<ul class="nav sub-group-menu">
+								{% if is_granted('ROLE_ADMIN') %}
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_school_class_payment_modals') }}"
+										class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Classes/Modalités d'admission (frais)</span>
+									</a>
+								</li>
+								<!-- <li class="nav-item">
+												<a data-turbo="false" href="{{ path('app_admission_transferts') }}" class="nav-link">
+													<i class="fas fa-angle-right"></i>
+													<span>Transferts</span>
+												</a>
+											</li> -->
+								{% endif %}
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_student_inscription') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Inscription</span>
+									</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_student_admission') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Admission Étudiant</span>
+									</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_admission_finance_report') }}"
+										class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Rapport Financier</span>
+									</a>
+								</li>
+
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_admission_reports') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Rapports d'admission</span>
+									</a>
+								</li>
+							</ul>
+						</li>
+						{% endif %}
+						{% if module_manager.isEnabled('registration_card') %}
+						<li class="nav-item sidebar-nav-item">
+							<a href="#" class="nav-link">
+								<i class="fa fa-address-card"></i>
+								<span>Cartes Scolaire</span>
+							</a>
+							<ul class="nav sub-group-menu">
+								<li class="nav-item">
+									{% if is_granted('ROLE_ADMIN') %}
+									<a data-turbo="false" href="{{ path('app_registration_card_configuration') }}"
+										class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Configuration</span>
+									</a>
+									{% endif %}
+									<a data-turbo="false" href="{{ path('app_registration_card') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Cartes scolaires</span>
+									</a>
+								</li>
+							</ul>
+						</li>
+						{% endif %}
+						<li class="nav-item sidebar-nav-item">
+							<a href="#" class="nav-link">
+								<i class="fa fa-graduation-cap"></i>
+								<span>Evaluations</span>
+							</a>
+							<ul class="nav sub-group-menu">
+								{% if is_granted('ROLE_ADMIN') %}
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_evaluation') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Configuration</span>
+									</a>
+								</li>
+								{% endif %}
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_evaluation_bordereau') }}"
+										class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Bordereaux</span>
+									</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_saisie_notes') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Saisie des notes</span>
+									</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_presence_index') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Présences/Absences</span>
+									</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_discipline_index') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Discipline</span>
+									</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_bulletins') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Bulletins</span>
+									</a>
+								</li>
+							</ul>
+						</li>
+						{% if is_granted('ROLE_ADMIN') and module_manager.isEnabled('timetable') %}
+						<li class="nav-item sidebar-nav-item">
+							<a href="#" class="nav-link">
+								<i class="fa fa-table"></i>
+								<span>Emploi du Temps</span>
+							</a>
+							<ul class="nav sub-group-menu">
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_timetable_index') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Configuration</span>
+									</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_timetable_per_teacher') }}"
+										class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Emploi du temps/Enseignant</span>
+									</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_timetable_per_class') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Emploi du temps/Classe</span>
+									</a>
+								</li>
+							</ul>
+						</li>
+						{% endif %}
+						{% if is_granted('ROLE_SUPER_ADMIN')%}
+						<li class="nav-item">
+							<a data-turbo="false" href="{{path('app_user_index_admins', {'role': 'admin'})}}"
+								class="nav-link">
+								<i class="fa fa-users-cog"></i>
+								<span>Administrateurs</span>
+							</a>
+						</li>
+						<li class="nav-item">
+							<a data-turbo="false" href="{{path('app_school_period_index')}}" class="nav-link">
+								<i class="fa fa-calendar-day"></i>
+								<span>Périodes scolaires</span>
+							</a>
+						</li>
+						<li class="nav-item">
+							<a data-turbo="false" href="{{path('app_school_index')}}" class="nav-link">
+								<i class="fa fa-cogs"></i>
+								<span>Gérer les établissements</span>
+							</a>
+						</li>
+						{% endif %}
+						{% if is_granted('ROLE_ADMIN')%}
+						<li class="nav-item sidebar-nav-item">
+							<a href="#" class="nav-link">
+								<i class="fa fa-wrench"></i>
+								<span>Paramêtres</span>
+							</a>
+							<ul class="nav sub-group-menu">
+								<li class="nav-item">
+									<a data-turbo="false" href="{{path('app_update_index')}}" class="nav-link">
+										<i class="fas fa-angle-right"></i>Mise à jour</a>
+								</li>
+								<li class="nav-item">
+									<a data-turbo="false" href="{{path('app_module_index')}}" class="nav-link">
+										<i class="fas fa-angle-right"></i>Modules</a>
+								</li>
+							</ul>
+						</li>
+						{% endif %}
+						<li class="nav-item sidebar-nav-item">
+							<a href="#" class="nav-link">
+								<i class="flaticon-user"></i>
+								<span>Utilisateurs</span>
+							</a>
+							<ul class="nav sub-group-menu">
+								{% if is_granted('ROLE_VIEW_USER') or is_granted('ROLE_ADMIN') %}
+								<li class="nav-item">
+									<a data-turbo="false" href="{{ path('app_user_manage') }}" class="nav-link">
+										<i class="fas fa-angle-right"></i>
+										<span>Gérer les utilisateurs</span>
+									</a>
+								</li>
+								{% endif %}
+							</ul>
+						</li>
+
+					</ul>
+				</div>
+			</div>
+			{% endif %}
+			<!-- Sidebar Area End Here -->
+			<div class="dashboard-content-one" style="background:#fff">
+				{% block body %}
+
+				{% endblock %}
+				<!-- Footer Area Start Here -->
+				<footer class="footer-wrap-layout1 mt-auto">
+					<div class="copyright">© Copyrights
+						<a href="#">akkhor</a>
+						2019. All rights reserved. Designed by
+						<a href="#">PsdBosS</a>
+					</div>
+				</footer>
+				<!-- Footer Area End Here -->
+			</div>
+		</div>
+		<!-- Page Area End Here -->
+	</div>
+
+
+
+	{#
+	<script src="{{ asset('js/jquery.min.js') }}"></script> #}
+	<!-- Popper.js -->
+	<script src="{{ asset('js/popper.min.js') }}"></script>
+	<!-- Bootstrap -->
+	<script src="{{ asset('js/bootstrap.bundle.min.js') }}"></script>
+	<!-- Autres plugins -->
+	<script src="{{ asset('js/plugins.js') }}"></script>
+	<script src="{{ asset('js/jquery.counterup.min.js') }}"></script>
+	<script src="{{ asset('js/moment.min.js') }}"></script>
+	<script src="{{ asset('js/jquery.waypoints.min.js') }}"></script>
+	<script src="{{ asset('js/jquery.scrollUp.min.js') }}"></script>
+	{#
+	<script src="{{ asset('js/fullcalendar.min.js') }}"></script> #}
+	<script src="{{ asset('js/Chart.min.js') }}"></script>
+	<!-- Scripts personnalisés -->
+	<script src="{{ asset('js/main.js') }}"></script>
+
+	{# Notification flottante pour réductions en attente d'approbation #}
+	<div id="floating-reduction-notif" style="display:none;position:fixed;bottom:30px;right:30px;z-index:9999;">
+		<div id="notif-icon"
+			style="background:#ffc107;color:#212529;border-radius:50%;width:48px;height:48px;display:flex;align-items:center;justify-content:center;box-shadow:0 2px 8px rgba(0,0,0,0.15);cursor:pointer;position:relative;">
+			<i class="fas fa-percentage fa-lg"></i>
+			<span id="notif-badge"
+				style="position:absolute;top:2px;right:2px;background:#dc3545;color:#fff;border-radius:50%;font-size:12px;padding:2px 6px;min-width:20px;text-align:center;">0</span>
+		</div>
+		<div id="notif-details"
+			style="display:none;position:absolute;bottom:60px;right:0;max-width:350px;width:350px;background:#fff;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.18);padding:0;overflow:hidden;">
+			<div class="card shadow-none mb-0">
+				<div class="card-header bg-warning text-dark py-2 px-3">
+					<strong>Réductions en attente d'approbation</strong>
+				</div>
+				<div class="card-body py-2 px-3" id="notif-details-content">
+					<div class="text-center text-muted">Aucune réduction en attente.</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	<script>
+		function updateFloatingReductionNotif() {
+			$.ajax({
+				url: "{{ path('app_pending_admission_reductions_ajax') }}",
+				method: 'GET',
+				dataType: 'json',
+				success: function (data) {
+					if (data && data.reductions && data.reductions.length > 0) {
+						$('#floating-reduction-notif').show();
+						$('#notif-badge').text(data.reductions.length);
+						let html = '';
+						data.reductions.forEach(function (reduction) {
+							html += '<div class="mb-2 border-bottom pb-2">';
+							html += '<div><b>Montant :</b> ' + (reduction.amount || 0).toLocaleString('fr-FR') + ' FCFA</div>';
+							html += '<div><b>Demandeur :</b> ' + (reduction.requestedBy || '-') + '</div>';
+							html += '<div><b>libellé :</b> Demande de réduction pour l\'élève ' + (reduction.student || '-') + '(Classe : ' + (reduction.classe || '-') + ', Modalité : ' + (reduction.modalite || '-') + ')</div>';
+							html += '<form method="post" action="' + (reduction.rejectUrl || '') + '" style="display:inline-block" onsubmit="return confirm(\'Confirmer le rejet de cette réduction ?\');">';
+							html += '<input type="hidden" name="id" value="' + reduction.id + '">';
+							html += '<button type="submit" class="btn btn-sm btn-danger">Rejeter</button>';
+							html += '</form>';
+							html += '<form method="post" action="' + (reduction.approveUrl || '') + '" style="display:inline-block">';
+							html += '<input type="hidden" name="id" value="' + reduction.id + '">';
+							html += '<button type="submit" class="btn btn-sm btn-success">Approuver</button>';
+							html += '</form>';
+							html += '</div>';
+						});
+						$('#notif-details-content').html(html);
+					} else {
+						$('#notif-badge').text('0');
+						$('#notif-details-content').html('<div class="text-center text-muted">Aucune réduction en attente.</div>');
+						$('#floating-reduction-notif').hide();
+					}
+				},
+				error: function () {
+					$('#notif-details-content').html('<div class="text-center text-danger">Erreur de chargement.</div>');
+				}
+			});
+		}
+		$(function () {
+			// Affichage du détail au survol
+			$('#notif-icon').hover(
+				function () { $('#notif-details').stop(true, true).fadeIn(150); },
+				function () { setTimeout(function () { if (!$('#notif-details').is(':hover')) $('#notif-details').fadeOut(150); }, 200); }
+			);
+			$('#notif-details').mouseleave(function () { $(this).fadeOut(150); });
+			// Rafraîchissement toutes les 20 secondes
+			//setInterval(updateFloatingReductionNotif, 2000000);
+			// Premier chargement au démarrage
+			//updateFloatingReductionNotif();
+		});
+	</script>
+	<script>
+		$(document).ready(function () {
+			$('#switchSchoolModal').on('hidden.bs.modal', function () {
+				// Move focus to a visible element, e.g., the body or a button
+				$('body').focus();
+			});
+		});
+	</script>
+</body>
+
+</html>

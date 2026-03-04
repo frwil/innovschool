@@ -1,0 +1,401 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}
+{% if is_full is defined and is_full %}
+Bulletins de la classe
+{% else %}
+Bulletin de l'élève
+{% endif %}
+{% endblock %}
+
+{% block body %}
+<!-- Bouton flottant pour l'impression -->
+<div class="floating-print-btn-container">
+  <button id="floatingPrintBtn" class="btn btn-primary floating-print-btn">
+    <i class="fas fa-print"></i> Imprimer
+  </button>
+</div>
+
+<div id="reportcardcontainer">
+  {{ htmlContent|raw }}
+</div>
+<footer>
+  Page <span class="page-number"></span> sur <span class="total-pages"></span>
+</footer>
+
+<style>
+  /* Style du bouton flottant */
+  .floating-print-btn-container {
+    position: fixed;
+    bottom: 50px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .floating-print-btn, .floating-back-btn {
+    padding: 12px 20px;
+    border-radius: 50px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    font-weight: 600;
+    font-size: 14px;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
+    justify-content: center;
+  }
+  
+  .floating-print-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  }
+  
+  .floating-back-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+  }
+  
+  /* Cacher le bouton lors de l'impression */
+  @media print {
+    .floating-print-btn-container {
+      display: none !important;
+    }
+  }
+
+  .table-content div {
+    padding: 0 !important;
+    border: 1px solid #000000 !important;
+    margin: 0 !important;
+  }
+
+  #table-discipline td {
+    border: 1px solid #000000 !important;
+  }
+  
+  .bulletin-container {
+    position: relative;
+  }
+
+  
+  
+  @page {
+    margin: 1cm;
+    @bottom-right {
+      content: "Page " counter(page) " sur " counter(pages);
+      font-size: 12px;
+      color: #333;
+    }
+  }
+
+  body {
+    counter-reset: page;
+  }
+
+  footer {
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 12px;
+    color: #333;
+  }
+
+  .teacher-name {
+    font-style: italic;
+    font-size: 5pt !important;
+    display: block !important;
+    margin:0 !important
+  }
+
+  .teacher-name-B{
+    font-size:0.7em !important;
+    font-weight:lighter !important;
+    font-style:italic;
+  }
+
+  @media print {
+    body * {
+      visibility: hidden !important;
+      font-size: 11pt !important;
+      font-family: Arial, Helvetica, sans-serif !important;
+      zoom:98% !important;
+    }
+
+    #reportcardcontainer,
+    #reportcardcontainer * {
+      visibility: visible !important;
+    }
+
+    /* Sauts de page pour chaque bulletin */
+    .bulletin-container {
+      padding-top: 10px;
+      page-break-after: always;
+    }
+    
+    .bulletin-container:last-child {
+      page-break-after: auto;
+    }
+
+    th,
+    td, .table-bordered th,
+    .table-bordered td {
+      padding: 0 !important;
+      border: 1px solid #000000 !important;
+      font-size: 10pt !important;
+    }
+
+    h5,
+    h6,h4 {
+      font-size: 12pt !important;
+    }
+
+    td.muted-text{
+      background-color: #080808 !important;
+      color: #ffffff !important;
+    }
+
+    .cell-number{
+      text-align: center !important;
+      font-size: 10pt !important;
+    }
+
+    .cell-number.avg{
+      font-size: 12pt !important;
+      font-weight: bold !important;
+    }
+
+    .cell-number.rang{
+      font-size: 10pt !important;
+    }
+
+    .coloured-header th{
+      background-color: #a9f3d4 !important;
+    }
+
+    .bulletin-header p{
+      line-height: 0.2 !important;
+      font-size: 0.9em !important;
+    }
+
+    #reportcardcontainer {
+      position: absolute !important;
+      left: 0;
+      top: 0;
+      width: 100%;
+      padding: 10px !important;
+    }
+
+    /* Inclure les classes essentielles Bootstrap grid pour l'impression */
+    .row {
+      display: flex !important;
+      flex-wrap: wrap !important;
+      margin-right: -12px !important;
+      margin-left: -12px !important;
+    }
+
+    [class^="col-"],
+    [class*=" col-"] {
+      position: relative !important;
+      width: 100% !important;
+      padding-right: 12px !important;
+      padding-left: 12px !important;
+      float: left !important;
+    }
+
+    .bg-secondary th {
+      background-color: #bcc1c5ff !important;
+      color: #000 !important;
+      vertical-align: middle !important;
+    }
+
+    .bg-light td {
+      background-color: #f8f9fa !important;
+      color: #212529 !important;
+    }
+
+    .table-striped>tbody>tr:nth-of-type(odd) td {
+      background-color: #f2f2f2 !important;
+    }
+
+    /* col- */
+    .col-1 {
+      flex: 0 0 8.333333%;
+      max-width: 8.333333%;
+    }
+
+    .col-2 {
+      flex: 0 0 16.666667%;
+      max-width: 16.666667%;
+    }
+
+    .col-3 {
+      flex: 0 0 25%;
+      max-width: 25%;
+    }
+
+    .col-4 {
+      flex: 0 0 33.333333%;
+      max-width: 33.333333%;
+    }
+
+    .col-5 {
+      flex: 0 0 41.666667%;
+      max-width: 41.666667%;
+    }
+
+    .col-6 {
+      flex: 0 0 50%;
+      max-width: 50%;
+    }
+
+    .col-7 {
+      flex: 0 0 58.333333%;
+      max-width: 58.333333%;
+    }
+
+    .col-8 {
+      flex: 0 0 66.666667%;
+      max-width: 66.666667%;
+    }
+
+    .col-9 {
+      flex: 0 0 75%;
+      max-width: 75%;
+    }
+
+    .col-10 {
+      flex: 0 0 83.333333%;
+      max-width: 83.333333%;
+    }
+
+    .col-11 {
+      flex: 0 0 91.666667%;
+      max-width: 91.666667%;
+    }
+
+    .col-12 {
+      flex: 0 0 100%;
+      max-width: 100%;
+    }
+
+    /* col-md- */
+    .col-md-1 {
+      flex: 0 0 8.333333%;
+      max-width: 8.333333%;
+    }
+
+    .col-md-2 {
+      flex: 0 0 16.666667%;
+      max-width: 16.666667%;
+    }
+
+    .col-md-3 {
+      flex: 0 0 25%;
+      max-width: 25%;
+    }
+
+    .col-md-4 {
+      flex: 0 0 33.333333%;
+      max-width: 33.333333%;
+    }
+
+    .col-md-5 {
+      flex: 0 0 41.666667%;
+      max-width: 41.666667%;
+    }
+
+    .col-md-6 {
+      flex: 0 0 50%;
+      max-width: 50%;
+    }
+
+    .col-md-7 {
+      flex: 0 0 58.333333%;
+      max-width: 58.333333%;
+    }
+
+    .col-md-8 {
+      flex: 0 0 66.666667%;
+      max-width: 66.666667%;
+    }
+
+    .col-md-9 {
+      flex: 0 0 75%;
+      max-width: 75%;
+    }
+
+    .col-md-10 {
+      flex: 0 0 83.333333%;
+      max-width: 83.333333%;
+    }
+
+    .col-md-11 {
+      flex: 0 0 91.666667%;
+      max-width: 91.666667%;
+    }
+
+    .col-md-12 {
+      flex: 0 0 100%;
+      max-width: 100%;
+    }
+
+    th,
+    td {
+      padding: 0 !important;
+    }
+  }
+</style>
+
+<!-- Chargement de Font Awesome pour les icônes 
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">-->
+
+<script>
+  $(document).ready(function() {
+    // Correction des chemins des images
+    let logosrc=$('.school-logo').attr('src').replace('/var/www/public','');
+    $('.school-logo').attr('src', logosrc);
+    let studentPhotoSrc = $('.student-photo').attr('src').replace('/var/www/public','');
+    $('.student-photo').attr('src', studentPhotoSrc);
+    
+    {% if is_full is defined and is_full %}
+    // Ajuster les numéros de page pour tous les bulletins
+    updatePageNumbers();
+    {% endif %}
+    
+    // Supprimer l'impression automatique
+    // window.print(); // Commenté pour laisser l'utilisateur décider
+    
+    // Gestion du bouton d'impression
+    $('#floatingPrintBtn').click(function() {
+      // Afficher une alerte avant l'impression
+      if (confirm('Voulez-vous imprimer ce bulletin ?')) {
+        window.print();
+      }
+    });
+
+    //réordonne les bulletins par ordre de mérite
+    if($('.ranking-div') && $('.ranking-div').length>0){
+      let newHtml="";
+      for(i=0;i<$('.ranking-div').length;i++){
+        if($('.ranking-div[rank-value="'+(i+1)+'"]')) newHtml+='<div class="bulletin-container">'+$('.ranking-div[rank-value="'+(i+1)+'"]').html()+'</div>';
+      }
+      $('#reportcardcontainer').html(newHtml);
+    }
+
+    window.print();
+  });
+  
+  {% if is_full is defined and is_full %}
+  function updatePageNumbers() {
+    // Cette fonction peut être utilisée pour ajuster les numéros de page
+    // dans le cas d'un document multi-bulletins
+    let pageCount = {{ student_count|default(1) }};
+    $('.total-pages').text(pageCount);
+  }
+  {% endif %}
+</script>
+{% endblock %}

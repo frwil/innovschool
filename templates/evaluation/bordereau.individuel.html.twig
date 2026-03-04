@@ -1,0 +1,203 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Bordereau Individuel{% endblock %}
+
+{% block body %}
+{% if evaluations|length > 0 %}
+    <div class="container mt-4" style="background:#fff;" id="printable-area">
+    <!-- Tableau d'informations générales -->
+    <div class="table-responsive mb-4">
+        <table class="table">
+            <tr>
+                <!-- Colonne 1 : Informations de l'école -->
+                <td style="width: 33%; vertical-align: top;">
+                    <strong>Nom de l'école :</strong> {{ school.name }}<br>
+                    <strong>Adresse :</strong> {{ school.address }}<br>
+                    <strong>Téléphone :</strong> {{ school.contactPhone }}<br>
+                    <strong>Email :</strong> {{ school.contactEmail }}
+                </td>
+
+                <!-- Colonne 2 : Logo -->
+                <td style="width: 33%; text-align: center; vertical-align: middle;">
+                    <img src="{{ asset('img/logo_test.png') }}" alt="Logo de l'école" style="max-width: 100px;">
+                </td>
+
+                <!-- Colonne 3 : Informations de l'évaluation -->
+                <td style="width: 33%; vertical-align: top;">
+                    <h1 class="text-center">BORDEREAU INDIVIDUEL</h1>
+                    <strong>Année :</strong> {{ students[0].schoolClassPeriod.period.name }}<br>
+                    <strong>Période :</strong> {{ evaluationFrame.name }}<br>
+                    <strong>Classe :</strong> {{ class.classOccurence.name }}<br>
+                    <strong>Niveau d'étude :</strong> {{ sections.name }}<br>
+                    <strong>Matière :</strong> {{ selectedSubject.subject.name }}<br>
+                    <strong>Enseignant :</strong> {{ class.classMaster ? class.classMaster.fullName : '' }}<br>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- Tableau des élèves et sous-périodes -->
+    <div>
+        <div>
+            <div class="table-responsive">
+                <table class="table table-bordered">
+                    <!-- En-tête du tableau -->
+                    <thead>
+                        <tr>
+                            <th rowspan="2" class="text-center align-middle" style="width:5%">#</th>
+                            <th rowspan="2" class="text-center align-middle">Nom de l'élève</th>
+                            {% for time in evaluationTime %}
+                                <th colspan="{{ moduleLen }}" class="text-center">{{ time.name }}</th>
+                            {% endfor %}
+                        </tr>
+                        <tr>
+                            {% for time in evaluationTime %}
+                                {% for subjectId, subjectData in classSubjectModules %}
+                                    {% for module in subjectData.modules %}
+                                        <th class="text-center vertical-text" style="width:10%">{{ module.module.moduleName }}</th>
+                                    {% endfor %}
+                                {% endfor %}
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <!-- Corps du tableau -->
+                    <tbody>
+                        {% for student in students %}
+                            <tr>
+                                <td class="text-center">{{ loop.index }}</td>
+                                <td>{{ student.student.fullName|upper }}</td>
+                                {% for time in evaluationTime %}
+                                    {% for subjectId, subjectData in classSubjectModules %}
+                                        {% for module in subjectData.modules %}
+                                            <td class="text-center">
+                                                {% set evaluation = evaluations[student.student.id][time.id][module.id] ?? null %}
+                                                {% if evaluation is not null %}
+                                                    {{ '' }}
+                                                {% else %}
+                                                    <span class="text-danger"></span>
+                                                {% endif %}
+                                            </td>
+                                        {% endfor %}
+                                    {% endfor %}
+                                {% endfor %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div style="width:100%" class="text-right">
+                    <p>Signature de l'enseignant : ______________________</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</div>
+
+<!-- Boutons d'action -->
+<div class="text-center mt-4">
+    <button class="btn btn-primary" onclick="printDiv('printable-area')">Imprimer</button>
+</div>
+
+<script>
+    function printDiv(divId) {
+        const printContents = document.getElementById(divId).innerHTML;
+        const originalContents = document.body.innerHTML;
+
+        // Remplace le contenu de la page par celui à imprimer
+        document.body.innerHTML = printContents;
+
+        // Ajoute des styles pour gérer les sauts de page, répéter l'en-tête et afficher les numéros de page
+        const style = document.createElement('style');
+        style.innerHTML = `
+            @media print {
+                table { page-break-inside: auto; }
+                tr { page-break-inside: avoid; page-break-after: auto; }
+                td { page-break-inside: avoid; }
+                thead { display: table-header-group; } /* Répète l'en-tête */
+                tfoot { display: table-footer-group; } /* Répète le pied de page si nécessaire */
+                @page {
+                    margin: 10mm;
+                    @bottom-center {
+                        content: "Page " counter(page) " / " counter(pages);
+                        font-size: 12px;
+                        color: #000;
+                    }
+                }
+                .vertical-text {
+                    writing-mode: vertical-rl; /* Texte orienté verticalement de bas en haut */
+        text-orientation: mixed;  /* Orientation du texte adaptée (lettres lisibles) */
+        transform: rotate(180deg);  /* Optionnel : inverse le sens si nécessaire */
+        white-space: nowrap; /* Empêche le texte de se casser */
+        vertical-align: middle !important; /* Aligne verticalement le texte */
+        border: 1px solid #000 !important;
+        text-align: left !important;
+                }
+
+                .table-bordered th, .table-bordered td {
+        border: 1px solid #000 !important;
+    }
+    .table-bordered th {
+        background-color: #ffffff !important;
+        border: 1.2px solid #000 !important;
+    }
+            }
+        `;
+        document.head.appendChild(style);
+
+        // Lance l'impression
+        window.print();
+
+        // Restaure le contenu original de la page
+        document.body.innerHTML = originalContents;
+        window.location.reload(); // Recharge la page pour restaurer les événements JS
+    }
+</script>
+
+<style>
+    th, td {
+        vertical-align: middle !important;
+        font-size: 1.5rem !important;
+    }
+    .table-bordered th, .table-bordered td {
+        border: 1px solid #000 !important;
+    }
+    .table-bordered th {
+        background-color: #f8f9fa !important;
+    }
+    @media print {
+        table { page-break-inside: auto; }
+        tr { page-break-inside: avoid; page-break-after: auto; }
+        td { page-break-inside: avoid; }
+        thead { display: table-header-group; } /* Répète l'en-tête */
+        tfoot { display: table-footer-group; } /* Répète le pied de page si nécessaire */
+        @page {
+            margin: 10mm;
+            @bottom-center {
+                content: "Page " counter(page) " / " counter(pages);
+                font-size: 12px;
+                color: #000;
+            }
+        }
+    }
+    .vertical-text {
+        writing-mode: vertical-rl; /* Texte orienté verticalement de bas en haut */
+        text-orientation: mixed;  /* Orientation du texte adaptée (lettres lisibles) */
+        transform: rotate(180deg);  /* Optionnel : inverse le sens si nécessaire */
+        white-space: nowrap; /* Empêche le texte de se casser */
+        vertical-align: middle; /* Aligne verticalement le texte */
+        border: 1px solid #000 !important;
+        text-align: left !important;
+    }
+</style>
+{% else %}
+    <div class="alert alert-warning text-center m-4" role="alert">
+        Aucune évaluation disponible pour générer le bordereau individuel.
+    </div>
+    <div class="text-center mt-4">
+        <a class="btn btn-secondary" href="{{ path('app_evaluation_bordereau') }}">Retour</a>
+    </div>
+{% endif %}
+{% endblock %}
+{# {% block stylesheets %}
+
+{% endblock %} #}

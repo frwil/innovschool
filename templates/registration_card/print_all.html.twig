@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Cartes Scolaires</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .page {
+            padding: 10mm;
+            box-sizing: border-box;
+            margin:10%;
+        }
+        .card-page {
+            margin: 5mm;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            background: url('{{ imageBase64 }}') no-repeat center center;
+            background-size: 100% 100%;
+
+        }
+
+        #cardDiv {
+        display: flex;
+        justify-content: center; /* Centre horizontalement */
+        align-items: center; /* Centre verticalement */
+        width: 210mm; /* Largeur d'une page A4 */
+        height: 297mm; /* Hauteur d'une page A4 */
+        margin: 0 auto; /* Centre horizontalement si nécessaire */
+        box-sizing: border-box; /* Inclut les bordures et paddings dans les dimensions */
+    }
+
+        .card img {
+            width: 20mm;
+            height: 20mm;
+            border-radius: 10%;
+            margin-bottom: 5mm;
+        }
+        .card .name {
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .card .matricule {
+            font-size: 12px;
+        }
+        td{
+            padding: 0;
+            line-height: 0.5;
+            text-align: left;
+        }
+
+        @media print {
+    .a4-div {
+        width: 210mm; /* Largeur d'une page A4 */
+        height: 297mm; /* Hauteur d'une page A4 */
+        margin: 0; /* Supprime les marges */
+        padding: 0; /* Supprime les paddings */
+        box-sizing: border-box; /* Inclut les bordures et paddings dans les dimensions */
+        page-break-inside: avoid; /* Évite les coupures de page à l'intérieur du div */
+    }
+
+    body {
+        margin: 0; /* Supprime les marges du body */
+        padding: 0;
+    }
+    .page-break {
+        page-break-before: always; /* Forcer un saut de page avant cet élément */
+        margin-bottom: 10mm; /* Supprimer les marges */
+        padding: 0; /* Supprimer les paddings */
+        height: 0; /* Éviter tout espace supplémentaire */
+    }
+}
+        
+    </style>
+    <style>
+@media print {
+    /* Forcer les colonnes à rester alignées */
+    .row {
+        display: flex !important; /* Utiliser flexbox pour conserver les colonnes */
+        flex-wrap: nowrap; /* Empêcher les colonnes de passer à la ligne */
+    }
+
+    .col-md-6 {
+        flex: 0 0 50%; /* Chaque colonne occupe 50% de la largeur */
+        max-width: 50%; /* Empêcher les colonnes de dépasser 50% */
+        box-sizing: border-box; /* Inclure les bordures et paddings dans la largeur */
+    }
+
+    /* Supprimer les marges et paddings inutiles */
+    body, html {
+        margin: 0;
+        padding: 0;
+    }
+
+    /* Ajuster la largeur de la page pour correspondre à A4 */
+    .a4-div {
+        width: 210mm;
+        height: 297mm;
+        margin: 0 auto; /* Centrer la page */
+        padding: 10mm; /* Ajouter un padding interne */
+        box-sizing: border-box;
+    }
+
+    
+}
+</style>
+</head>
+<body>
+    <div class="page">
+        {% for student in students %}
+            <div class="card-page mb-4">
+        <table style="width:100%">
+            <thead>
+                <tr style="padding:0">
+                    <th style="width:{% if baseConfig.doubleHeaderLayout %}auto{% else %}30%{% endif%};"><img src="{{ imageLogoBase64 }}" alt="Photo" style="max-width: 100px;"></th>
+                    <th style="text-align: center;"><p style="padding:0">{{ baseConfig.cardHeader }}</p><p style="padding:0">{{ baseConfig.nationalMotto}}</p><p style="padding:0">{{ school.name }}</p></th>
+                    {% if baseConfig.doubleHeaderLayout %}
+                        <th style="text-align: center;"><p style="">{{ baseConfig.cardHeaderA }}</p><p style="padding:0">{{ baseConfig.nationalMottoA}}</p><p style="padding:0">{{ school.name }}</p></th>
+                    {% endif %}
+                    <th></th>
+                </tr>
+                <tr >
+                    <th colspan="{% if baseConfig.doubleHeaderLayout %}4{% else %}3{% endif%}" style="text-align: center;font-size:1.1em; font-weight: bold;padding:0">
+                        <p style="padding:0">CARTE D'IDENTITE SCOLAIRE</p>
+                    </th>
+                </tr>
+            </thead>
+        </table>
+        <div style="width:100%;position:relative">
+        <table style="border: none; margin-top: 0;width:100%">
+            <tbody>
+                <tr>
+                    <td style="text-align: center;" rowspan="5">
+                        <div style="margin:10px 20px 0 20px;height:150px">
+                            <img src="{{ imageStudentPhotoBase64[student.id] }}" alt="Photo" style="width: 150px; height: 150px;">
+                        </div>
+                    </td>
+                    <td style="" colspan="2">
+                        <p><strong>Année Scolaire :</strong> {{ studentInfos[student.id].schoolClassPeriod.period.name }}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="" colspan="2">
+                        <p><strong>Nom :</strong> {{ student.fullName|upper }}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="">
+                        <p><strong>Né(e) le :</strong> {{ student.dateOfBirth|date('d/m/Y') }}</p>
+                    </td>
+                    <td style="">
+                        <p><strong>à :</strong> {{student.placeOfBirth}}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="">
+                        <p><strong>Sexe :</strong> {{ student.genderString|upper }}</p>
+                    </td>
+                    <td style="">
+                        <p><strong>Classe :</strong> {{ studentInfos[student.id].schoolClassPeriod.classOccurence.name }}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="">
+                        <p><strong>Contact :</strong> {{ student.phone }}</p>
+                    </td>
+                    <td style="">
+                        <p><strong>Contact Parent :</strong> {{ student.tutorPhone }}</p>
+                    </td>
+                </tr>
+                <tr>
+                    <td style="text-align:center">
+                        <p><strong>Matricule :</strong> {{ student.registrationNumber }}</p>
+                    </td>
+                    <td style="">
+                        
+                    </td>
+                    <td style="text-align: center; ">
+                        <img src="{{ qrCode[student.id] }}" alt="QR Code" class="qr-code-img">
+                    </td>
+                </tr>
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td style="text-align: left;padding-left: 10px;background-color:rgba(255, 255, 255, 0.5);border-radius: 5px;">
+                        <p>École : {{ school.name }}</p>
+                        <p>Adresse : {{ school.address }}</p>
+                        <p>Téléphone : {{ school.contactPhone }}</p>
+                    </td>
+                    <td colspan="2" style="text-align: right;">
+                        <p><img src="{{imageHeadOfficerBase64}}" style="width:100px;height:50px;position:relative;background-color:rgba(255,255,255,0.5);border-radius:5px"></p><br>
+                        <p><u>{{ baseConfig.signTitle }}</u></p>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+        <div style="z-index:100;margin:10px 20px 0 20px;height:300px;width:300px;position: absolute
+        ;top : -10%;left: 33%">
+            <img src="{{ imageLogoBase64 }}" alt="Photo" style="height: 100%;opacity: 0.3;">
+        </div>
+        </div>
+    </div>
+        {% endfor %}
+    </div>
+    <div id="cardDiv" class="row a4-div" style="width:210mm"></div>
+    <div class="row mt-4" style="display:none">
+        <div class="col-md-12 text-right">
+            <button id="capture-images" class="btn btn-primary">
+                <i class="fa fa-camera"></i> Capturer les cartes
+            </button>
+        </div>
+    </div>
+     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" integrity="sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+    $jq=jQuery.noConflict();
+    var cardDiv="";
+    var page=1;
+    document.getElementById('capture-images').addEventListener('click', function () {
+        // Sélectionner toutes les div.card-page
+        const cardPages = document.querySelectorAll('.card-page');
+        const cardDiv = $jq('#cardDiv');
+        cardDiv.empty(); // Vider le conteneur avant d'ajouter les nouvelles images
+        page=1;
+        
+
+        // Parcourir chaque carte
+        cardPages.forEach((cardPage, index) => {
+            html2canvas(cardPage, {
+                scale: 2, // Augmente la résolution de l'image
+                useCORS: true // Permet de capturer les images externes si elles ont les bons headers
+            }).then(canvas => {
+                // Convertir le canvas en une image Base64
+                const imageData = canvas.toDataURL('image/png');
+
+                // Afficher l'image capturée dans la console (ou l'utiliser autrement)
+                //console.log(`Image ${index + 1}:`, imageData);
+
+                // Ajouter l'image capturée dans la page (facultatif)
+                const img = document.createElement('img');
+                img.src = imageData;
+                img.style.margin = '10px';
+                img.style.border = '1px solid #ccc';
+                img.style.width = '200px'; // Ajustez la taille si nécessaire
+                cardDiv.append(`<div class="col-md-6 mt-4 mb-4 border-bottom" style="width:86mm;height:54mm;"><img src="${imageData}" style="width:100%;height:100%"></div>`);
+                if((index+1)%8==0){
+                    cardDiv.append('<div class="page-break"></div>');
+                }else if(index==cardPages.length-1){
+                    
+                }
+                $jq('.page').hide(); // Masquer la page d'origine après la capture
+                $jq('#capture-images').remove();
+                window.print(); // Imprimer la page
+                
+            }).catch(error => {
+                console.error(`Erreur lors de la capture de la carte ${index + 1}:`, error);
+            });
+        })
+            
+    });
+
+    $jq('#capture-images').click();
+    </script> 
+
+</body>
+</html>

@@ -1,0 +1,94 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}School index
+{% endblock %}
+
+{% block body %}
+	<twig:Breadcrumbs label="Gérer les établissements"/>
+	<button class="btn btn-lg btn-dark mb-4 mt-3" onclick="window.location.href='{{ path('app_school_new') }}'">Créer un établissement</button>
+
+	{% if app.user.school %}
+		<div class="alert alert-info">
+			Vous gérez actuellement l'établissement : <strong>{{ app.user.school.name }}</strong>
+		</div>
+	{% endif %}
+
+	{% if schools|length == 0 %}
+		<div class="alert alert-warning">Aucun établissement n'existe pour le moment.</div>
+	{% endif %}
+	<table class="table display data-table text-nowrap responsive">
+		<thead>
+			<tr>
+				<th>Nom</th>
+				<th>Adresse</th>
+				<th>Souscription</th>
+				<th>Facturation</th>
+				<th>Reste à payer</th>
+				<th>Date d'ajout</th>
+				{% if is_granted('ROLE_ADMIN') or is_granted('ROLE_SUPER_ADMIN') %}
+					<th>Actions</th>
+				{% endif %}
+			</tr>
+		</thead>
+		<tbody>
+			{% for school in schools %}
+				<tr>
+					<td>
+						<a href="{{ path('app_school_edit', {'id': school.id}) }}">{{ school.name }}</a>
+					</td>
+					<td>{{ school.address }}</td>
+					<td>
+						{% set is_subscribed = false %}
+							
+						{% for license in licenses %}
+							{% if license.school.id == school.id %}
+								{% set is_subscribed = true %}
+								{% if license.isTrial %}
+									<span class="badge badge-warning">Essai</span>
+									{{ license.licenseEndDate|date('d M Y') }}
+								{% else %}
+									{# CORRECTION : licenceDuration au lieu de licenseDuration #}
+									{% if license.licenceDuration == 0 %}
+										<span class="badge badge-success">Illimité</span>
+									{% else %}
+										<span class="badge badge-danger">Licence expirée</span>
+									{% endif %}
+								{% endif %}
+							{% endif %}
+						{% endfor %}
+						{% if is_subscribed == false %}
+							<span class="badge badge-secondary">Aucune Licence</span>
+						{% endif %}
+					</td>
+					<td>
+						{% set payments = 0 %}
+						{% set amount = 0 %}
+						{% for license in licenses %}
+							{% if license.school.id == school.id %}
+								{% set amount = license.licenceAmount %}
+								{% for payment in license.payments %}
+									{% set payments = payments + payment.paymentAmount %}
+								{% endfor %}
+							{% endif %}
+						{% endfor %}
+						{{payments}}
+						/
+						{{amount}}
+					</td>
+					<td>
+						{{(amount - payments)}}
+					</td>
+					<td>{{ school.createdAt ? school.createdAt|date('d M Y') : '' }}</td>
+					{% if is_granted('ROLE_ADMIN') or is_granted('ROLE_SUPER_ADMIN') %}
+						<td>
+							<form method="post" action="{{ path('app_school_delete', {'id': school.id}) }}" onsubmit="return confirm('Voulez-vous vraiment supprimer cet établissement ?');">
+								<input type="hidden" name="_token" value="{{ csrf_token('delete' ~ school.id) }}">
+								<button class="btn btn-sm btn-danger" type="submit">Supprimer</button>
+							</form>
+						</td>
+					{% endif %}
+				</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+{% endblock %}

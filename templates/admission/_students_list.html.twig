@@ -1,0 +1,48 @@
+{% if students is empty %}
+    <div class="alert alert-info">Aucun élève inscrit dans cette classe.</div>
+{% else %}
+<div id="print-container">
+    <div class="row">
+        <div class="col-md-4">
+            <p>{{ school.name }}</p>
+            <p>{{ school.address }}</p>
+            <p>{{ school.contactPhone }}</p>
+        </div>
+        <div class="col-md-4 text-center">
+            <img src="{{ asset('' ~ (school.logo != null ? 'uploads/logos/'~ school.logo : 'img/logo_test.png')) }}" alt="Logo" style="max-width: 100px;">
+        </div>
+        <div class="col-md-4 text-end">
+            <p>Année scolaire : {{ period.name }}</p>
+        </div>
+    </div>
+    <h4 class="text-center display-4 text-underline"><u>Liste des élèves inscrits{% if class %} - {{ class.classOccurence.name }}{% endif %}</u></h4>
+    <div style="width:40%">
+        <p>Effectif total : {{ students|length }}</p>
+        <p># Garçons : {{ students|filter(student => student.gender.value == 'male')|length }}</p>
+        <p># Filles : {{ students|filter(student => student.gender.value == 'female')|length }}</p>
+    </div>
+    <table class="table table-bordered table-striped">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Nom complet</th>
+                <th>Date de naissance</th>
+                <th>Matricule</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for student in students %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ student.fullName }}</td>
+                <td>{{ student.dateOfBirth ? student.dateOfBirth|date('d/m/Y') : '' }}{{ student.placeOfBirth ? ' à ' ~ student.placeOfBirth : '' }}</td>
+                <td>{{ student.registrationNumber }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <div class="text-end">
+        <p>Généré le : {{ "now"|date("d/m/Y H:i:s") }}</p>
+    </div>
+
+{% endif %}

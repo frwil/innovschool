@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Rapport Global Scolaire</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            margin: 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        th, td {
+            border: 1px solid #000;
+            padding: 4px;
+            text-align: center;
+            word-wrap: break-word;
+        }
+
+        thead {
+            background-color: #f0f0f0;
+        }
+
+        th {
+            font-weight: bold;
+        }
+
+        .text-center {
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h2 style="text-align: center;">Rapport Global Scolaire</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th>StudyLevel</th>
+                <th>Niveau d’étude</th>
+                <th>Sous-classes</th>
+                <th>Capacité</th>
+                <th>Effectif actuel</th>
+                <th>NB Redoublants</th>
+                <th>Garçons</th>
+                <th>Filles</th>
+                <th>Parents</th>
+                <th>Payé</th>
+                <th>Impayé</th>
+                <th>Enseignants</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for section, levels in reportData %}
+                {% set sectionRowspan = levels|reduce((carry, subs) => carry + subs|length, 0) %}
+                {% set sectionDisplayed = false %}
+
+                {% for level, classes in levels %}
+                    {% set levelRowspan = classes|length %}
+                    {% set levelDisplayed = false %}
+
+                    {% for class in classes %}
+                        <tr>
+                            {% if not sectionDisplayed %}
+                                <td rowspan="{{ sectionRowspan }}">{{ section }}</td>
+                                {% set sectionDisplayed = true %}
+                            {% endif %}
+
+                            {% if not levelDisplayed %}
+                                <td rowspan="{{ levelRowspan }}">{{ level }}</td>
+                                {% set levelDisplayed = true %}
+                            {% endif %}
+
+                            <td>{{ class.subClass }}</td>
+                            <td>{{ class.capacity }}</td>
+                            <td>{{ class.currentEnrollment }}</td>
+                            <td>{{ class.repeaters }}</td>
+                            <td>{{ class.boys }}</td>
+                            <td>{{ class.girls }}</td>
+                            <td>{{ class.parents }}</td>
+                            <td>{{ class.paid }}</td>
+                            <td>{{ class.unpaid }}</td>
+                            <td>{{ class.teachers }}</td>
+                        </tr>
+                    {% endfor %}
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="12" class="text-center">Aucune donnée trouvée.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

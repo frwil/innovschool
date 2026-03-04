@@ -1,0 +1,93 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}SchoolEvaluation{% endblock %}
+
+{% block body %}
+
+<twig:Breadcrumbs label="Notes" />
+
+<div class="card height-auto">
+    <div class="card-body">
+        <turbo-frame id="notes_from">
+        {{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+            <h3>Matière: <strong>{{subject.name}}</strong> </h3>
+            <div class="row mb-2">
+                <div class="col-sm-4">
+                   Elève
+                </div>
+                <div class="col-sm-8">
+                    <div class="row">
+                        {% if subject.pointKnowHomw is not null %}
+                        <div class="col-3">
+                            Savoir-faire
+                        </div>
+                        {% endif %}
+                        {% if subject.pointOral is not null %}
+                        <div class="col-3">
+                            Oral
+                        </div>
+                        {% endif %}
+                        {% if subject.pointWritten is not null %}
+                        <div class="col-3">
+                            Ecrit
+                        </div>
+                        {% endif %}
+                        {% if subject.pointPractical is not null %}
+                        <div class="col-3">
+                            Savoir-être
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% for item in form.studentNotes%}
+            
+            <div class="row mb-2">
+                <div class="col-sm-4">
+                    {{ form_row(item.student) }}
+                </div>
+                <div class="col-sm-8">
+                    <div class="row">
+                        
+                        {% if item.pointKnowHomw is defined %}
+                        <div class="col-3">
+                            {{ form_row(item.pointKnowHomw) }}
+                        </div>
+                        {% endif %}
+                        {% if item.pointOral is defined %}
+                        <div class="col-3">
+                            {{ form_row(item.pointOral) }}
+                        </div>
+                        {% endif %}
+                        {% if item.pointWritten is defined %}
+                        <div class="col-3">
+                            {{ form_row(item.pointWritten) }}
+                        </div>
+                        {% endif %}
+                        {% if item.pointPractical is defined %}
+                        <div class="col-3">
+                            {{ form_row(item.pointPractical) }}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ label }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endfor %}
+           
+            <button class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark">{{ button_label|default('Save') }}</button>
+        
+        {{ form_end(form) }}
+        </turbo-frame>
+    </div>
+</div>
+
+
+{% endblock %}

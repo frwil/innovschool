@@ -1,0 +1,33 @@
+<div {{ attributes }} class="card ui-tab-card">
+    <div class="card-body">
+
+        <div class="border-nav-tab">
+            <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" data-toggle="tab" href="#tab7" role="tab" aria-selected="true">Liste</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-toggle="tab" href="#tab8" role="tab" aria-selected="false">Ajouter</a>
+                </li>
+
+            </ul>
+            <div class="tab-content">
+                <div class="tab-pane fade show active" id="tab7" role="tabpanel">
+                    <div class="card height-auto">
+                        <div class="table-responsive">
+                            {% block table %}{% endblock %}
+                        </div>
+                    </div>
+                </div>
+                <div class="tab-pane fade" id="tab8" role="tabpanel">
+                    <div class="card height-auto">
+                        <div class="card-body">
+                            {% block form %}{% endblock %}
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+</div>

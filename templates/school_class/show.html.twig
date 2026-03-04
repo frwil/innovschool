@@ -1,0 +1,217 @@
+{# filepath: d:\wamp64\www\innovschool\templates\school_class\show.html.twig #}
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Détail de la classe
+{% endblock %}
+
+{% block body %}
+<div class="three">
+	<h1 class="display-4 mb-4">
+		{{ class.name }}&nbsp;<a class="btn btn-dark btn-lg"
+			href="{{ path('app_school_classes_edit', {'id': class.id}) }}">Modifier</a></h1>
+</div>
+{% for label, messages in app.flashes %}
+{% for message in messages %}
+<div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+	{{ message }}
+	<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+</div>
+{% endfor %}
+{% endfor %}
+<ul class="nav nav-tabs" id="classTab" role="tablist">
+	<li class="nav-item" role="presentation">
+		<button class="nav-link active" id="occurrences-tab" data-bs-toggle="tab" data-bs-target="#occurrences"
+			type="button" role="tab" aria-controls="occurrences" aria-selected="true">
+			Occurences de classes
+		</button>
+	</li>
+</ul>
+<div class="tab-content mt-3" id="classTabContent">
+	<div class="tab-pane fade show active" id="occurrences" role="tabpanel" aria-labelledby="occurrences-tab">
+		<div class="row">
+			<div class="col-md-8">
+				<h5>Liste des occurrences</h5>
+				<table class="table table-bordered data-table responsive">
+					<thead>
+						<tr>
+							<th>Nom</th>
+							<th>Slug</th>
+							<th>Professeur principal</th>
+							<th>Nb d'élèves</th>
+							<th>Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for classe in classes %}
+						<tr>
+							<td>{{ classe.classOccurence.name }}</td>
+							<td>{{ classe.classOccurence.slug }}</td>
+							<td>
+								{% if classe.classMaster is defined and classe.classMaster != null %}
+								{{ classe.classMaster.fullName }}
+								{% else %}
+								-
+								{% endif %}
+							</td>
+							<td><a href="{{ path('app_student_index',{'classId':classe.id})}}">{{
+									classe.studentClasses|length }}</a></td>
+							<td>
+								{# Actions possibles, par exemple : #}
+								<div class="btn-group">
+									<a href="{{ path('app_school_class_edit', {'id': classe.id}) }}"
+										class="btn btn-sm btn-secondary" title="Modifier"><i class="fa fa-pencil-alt"></i></a>
+									<form method="post"
+										action="{{ path('app_school_class_delete', {'id': classe.id}) }}"
+										onsubmit="return confirm('Supprimer cette classe ?');">
+										<input type="hidden" name="_token"
+											value="{{ csrf_token('delete' ~ classe.id) }}">
+										<button class="btn btn-danger btn-sm" title="Supprimer"><i class="fa fa-trash"></i></button>
+									</form>
+								</div>
+							</td>
+						</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+				<button class="btn btn-secondary mt-3"
+					onclick='window.location.href="{{ path('app_school_class_index') }}"'>Retour à la liste des
+					classes</button>
+			</div>
+			<div class="col-md-4 border rounded p-3">
+				<h5>Créer une occurrence</h5>
+				<ul class="nav nav-tabs" id="createClassTab" role="tablist">
+					{% if classes|length == 0 or hasNumberingType %}
+					<li class="nav-item" role="presentation">
+						<button class="nav-link active" id="with-numbering-tab" data-bs-toggle="tab"
+							data-bs-target="#with-numbering" type="button" role="tab" aria-controls="with-numbering"
+							aria-selected="true">
+							Avec numérotation
+						</button>
+					</li>
+					{% endif %}
+					<li class="nav-item" role="presentation">
+						<button class="nav-link" id="without-numbering-tab" data-bs-toggle="tab"
+							data-bs-target="#without-numbering" type="button" role="tab"
+							aria-controls="without-numbering" aria-selected="false">
+							Sans numérotation
+						</button>
+					</li>
+				</ul>
+				<div class="tab-content mt-3" id="createClassTabContent">
+					{% set showTab="" %}
+					{% if classes|length == 0 or hasNumberingType %}
+					<div class="tab-pane fade show active" id="with-numbering" role="tabpanel"
+						aria-labelledby="with-numbering-tab">
+						<form method="post" action="{{ path('app_school_class_new') }}" id="new-class-form">
+							<div class="mb-3">
+								<input type="hidden" name="section" id="section" value="{{ section.id }}">
+								<input type="hidden" id="section_category" name="section_category"
+									value="{{ class.id }}">
+								<label for="class_count" class="form-label">Nombre de classes à créer</label>
+								<input type="number" id="class_count" name="class_count" class="form-control" min="1"
+									value="1" required>
+							</div>
+							{% if numberingType !='' %}
+							<input type="hidden" name="numbering_type" value="{{ numberingType }}">
+							{% else %}
+							<div class="mb-3">
+								<label for="numbering_type" class="form-label">Type de numérotation</label>
+								<select id="numbering_type" name="numbering_type" class="form-select select2" required>
+									<option value="numeric">1, 2, 3, ...</option>
+									<option value="alpha">A, B, C, ...</option>
+								</select>
+							</div>
+							{% endif %}
+							<button type="submit" class="btn btn-primary" id="create-class-btn">Créer</button>
+						</form>
+					</div>
+					{% else %}
+					{% set showTab="show active" %}
+					{% endif %}
+					<div class="tab-pane fade {{ showTab }}" id="without-numbering" role="tabpanel"
+						aria-labelledby="without-numbering-tab">
+						<form method="post" action="{{ path('app_school_class_new') }}" id="new-class-simple-form">
+							<input type="hidden" name="section" value="{{ section.id }}">
+							<input type="hidden" name="section_category" value="{{ class.id }}">
+							<div class="mb-3">
+								<label for="simple_class_name" class="form-label">Nom de la classe</label>
+								<input type="text" id="simple_class_name" name="name" class="form-control" required>
+							</div>
+							<button type="submit" class="btn btn-primary" id="create-class-btn-simple">Créer</button>
+						</form>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+<script>
+	$('#new-class-form').on('submit', function (e) {
+		e.preventDefault();
+		var $form = $(this);
+		var formData = $form.serialize();
+		$('#create-class-btn').prop('disabled', true).text('Création en cours...');
+		$.ajax({
+			url: $form.attr('action'),
+			type: 'POST',
+			data: formData,
+			success: function (response) {
+				if (response.status == 'success') {
+					$.notify('Classe(s) créée(s) avec succès !', { className: 'success' });
+					window.location.reload();
+				} else {
+					$.notify('Erreur lors de la création : ' + (response.message || 'Erreur code source'), { className: 'danger' });
+					$('#create-class-btn').prop('disabled', false).text('Créer');
+				}
+			},
+			error: function (xhr) {
+				$.notify('Erreur lors de la création de la classe.'+(xhr.status==0 ? '\nVérifiez votre connexion Internet.' : xhr.statusText), { className: 'danger' });
+				$('#create-class-btn').prop('disabled', false).text('Créer');
+			},
+			fail: function (xhr) {
+				$.notify('Erreur lors de la création de la classe.'+(xhr.status==0 ? '\nVérifiez votre connexion Internet.' : xhr.statusText), { className: 'danger' });
+				$('#create-class-btn').prop('disabled', false).text('Créer');
+			},
+			complete: function () {
+				$('#create-class-btn').prop('disabled', false).text('Créer');
+			}
+		});
+	});
+
+	$('#new-class-simple-form').on('submit', function (e) {
+		e.preventDefault();
+		var $form = $(this);
+		var formData = $form.serialize();
+		$('#create-class-btn-simple').prop('disabled', true).text('Création en cours...');
+		$.ajax({
+			url: $form.attr('action'),
+			type: 'POST',
+			data: formData,
+			success: function (response) {
+				if (response.status == 'success') {
+					$.notify('Classe créée avec succès !', { className: 'success' });
+					window.location.reload();
+				} else if(response.status==0){
+					$.notify('Erreur lors de la création : Vérifiez votre connexion Internet.', { className: 'danger' });
+					$('#create-class-btn-simple').prop('disabled', false).text('Créer');
+				}
+				else {
+					$.notify('Erreur lors de la création : ' + (response.message || 'Erreur code source'), { className: 'danger' });
+					$('#create-class-btn-simple').prop('disabled', false).text('Créer');
+				}
+			},
+			error: function (xhr) {
+				$.notify('Erreur lors de la création de la classe.'+(xhr.status==0 ? '\nVérifiez votre connexion Internet.' : '\n'+(xhr.responseJSON.message || xhr.statusText)), { className: 'danger' });
+				$('#create-class-btn-simple').prop('disabled', false).text('Créer');
+			},
+			fail: function (xhr) {
+				$.notify('Erreur lors de la création de la classe.'+(xhr.status==0 ? '\nVérifiez votre connexion Internet.' : '\n'+(xhr.responseJSON.message || xhr.statusText)), { className: 'danger' });
+				$('#create-class-btn-simple').prop('disabled', false).text('Créer');
+			},
+			complete: function () {
+				$('#create-class-btn-simple').prop('disabled', false).text('Créer');
+			}
+		});
+	});
+</script>
+{% endblock %}

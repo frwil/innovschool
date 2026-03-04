@@ -1,0 +1,40 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}SchoolEvaluation index{% endblock %}
+
+{% block body %}
+<twig:Breadcrumbs label="Gérer les évaluations" />
+
+<twig:Layout:ListAdd>
+    <twig:block name="table">
+        <table class="table display data-table text-nowrap">
+            <thead>
+                <tr>
+                    <th>Trimestre</th>
+                    <th>Séquence</th>
+                    <th>Année scolaire</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for school_evaluation in school_evaluations %}
+                <tr>
+                    <td>
+                        {{ school_evaluation.frame }}
+                    </td>
+                    <td><a href="{{ path('app_school_evaluation_show', {'id': school_evaluation.id}) }}">{{ school_evaluation.time }}</a></td>
+                    <td>{{ school_evaluation.period }}</td>
+                    <td>
+                    </td>
+                </tr>
+               
+                {% endfor %}
+            </tbody>
+        </table>
+    </twig:block>
+    <twig:block name="form">
+        {{ include('school_evaluation/_form.html.twig') }}
+    </twig:block>
+</twig:Layout:ListAdd>
+
+{% endblock %}

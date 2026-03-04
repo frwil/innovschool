@@ -1,0 +1,229 @@
+{% extends 'base.html.twig' %}
+
+{% block javascripts %}
+{{ parent() }}
+<script src="{{asset('js/notify.min.js')}}"></script>
+<script src="{{ asset('js/purify.min.js')}}"></script>
+<script src="{{ asset('js/html2canvas.min.js')}}"></script>
+<script src="{{ asset('js/jspdf.umd.min.js')}}"></script>
+<script src="{{asset('js/jquery.inputmask.min.js')}}"></script>
+<script src="{{ asset('js/jquery.timepicker.js')}}"></script>
+<script src="{{ asset('js/jquery.steps.js')}}"></script>
+
+<script>
+  // Configuration du timeout d'inactivité (30 minutes = 1800000 ms)
+  const INACTIVITY_TIMEOUT = 1800000;
+  const TIMESTAMP_KEY = 'lastActivityTimestamp';
+  const TIMEOUT_KEY = 'inactivityTimeoutId';
+
+  // Fonction pour réinitialiser le timer d'inactivité
+  function resetInactivityTimer() {
+    const now = Date.now();
+    const newTimeoutTime = now + INACTIVITY_TIMEOUT;
+    
+    // Stocker le nouveau timestamp dans le localStorage
+    localStorage.setItem(TIMESTAMP_KEY, newTimeoutTime.toString());
+    
+    // Si nous avons un timeout existant, le nettoyer
+    const existingTimeoutId = localStorage.getItem(TIMEOUT_KEY);
+    if (existingTimeoutId) {
+      clearTimeout(parseInt(existingTimeoutId));
+    }
+    
+    // Créer un nouveau timeout et stocker son ID dans le localStorage
+    const timeoutId = setTimeout(logoutUser, INACTIVITY_TIMEOUT);
+    localStorage.setItem(TIMEOUT_KEY, timeoutId.toString());
+    
+    // Émettre un événement personnalisé pour informer les autres onglets
+    window.dispatchEvent(new CustomEvent('activityDetected', { 
+      detail: { timestamp: newTimeoutTime } 
+    }));
+    
+    //console.log('Timer réinitialisé. Déconnexion à:', new Date(newTimeoutTime).toLocaleTimeString());
+  }
+
+  // Fonction pour vérifier et synchroniser le timer
+  function checkAndSyncTimer() {
+    const storedTimestamp = localStorage.getItem(TIMESTAMP_KEY);
+    
+    if (!storedTimestamp) {
+      // Pas de timestamp stocké, on initialise
+      resetInactivityTimer();
+      return;
+    }
+    
+    const storedTime = parseInt(storedTimestamp);
+    const now = Date.now();
+    
+    if (storedTime <= now) {
+      // Le temps est écoulé, on déconnecte
+      logoutUser();
+    } else {
+      // Calculer le temps restant
+      const timeRemaining = storedTime - now;
+      
+      // Nettoyer tout timeout existant
+      const existingTimeoutId = localStorage.getItem(TIMEOUT_KEY);
+      if (existingTimeoutId) {
+        clearTimeout(parseInt(existingTimeoutId));
+      }
+      
+      // Définir un nouveau timeout avec le temps restant
+      const timeoutId = setTimeout(logoutUser, timeRemaining);
+      localStorage.setItem(TIMEOUT_KEY, timeoutId.toString());
+      
+      //console.log('Timer synchronisé. Déconnexion dans:', Math.round(timeRemaining/60000), 'minutes');
+    }
+  }
+
+  // Fonction de déconnexion
+  function logoutUser() {
+    // Nettoyer le localStorage
+    localStorage.removeItem(TIMESTAMP_KEY);
+    localStorage.removeItem(TIMEOUT_KEY);
+    
+    // Rediriger vers la page de déconnexion
+    window.location.href = '/logout';
+  }
+
+  // Fonction pour détecter l'activité utilisateur
+  function detectUserActivity() {
+    // Réinitialiser le timer au mouvement de souris
+    resetInactivityTimer();
+  }
+
+  // Fonction pour écouter les événements d'activité depuis d'autres onglets
+  function setupCrossTabCommunication() {
+    // Écouter les événements d'activité provenant d'autres onglets
+    window.addEventListener('activityDetected', function(event) {
+      //console.log('Activité détectée depuis un autre onglet');
+      
+      // Synchroniser le timer avec le timestamp de l'événement
+      const newTimestamp = event.detail.timestamp;
+      localStorage.setItem(TIMESTAMP_KEY, newTimestamp.toString());
+      
+      // Vérifier et synchroniser notre propre timer
+      checkAndSyncTimer();
+    });
+    
+    // Écouter les changements dans le localStorage (pour les anciens navigateurs)
+    window.addEventListener('storage', function(event) {
+      if (event.key === TIMESTAMP_KEY && event.newValue) {
+        //console.log('Changement de timestamp détecté via storage event');
+        
+        // Nettoyer l'ancien timeout
+        const existingTimeoutId = localStorage.getItem(TIMEOUT_KEY);
+        if (existingTimeoutId) {
+          clearTimeout(parseInt(existingTimeoutId));
+        }
+        
+        // Synchroniser avec la nouvelle valeur
+        const newTimestamp = parseInt(event.newValue);
+        const now = Date.now();
+        
+        if (newTimestamp <= now) {
+          logoutUser();
+        } else {
+          const timeRemaining = newTimestamp - now;
+          const timeoutId = setTimeout(logoutUser, timeRemaining);
+          localStorage.setItem(TIMEOUT_KEY, timeoutId.toString());
+        }
+      }
+    });
+  }
+
+  // Initialisation lorsque le DOM est chargé
+  document.addEventListener('DOMContentLoaded', function() {
+    // Configurer la communication entre onglets
+    setupCrossTabCommunication();
+    
+    // Vérifier et synchroniser le timer au chargement
+    checkAndSyncTimer();
+    
+    // Écouter les événements d'activité utilisateur
+    document.addEventListener('mousemove', detectUserActivity);
+    document.addEventListener('keypress', detectUserActivity);
+    document.addEventListener('click', detectUserActivity);
+    document.addEventListener('scroll', detectUserActivity);
+    
+    // Vérifier périodiquement la synchronisation (toutes les 30 secondes)
+    setInterval(checkAndSyncTimer, 30000);
+    
+    // Initialiser Select2 après un délai
+    setTimeout(() => {
+      $('#school_id').select2();
+      $('#period_id').select2();
+    }, 5000);
+  });
+
+  // Nettoyer le localStorage si l'utilisateur quitte volontairement
+  window.addEventListener('beforeunload', function() {
+    // Ne pas nettoyer le localStorage ici car nous voulons que le timer persiste
+    // entre les onglets. On nettoie seulement à la déconnexion.
+  });
+
+  // Fonction pour forcer une déconnexion propre
+  window.forceLogout = function() {
+    logoutUser();
+  };
+</script>
+
+{% endblock %}
+
+{% block stylesheets %}{{ parent() }}
+<link rel="stylesheet" href="{{ asset('css/jquery.timepicker.min.css') }}" />
+<link href="{{ asset('css/bootstrap5.min.css')}}" rel="stylesheet">
+<link href="{{ asset('css/jquery.steps.css')}}" rel="stylesheet">
+<style>
+  body {
+    font-size: 12pt !important;
+  }
+
+  .form-control,
+  .form-select {
+    font-size: 12pt !important;
+    padding: 20px !important;
+  }
+
+  /* === HEADING STYLE #3 === */
+  .three h1 {
+    font-size: 28px;
+    font-weight: 500;
+    letter-spacing: 0;
+    line-height: 1.5em;
+    padding-bottom: 15px;
+    position: relative;
+  }
+
+  .three h1:before {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 5px;
+    width: 55px;
+    background-color: #111;
+  }
+
+  .three h1:after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 2px;
+    height: 1px;
+    width: 95%;
+    max-width: 355px;
+    background-color: #333;
+  }
+
+  .btn {
+    font-size: 10pt !important;
+    padding: 10px !important;
+  }
+
+  .wizard.vertical>.content {
+    background-color: #fff;
+    overflow-y: auto;
+  }
+</style>
+{% endblock %}

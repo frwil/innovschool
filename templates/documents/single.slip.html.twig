@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-size: 12px;
+            color: #343232;
+        }
+
+        .invoice-table {
+            width: 210mm;
+            /* height: 297mm; */
+            margin: 0 auto;
+            /* border: 1px solid #000; */
+            border-collapse: collapse;
+            box-sizing: border-box;
+            table-layout: fixed;
+            /* Pour fixer la largeur des colonnes */
+        }
+
+        .invoice-table td {
+            padding: 10px;
+            border: 1px solid #343232;
+            vertical-align: top;
+            word-wrap: break-word;
+            /* Permet de forcer le retour à la ligne si le texte est trop long */
+        }
+
+        .listTable td {
+            padding: 7px;
+        }
+
+        .head-table td {
+            padding: 2px;
+        }
+
+        .col-1 {
+            width: 8.33%;
+            /* 1/12 = 8.33% */
+        }
+
+        .col-2 {
+            width: 16.66%;
+            /* 2/12 = 16.66% */
+        }
+
+        .col-3 {
+            width: 25%;
+            /* 3/12 = 25% */
+        }
+
+        .col-4 {
+            width: 33.33%;
+            /* 4/12 = 33.33% */
+        }
+
+        .col-5 {
+            width: 41.66%;
+            /* 5/12 = 41.66% */
+        }
+
+        .col-6 {
+            width: 50%;
+            /* 6/12 = 50% */
+        }
+
+        .col-7 {
+            width: 58.33%;
+            /* 7/12 = 58.33% */
+        }
+
+        .col-8 {
+            width: 66.66%;
+            /* 8/12 = 66.66% */
+        }
+
+        .col-9 {
+            width: 75%;
+            /* 9/12 = 75% */
+        }
+
+        .col-10 {
+            width: 83.33%;
+            /* 10/12 = 83.33% */
+        }
+
+        .col-11 {
+            width: 91.66%;
+            /* 11/12 = 91.66% */
+        }
+
+        .col-12 {
+            width: 100%;
+            /* 12/12 = 100% */
+        }
+
+        .header,
+        .footer,
+        .invoice-details,
+        .totals,
+        .signature {
+            padding: 0;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .header p,
+        .footer p {
+            margin: 0;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .invoice-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .invoice-details th,
+        .invoice-details td {
+            padding: 10px;
+            border: 1px solid #000;
+            text-align: left;
+        }
+
+        .invoice-details th {
+            background-color: #f2f2f2;
+        }
+
+        .totals {
+            text-align: right;
+        }
+
+        .totals table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .totals th,
+        .totals td {
+            padding: 10px;
+            border: 1px solid #000;
+        }
+
+        .totals th {
+            background-color: #f2f2f2;
+        }
+
+        .signature {
+            text-align: right;
+            font-size: 14px;
+        }
+
+        .objectRaw p {
+            margin-top: 0px;
+            margin-bottom: auto;
+        }
+    </style>
+</head>
+
+<body>
+    <table class="invoice-table">
+        <tr>
+            <td colspan="12" class="col-12" style="border: 0px; text-align: center;">
+                EN TETE
+            </td>
+        </tr>
+        <tr>
+            <td colspan="12" class="col-12" style="border: 0px; text-align: center;">
+                RELEVE DE NOTE
+            </td>
+        </tr>
+        <tr>
+            <td colspan="3" class="col-3" style="border: 0px;">
+                CLASSE: <span style="text-decoration: underline;">{{model.className}}</span>
+            </td>
+            <td colspan="3" class="col-3" style="border: 0px;">
+                MATIERE:__________________
+            </td>
+            <td colspan="1" class="col-1" style="border: 0px;">
+                COEF:_
+            </td>
+            <td colspan="5" class="col-5" style="border: 0px;">
+                NOM DE L'ENSEIGNANT:_________________________
+            </td>
+        </tr>
+        <tr>
+            <td colspan="12" class="col-12" style="border: 0px; text-align: center;">
+                
+            </td>
+        </tr>
+        <tr>
+            <td colspan="1" class="col-1" style="">
+                N<sup>o</sup>
+            </td>
+            <td colspan="5" class="col-5" style="">
+                NOM ET PRENOMS
+            </td>
+            <td colspan="1" class="col-1" style="">
+                EVAL 1
+            </td>
+            <td colspan="1" class="col-1" style="">
+                EVAL 2
+            </td>
+            <td colspan="1" class="col-1" style="">
+                EVAL 3
+            </td>
+            <td colspan="1" class="col-1" style="">
+                EVAL 4
+            </td>
+            <td colspan="1" class="col-1" style="">
+                EVAL 5
+            </td>
+            <td colspan="1" class="col-1" style="">
+                EVAL 6
+            </td>
+        </tr>
+
+        {% for student in model.students %}
+        <tr>
+            <td colspan="1" class="col-1" style="">
+                {{ loop.index }}
+            </td>
+            <td colspan="5" class="col-5" style="">
+                {{ student.fullName }}
+            </td>
+            <td colspan="1" class="col-1" style="">
+                
+            </td>
+            <td colspan="1" class="col-1" style="">
+                
+            </td>
+            <td colspan="1" class="col-1" style="">
+                
+            </td>
+            <td colspan="1" class="col-1" style="">
+                
+            </td>
+            <td colspan="1" class="col-1" style="">
+                
+            </td>
+            <td colspan="1" class="col-1" style="">
+                
+            </td>  
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+
+</html>

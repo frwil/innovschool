@@ -1,0 +1,71 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}SchoolClassSubjectGroup index{% endblock %}
+
+{% block dataturbo %}true{% endblock %}
+
+{% block body %}
+<twig:Breadcrumbs label="Groupe de matière" />
+
+<twig:Layout:ListAdd>
+    <twig:block name="table">
+        <table class="table display data-table text-nowrap">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in school_class_subject_groups %}
+                <tr>
+                    <td>
+                        <a href="{{ path('app_school_class_subject_group_edit', {'id': item.id}) }}">{{ item.name }}</a>
+                    </td>
+                    <td>
+                        
+                    </td>
+                </tr>
+               
+                {% endfor %}
+            </tbody>
+        </table>
+    </twig:block>
+    <twig:block name="form" data-turbo="true">
+        <turbo-frame id="new_class_form">
+        <div class="row">
+            <div class="col-sm-6">
+                <table class="table">
+                    <tbody>
+                        {% for item in school_class.defaultSchoolSectionCategoriesSubjectGroups %}
+                        <tr>
+                            <th> {{ item.name }}</th>
+                            <td> <a href="{{ path('app_school_class_subject_group_index', {'id': school_class.id, 'section_subjet_group_id': item.id, 'school_class_id': school_class.id}) }}" class="btn btn-primary">Créer un group de matière</a></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% if form %}
+            <div class="col-sm-6">
+                {{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+                <div class="row">
+                    <div class="col-12 form-group">
+                        {{ form_label(form.name) }}
+                        {{ form_widget(form.name) }}
+                    </div>
+                    <div class="col-12 form-group mg-t-8">
+                        <button data-turbo="false" type="submit" class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark">{{ button_label|default('Enregistrer') }}</button>
+                        <!-- <button type="reset" class="btn-fill-lg bg-blue-dark btn-hover-yellow">Reset</button> -->
+                    </div>
+                </div>
+                {{ form_end(form) }}
+            </div>
+            {% endif %}
+
+        </div>
+        </turbo-frame>
+    </twig:block>
+</twig:Layout:ListAdd>
+
+{% endblock %}

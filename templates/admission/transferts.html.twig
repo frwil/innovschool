@@ -1,0 +1,230 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Transferts d'élèves{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="three"><h1>Transferts d'élèves</h1></div>
+    <form class="row g-3 mb-4">
+        <div class="col-md-3">
+            <label for="studyLevel" class="form-label">Niveau d'étude</label>
+            <select id="studyLevel" class="form-select select2" required>
+                <option value="">Sélectionner un niveau</option>
+                {% for level in studyLevels %}
+                    <option value="{{ level.id }}">{{ level.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3 border-end">
+            <label for="classOccurence" class="form-label">Classe (Départ)</label>
+            <select id="classOccurence" class="form-select select2" required disabled>
+                <option value="">Sélectionner une classe</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="classDestination" class="form-label">Classe (Destination)</label>
+            <select id="classDestination" class="form-select select2" required disabled>
+                <option value="">Sélectionner une classe de destination</option>
+            </select>
+        </div>
+        <div class="col-md-3 p5" style="padding:22px">
+            <button type="button" class="btn btn-primary mt-4 btn-lg" id="transferStudents">Transférer en masse</button>
+        </div>
+    </form>
+
+    <table id="studentsTable" class="table table-striped">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Nom</th>
+                <th>Matricule</th>
+                <th>Date de naissance</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Rempli dynamiquement par JS -->
+        </tbody>
+    </table>
+</div>
+
+<script>
+$(function() {
+    let availableClasses = [];
+
+    // Au changement du niveau d'étude, charger les classes correspondantes
+    $('#studyLevel').on('change', function() {
+        let levelId = $(this).val();
+        $('#classOccurence').prop('disabled', true).html('<option value="">Chargement...</option>');
+        if (levelId) {
+            $.get('{{ path("app_classes_by_section_with_students") }}', { sectionId: levelId }, function(classes) {
+                availableClasses = classes; // Stocke toutes les classes pour plus tard
+                let options = '<option value="">Sélectionner une classe</option>';
+                $.each(classes, function(_, c) {
+                    options += `<option value="${c.id}">${c.name}</option>`;
+                });
+                $('#classOccurence').html(options).prop('disabled', false);
+            });
+        } else {
+            $('#classOccurence').html('<option value="">Sélectionner une classe</option>').prop('disabled', true);
+        }
+        $('#studentsTable').DataTable().clear().draw();
+    });
+
+    // Au changement de la classe, charger les élèves
+    $('#classOccurence').on('change', function() {
+        let classId = $(this).val();
+        if (classId) {
+            var classOptions="";
+            $.get('{{ path("app_students_by_class") }}', { classOccurenceId: classId }, function(students) {
+                let table = $('#studentsTable').DataTable();
+                table.clear();
+                 // Exclure la classe sélectionnée
+                    let currentClassId = $('#classOccurence').val();
+                    $.get('{{ path("app_classes_destinations") }}', { excludeId: currentClassId }, function(classes) {
+                        classOptions = '<option value="">Sélectionner une classe de destination</option>';
+                        $.each(classes, function(_, c) {
+                            classOptions += `<option value="${c.id}">${c.name}</option>`;
+                        });
+                    }).then(function() {
+                        $('#classDestination').html(classOptions).prop('disabled', false);
+                        $.each(students, function(i, student) {
+                    table.row.add([
+                            i + 1,
+                            student.fullName,
+                            student.regNumber,
+                            student.birthDate,
+                            `<select class="form-select form-select-sm d-inline w-auto me-2 transfert-choice">
+                                <option value="1">Transférer</option>
+                                <option value="0">Ne pas transférer</option>
+                            </select>
+                            <select class="form-select form-select-sm d-inline w-auto me-2 class-destination-select select2" data-id="${student.studentClassId}">
+                                <option value="">Sélectionner une classe</option>
+                                ${classOptions}
+                            </select>
+                            <button class="btn btn-primary btn-lg">Transférer</button>`
+                        ]);
+                });
+                table.draw();
+            });
+                    });
+                
+        } else {
+            $('#studentsTable').DataTable().clear().draw();
+        }
+    });
+
+    // Affiche le bouton "Transférer" seulement si "Transférer" est sélectionné
+    $('#studentsTable').on('change', '.transfert-choice', function() {
+        const $btn = $(this).closest('td').find('button');
+        if ($(this).val() === "1") {
+            $btn.show();
+        } else {
+            $btn.hide();
+        }
+    });
+
+    // Initialisation du DataTable
+    $('#studentsTable').DataTable({
+        language: {
+            url: "{{asset('i18n/fr-FR.json')}}"
+        },
+        searching: false,
+        paging: false,
+        info: false
+    });
+
+    $('#studentsTable').on('draw.dt', function() {
+        $('.select2').select2({ width: 'resolve' });
+    });
+
+    $('#classDestination').on('change', function() {
+        const classId = $(this).val();
+        if (classId) {
+            $('.class-destination-select').each(function() {
+                const $select = $(this);
+                if ($select.data('id')) {
+                    $select.val(classId).trigger('change');
+                }
+            });
+        } else {
+            $('.class-destination-select').val('').trigger('change');
+        }
+        });
+
+    $('#transferStudents').on('click', function () {
+    let table = $('#studentsTable').DataTable();
+    let rows = table.rows().nodes();
+    let transfers = [];
+
+    $(rows).each(function () {
+        const $row = $(this);
+        const action = $row.find('.transfert-choice').val();
+        if (action === "1") {
+            // Récupère l'id du StudentClass (par exemple dans une colonne cachée ou data-id sur le select)
+            const studentClassId = $row.find('.class-destination-select').data('id');
+            const destinationClassId = $row.find('.class-destination-select').val();
+            if (destinationClassId) {
+                transfers.push({
+                    studentClassId: studentClassId,
+                    destinationClassId: destinationClassId
+                });
+            }
+        }
+    });
+
+    if (transfers.length === 0) {
+        alert('Aucun transfert sélectionné.');
+        return;
+    }
+
+    $.ajax({
+        url: '{{ path("app_transfer_students_mass") }}', // À créer côté Symfony
+        method: 'POST',
+        data: { transfers: transfers },
+        success: function (response) {
+            alert('Transferts effectués avec succès.');
+            table.clear().draw(); // ou table.clear().draw(); selon ton mode de remplissage
+            $('#studyLevel').trigger('change'); // Rafraîchit la liste des élèves
+        },
+        error: function () {
+            alert('Erreur lors du transfert.');
+        }
+    });
+});
+
+$('#studentsTable').on('click', 'button', function () {
+    const $row = $(this).closest('tr');
+    const action = $row.find('.transfert-choice').val();
+    if (action !== "1") {
+        alert('Veuillez sélectionner "Transférer" dans la liste.');
+        return;
+    }
+    const studentClassId = $row.find('.class-destination-select').data('id');
+    const destinationClassId = $row.find('.class-destination-select').val();
+    if (!destinationClassId) {
+        alert('Veuillez choisir une classe de destination.');
+        return;
+    }
+    const transfers = [{
+        studentClassId: studentClassId,
+        destinationClassId: destinationClassId
+    }];
+
+    $.ajax({
+        url: '{{ path("app_transfer_students_mass") }}',
+        method: 'POST',
+        data: { transfers: transfers },
+        success: function (response) {
+            alert('Transfert effectué avec succès.');
+            // Optionnel : rafraîchir la table ou supprimer la ligne transférée
+            $('#studentsTable').DataTable().row($row).remove().draw();
+        },
+        error: function () {
+            alert('Erreur lors du transfert.');
+        }
+    });
+});
+});
+</script>
+{% endblock %}

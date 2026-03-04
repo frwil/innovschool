@@ -1,0 +1,54 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Bulletin{% endblock %}
+
+{% block body %}
+
+<twig:Breadcrumbs label="Bulletin" />
+
+<div class="card height-auto">
+    <div class="card-body">
+        <twig:Form:ClasseFilter form="{{form}}" />
+
+        {% if students is defined %}
+        <div class="row" data-turbo="true">
+            <div class="col-sm-4">
+                <div class="table-responsive mt-5">
+                    <table class="table display data-table text-nowrap">
+                        <thead>
+                            <tr>
+                                <th>Etudiants</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                           
+                            {% for item in students %}
+                            <tr>
+                                <td>
+                                    <a href="{{path("app_school_evaluation_download_report_card",{
+                                        "studentId": item.id,
+                                        "evaluationId": evaluation.id,
+                                        "classId": schoolClassPeriod.id,
+                                    })}}" target="_blank">{{ item.fullName }}</a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="1">Aucun enregistrement</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col-sm-8">
+                <turbo-frame id="att_from">
+                    
+                </turbo-frame>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

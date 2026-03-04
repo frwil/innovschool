@@ -1,0 +1,103 @@
+{% extends 'base.up.html.twig' %}
+{% block title %}Vérification de l'élève{% endblock %}
+
+{% block stylesheets %}
+    {{ parent() }}
+{% endblock %}
+
+{% block javascripts %}
+    {{ parent() }}
+    <script>
+        $(document).ready(function () {
+            $('#payments-table').DataTable({
+                responsive: true,
+                ordering: false,
+                paging: false,
+                searching: false,
+                language: {
+                    url: "{{asset('i18n/fr-FR.json')}}" // Traduction en français
+                }
+            });
+        });
+    </script>
+{% endblock %}
+
+{% block body %}
+{% if student is not null %}
+    <div class="card">
+        <div class="card-header">
+            <div class="three"><h1 class="card-title">Détails de l'élève</h1></div>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <!-- Bloc de gauche : Photo de l'élève -->
+                <div class="col-md-4 text-center">
+                    {% if student.photo %}
+                        <img src="{{ asset('uploads/' ~ student.photo) }}" alt="Photo de l'élève" class="img-thumbnail" style="width: 150px; height: 150px; object-fit: cover;">
+                    {% else %}
+                        <img src="{{ asset('images/default-student.png') }}" alt="Photo par défaut" class="img-thumbnail" style="width: 150px; height: 150px; object-fit: cover;">
+                    {% endif %}
+                </div>
+
+                <!-- Bloc de droite : Informations de l'élève -->
+                <div class="col-md-8">
+                    <p><strong>Nom :</strong> {{ student.fullName }}</p>
+                    <p><strong>Date de naissance :</strong> {{ student.dateOfBirth|date('d/m/Y') }}</p>
+                    <p><strong>Lieu de naissance :</strong> {{ student.placeOfBirth }}</p>
+                    <p><strong>Classe :</strong> {{ student.className }}</p>
+                    <p><strong>Matricule :</strong> {{ student.registrationNumber }}</p>
+                </div>
+            </div>
+            <div class="mt-4">
+                <h5 class="mb-3">Détails des paiements</h5>
+                <table id="payments-table" class="table table-bordered responsive">
+                    <thead>
+                        <tr>
+                            <th>Modalité</th>
+                            <th>Montant à payer</th>
+                            <th>Montant payé</th>
+                            <th>Reste à payer</th>
+                            <th>Date d'échéance</th>
+                            <th>Statut</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for payment in payments %}
+                            {% set remaining = payment.amount - payment.paid %}
+                            {% set status = '' %}
+                            {% if remaining == 0 %}
+                                {% set status = 'ok' %}
+                            {% elseif remaining > 0 and payment.dueDate > "now"|date('Y-m-d') %}
+                                {% set status = 'warning' %}
+                            {% elseif remaining > 0 and payment.dueDate <= "now"|date('Y-m-d') %}
+                                {% set status = 'danger' %}
+                            {% endif %}
+
+                            <tr>
+                                <td>{{ payment.modalLabel }}</td>
+                                <td>{{ payment.amount|number_format(2, ',', ' ') }} FCFA</td>
+                                <td>{{ payment.paid|number_format(2, ',', ' ') }} FCFA</td>
+                                <td>{{ remaining|number_format(2, ',', ' ') }} FCFA</td>
+                                <td>{{ payment.dueDate|date('d/m/Y') }}</td>
+                                <td>
+                                    {% if status == 'ok' %}
+                                        <span class="badge bg-success">OK</span>
+                                    {% elseif status == 'warning' %}
+                                        <span class="badge bg-warning text-dark">Warning</span>
+                                    {% elseif status == 'danger' %}
+                                        <span class="badge bg-danger">Danger</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="alert alert-danger" role="alert">
+        <strong>Erreur :</strong> {{ error }}
+    </div>
+{% endif %}
+{% endblock %}

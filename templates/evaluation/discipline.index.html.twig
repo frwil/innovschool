@@ -1,0 +1,191 @@
+{# filepath: templates/evaluation/discipline.index.html.twig #}
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Discipline - Gestion{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="three">
+    <h1>Gestion de la discipline</h1>
+    </div>
+
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <label for="studyLevel" class="form-label">Niveau d'étude</label>
+            <select id="studyLevel" class="form-select select2">
+                <option value="">-- Sélectionner un niveau --</option>
+                {% for level in studyLevels %}
+                    <option value="{{ level.id }}">{{ level.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6">
+            <label for="classOccurence" class="form-label">Classe</label>
+            <select id="classOccurence" class="form-select select2" disabled>
+                <option value="">-- Sélectionner une classe --</option>
+            </select>
+        </div>
+        
+    </div>
+    <div id="student-list" class="mb-4"></div>
+    <div id="discipline-content">
+        {# Ici s'afficheront les données de discipline (tableau, formulaire, etc.) #}
+    </div>
+</div>
+
+<script>
+    // Quand le niveau d'étude change, charger dynamiquement les classes avec jQuery/AJAX
+    $('#studyLevel').on('change', function() {
+        var studyLevelId = $(this).val();
+        var $classSelect = $('#classOccurence');
+        $classSelect.html('<option value="">-- Sélectionner une classe --</option>');
+        $classSelect.prop('disabled', true);
+
+        if (studyLevelId) {
+            $.ajax({
+                url: '{{ path("app_classes_by_section") }}',
+                data: { sectionId: studyLevelId },
+                success: function(response) {
+                    response.forEach(function(classItem) {
+                             $classSelect.append(`<option value="${classItem.id}">${classItem.name}</option>`);
+                        });
+                        $classSelect.prop('disabled', false);
+                }
+                    
+            });
+        }
+    });
+
+    // Quand une classe est sélectionnée, charger la liste des élèves
+    $('#classOccurence').on('change', function() {
+        var classId = $(this).val();
+        if (classId) {
+            $.ajax({
+                url: '{{ path("app_studentclass_by_class") }}', // Crée cette route qui retourne les élèves de la classe
+                data: { classId: classId },
+                dataType: 'json',
+                success: function(response) {
+                    var html = '<table id="student-table" class="table table-bordered table-striped">';
+                    html += '<thead><tr><th>Nom</th><th>Matricule</th><th>Action</th></tr></thead><tbody>';
+                    $.each(response.data, function(i, student) {
+                        html += '<tr>';
+                        html += '<td>' + student.fullName + '</td>';
+                        html += '<td>' + student.matricule + '</td>';
+                        html += '<td><button class="btn btn-sm btn-primary manage-attendance" data-student-id="' + student.id + '" data-class-id="' + classId + '">Gérer</button></td>';
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    $('#student-list').html(html);
+                    $('#student-table').DataTable();
+                }
+            });
+        } else {
+            $('#student-list').html('');
+        }
+    });
+
+    // Quand on clique sur "Gérer", charger le sheetjs dans #discipline-content
+    $(document).on('click', '.manage-attendance', function() {
+    var studentId = $(this).data('student-id');
+    var classId = $(this).data('class-id');
+    // Récupérer les périodes d'évaluation pour cette classe
+    $.ajax({
+        url: '{{ path("app_get_evaluations") }}',
+        data: { classId: classId },
+        dataType: 'json',
+        success: function(periods) {
+            // Récupérer les données de discipline existantes AVANT de construire le tableau
+            $.ajax({
+                url: '{{ path("app_get_studentclassattendance") }}', // Crée cette route côté Symfony
+                data: { studentId: studentId, classId: classId },
+                dataType: 'json',
+                success: function(attendanceData) {
+                    var fields = [
+                        { name: 'heuresAbsence', label: 'Heures d\'absence' },
+                        { name: 'absencesJustifiee', label: 'Absences justifiées' },
+                        { name: 'retard', label: 'Retards' },
+                        { name: 'retardInjustifie', label: 'Retards injustifiés' },
+                        { name: 'retenue', label: 'Retenues' },
+                        { name: 'avertissementDiscipline', label: 'Avertissements' },
+                        { name: 'blame', label: 'Blâmes' },
+                        { name: 'jourExclusion', label: 'Jours d\'exclusion' },
+                        { name: 'exclusionDefinitive', label: 'Exclusion définitive' }
+                    ];
+                    var studentName = $('.manage-attendance[data-student-id="' + studentId + '"]').closest('tr').find('td').eq(0).text();
+
+                    //filtrons les périodes afin qu'elles soient uniques de par leur attribut evaluationTimeName
+                    periods = periods.filter((period, index, self) =>
+                        index === self.findIndex((p) => p.evaluationTimeName === period.evaluationTimeName)
+                    );
+
+                    var html = '<table id="sheetjs-table" class="table table-bordered">';
+                    html += '<thead>';
+                    html += '<tr><th colspan="' + (periods.length + 1) + '" class="text-center">Élève : ' + studentName + '</th></tr>';
+                    html += '<tr><th>Champ</th>';
+                    $.each(periods, function(i, period) {
+                        html += '<th>' + period.evaluationTimeName + '</th>';
+                    });
+                    html += '</tr></thead><tbody>';
+                    $.each(fields, function(i, field) {
+                        html += '<tr><td>' + field.label + '</td>';
+                        $.each(periods, function(j, period) {
+                            // Cherche la valeur existante
+                            var value = '';
+                            if (
+                                attendanceData &&
+                                attendanceData[period.id] &&
+                                typeof attendanceData[period.id][field.name] !== 'undefined'
+                            ) {
+                                value = attendanceData[period.id][field.name];
+                            } else {
+                                value = (field.name === 'exclusionDefinitive') ? '0' : '0';
+                            }
+
+                            if (field.name === 'exclusionDefinitive') {
+                                html += '<td><select class="form-select" name="' + field.name + '[' + period.id + ']">' +
+                                    '<option value="0"' + (value == 0 ? ' selected' : '') + '>Non</option>' +
+                                    '<option value="1"' + (value == 1 ? ' selected' : '') + '>Oui</option>' +
+                                    '</select></td>';
+                            } else {
+                                html += '<td><input type="number" class="form-control" name="' + field.name + '[' + period.id + ']" value="' + value + '"></td>';
+                            }
+                        });
+                        html += '</tr>';
+                    });
+                    html += '</tbody></table>';
+                    html += '<button id="save-attendance" class="btn btn-success mt-3">Enregistrer</button>';
+                    $('#discipline-content').html(html);
+
+                    // Gestion de la soumission
+                    $(document).off('click', '#save-attendance').on('click', '#save-attendance', function() {
+                        var data = {};
+                        $('#sheetjs-table').find('input, select').each(function() {
+                            var name = $(this).attr('name');
+                            var value = $(this).val();
+                            data[name] = value;
+                        });
+                        data.studentId = studentId;
+                        data.classId = classId;
+
+                        $.ajax({
+                            url: '{{ path("app_save_studentclassattendance") }}',
+                            method: 'POST',
+                            data: data,
+                            success: function(response) {
+                                alert('Enregistrement réussi !');
+                            },
+                            error: function() {
+                                alert('Erreur lors de l\'enregistrement.');
+                            }
+                        });
+                    });
+                }
+            });
+        }
+    });
+});
+    
+</script>
+
+
+{% endblock %}

@@ -1,0 +1,204 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}User
+{% endblock %}
+
+{% block body %}
+	{% if 'ROLE_ADMIN' in app.user.roles or 'ROLE_SUPER_ADMIN' in app.user.roles %}
+		<div class="three">
+  <h1>
+			{% if 'ROLE_STUDENT' in user.roles %}
+				{% set role='student' %}
+				Élève
+			{% elseif 'ROLE_PARENT' in user.roles %}
+				{% set role='parent' %}
+				Parent
+			{% elseif 'ROLE_ADMIN' in user.roles %}
+				{% set role='admin' %}
+				Admin
+			{% elseif 'ROLE_SUPER_ADMIN' in user.roles %}
+				{% set role='super_admin' %}
+				Super admin
+			{% elseif 'ROLE_TEACHER' in user.roles %}
+				{% set role='teacher' %}
+				Enseignant
+			{% else %}
+				{% set role='user' %}
+				Utilisateur
+			{% endif %}
+			:
+			{{ user.fullName }}
+		</h1>
+		</div>
+		<form method="post" action="{{ path('app_user_manage_edit', {'id': user.id}) }}" id="userForm" enctype="multipart/form-data">
+			<div class="row">
+				<div class="col-md-8">
+					<h2>Informations principales</h2>
+					<div class="mb-3">
+						<label for="lastName" class="form-label">Nom</label>
+						<input type="text" id="lastName" name="lastName" class="form-control" value="{{ user.fullName }}" required>
+					</div>
+					<div class="mb-3">
+						<label for="gender" class="form-label">Sexe</label>
+						<select id="gender" name="gender" class="form-select select2" required>
+							<option value="male" {% if user.gender.value == 'male' %} selected {% endif %}>Masculin</option>
+							<option value="female" {% if user.gender.value == 'female' %} selected {% endif %}>Féminin</option>
+						</select>
+					</div>
+					{% if role == 'student' %}
+					<div class="mb-3">
+						<label for="birthDate" class="form-label">Date de naissance</label>
+						<input type="date" id="birthDate" name="birthDate" class="form-control" value="{{ user.dateOfBirth ? user.dateOfBirth|date('Y-m-d') : '' }}">
+					</div>
+					<div class="mb-3">
+						<label for="birthPlace" class="form-label">Lieu de naissance</label>
+						<input type="text" id="birthPlace" name="birthPlace" class="form-control" value="{{ user.placeOfBirth }}">
+					</div>
+					{% endif %}
+					<div class="mb-3">
+						<label for="studentPhone" class="form-label">Téléphone</label>
+						<input type="text" id="studentPhone" name="studentPhone" class="form-control" value="{{ user.phone }}">
+					</div>
+					<div class="mb-3">
+						<label for="studentAddress" class="form-label">Adresse</label>
+						<input type="text" id="studentAddress" name="studentAddress" class="form-control" value="{{ user.address }}">
+					</div>
+					<div class="mb-3">
+						<label for="nationalRegistrationNumber" class="form-label">Matricule National</label>
+						<input type="text" id="nationalRegistrationNumber" name="nationalRegistrationNumber" class="form-control" value="{{ user.nationalRegistrationNumber }}">
+					</div>
+				</div>
+				<div class="col-md-4 text-center">
+					<h2>Photo</h2>
+					<div class="mb-3">
+						<img src="{{ user.photo ? asset('uploads/photos/' ~ user.photo) : asset('img/default_student.png') }}" alt="Photo de l'utilisateur" class="img-fluid mb-3" style="width:200px; height:200px; object-fit:cover;">
+						<input type="file" id="photo" name="photo" class="form-control" accept="image/*">
+					</div>
+				</div>
+				<hr>
+				<div class="col-md-6">
+					<h2>Informations de connexion</h2>
+					<div class="mb-3">
+						<label for="email" class="form-label">Email</label>
+						<input type="email" id="email" name="email" class="form-control" value="{{ user.email }}" required>
+					</div>
+					<div class="mb-3">
+						<label for="password" class="form-label">Mot de passe</label>
+						<input type="password" id="password" name="password" class="form-control" placeholder="Laisser vide pour ne pas modifier">
+					</div>
+					<div class="mb-3">
+						<form method="post" action="{{ path('app_user_reset_password', {'id': user.id}) }}" class="d-inline">
+							<input type="hidden" name="_token" value="{{ csrf_token('reset_password' ~ user.id) }}">
+							<button type="submit" class="btn btn-warning btn-lg" onclick="return confirm('Réinitialiser le mot de passe de cet utilisateur ?');">
+								Réinitialiser le mot de passe
+							</button>
+						</form>
+					</div>
+				</div>
+				{% if role == 'student' %}
+					<div class="col-md-6">
+						<h2>Parent</h2>
+						<div class="mb-3">
+							<label for="parentPhone" class="form-label">Téléphone du parent</label>
+							<input type="text" id="parentPhone" name="parentPhone" class="form-control" value="{{ user.tutor ? user.tutor.phone : '' }}" autocomplete="off" maxlength="10" pattern="\d{9,10}" title="9 à 10 chiffres">
+							<div id="parentSuggestions" class="list-group m-3"></div>
+							<input type="hidden" id="tutor_id" name="tutor_id" value="{{ user.tutor ? user.tutor.id : '' }}">
+						</div>
+						<div class="mb-3">
+							<label for="parentName" class="form-label">Nom du parent</label>
+							<input type="text" id="parentName" name="parentName" class="form-control" value="{{ user.tutor ? user.tutor.fullName : '' }}" autocomplete="off">
+						</div>
+						<div class="mb-3">
+							<label for="parentType" class="form-label">Type de parent</label>
+							<select id="parentType" name="parentType" class="form-select select2">
+								<option value="">Sélectionner</option>
+								<option value="pere-mere" {% if parentInfos != null %} {% if parentInfos['type'] == 'pere-mere' %} selected {% endif %} {% endif %}>Père/Mère</option>
+								<option value="oncle-tante" {% if parentInfos != null %} {% if parentInfos['type'] == 'oncle-tante' %} selected {% endif %} {% endif %}>Oncle/Tante</option>
+								<option value="frere-soeur" {% if parentInfos != null %} {% if parentInfos['type'] == 'frere-soeur' %} selected {% endif %} {% endif %}>Frère/Soeur</option>
+							</select>
+						</div>
+						<div class="mb-3">
+							<label for="parentGender" class="form-label">Sexe du parent</label>
+							<select id="parentGender" name="parentGender" class="form-select select2">
+								<option value="">Sélectionner</option>
+								<option value="male" {% if user.tutor and user.tutor.gender.value == 'male' %} selected {% endif %}>Masculin</option>
+								<option value="female" {% if user.tutor and user.tutor.gender.value == 'female' %} selected {% endif %}>Féminin</option>
+							</select>
+						</div>
+					</div>
+					<hr>
+					<div class="col-md-6">
+						<h2>Classe</h2>
+						<div class="mb-3">
+							<label for="schoolClassPeriod" class="form-label">Classe</label>
+							<select id="schoolClassPeriod" name="schoolClassPeriod" class="form-select select2" required>
+								{% for class in classes %}
+									<option value="{{ class.id }}" {% if currentClass and currentClass.id == class.id %} selected {% endif %}>{{ class.classOccurence.name }}</option>
+								{% endfor %}
+							</select>
+							<input type="hidden" id="currentSchoolPeriod" name="currentSchoolPeriod" value="{{ currentClass.id}}">
+						</div>
+						<div class="mb-3">
+							<label for="isRepeating" class="form-label">Redoublant</label>
+							<select id="isRepeating" name="isRepeating" class="form-select select2" required>
+								<option value="0" {% if user.repeated == 0 %} selected {% endif %}>Non</option>
+								<option value="1" {% if user.repeated == 1 %} selected {% endif %}>Oui</option>
+							</select>
+						</div>
+					</div>
+				{% endif %}
+				<div class="mb-3">
+					<button type="submit" class="btn btn-primary btn-lg">Enregistrer</button>
+				</div>
+			</form>
+		</div>
+		<div>
+			<a href="{{ path('app_' ~ role ~ '_index') }}" class="btn btn-secondary btn-lg">Retour à la liste</a>
+			<form class="delete-user-form d-inline" method="post" action="{{ path('app_user_delete', {'id': user.id}) }}" onsubmit="return confirm('Supprimer cet utilisateur ?');">
+				<input type="hidden" name="_token" value="{{ csrf_token('delete' ~ user.id) }}">
+				<button type="submit" class="btn btn-danger btn-lg">Supprimer</button>
+			</form>
+		</div>
+
+	{% else %}
+		<div class="alert alert-danger mt-4">Vous n'avez pas accès à cette page.</div>
+	{% endif %}
+
+<script>
+$(function() {
+    $('#userForm').on('submit', function(e) {
+        e.preventDefault();
+        var form = this;
+        var formData = new FormData(form);
+
+        $.ajax({
+            url: $(form).attr('action'),
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                $.notify(response.message || 'Modifications enregistrées avec succès !','success');
+                setTimeout(()=>{window.location.reload();}, 1200);
+            },
+            error: function(xhr) {
+                let msg = 'Erreur lors de l\'enregistrement.';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    msg = xhr.responseJSON.message;
+                }
+                $.notify(msg);
+            },
+			fail: function(xhr) {
+                let msg = 'Erreur lors de l\'enregistrement.';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    msg = xhr.responseJSON.message;
+                }
+                $.notify(msg);
+            }
+        });
+    });
+});
+</script>
+
+{% endblock %}
+

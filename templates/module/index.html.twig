@@ -1,0 +1,48 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Gestion des modules{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <h1>Gestion des modules</h1>
+    <table class="table table-bordered mt-3" id="modulesTable">
+        <caption>Liste des modules disponibles</caption>
+        <thead>
+            <tr>
+                <th>Nom du module</th>
+                <th>Statut</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for module in modules %}
+            <tr>
+                <td>{{ module.name }}</td>
+                <td>
+                    {% if module.enabled %}
+                        <span class="badge bg-success text-white p-3">Activé</span>
+                    {% else %}
+                        <span class="badge bg-danger text-white p-3">Désactivé</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <form method="post" action="{{ path('app_module_toggle', {'name': module.name}) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-lg {{ module.enabled ? 'btn-danger' : 'btn-success' }}">
+                            {{ module.enabled ? 'Désactiver' : 'Activer' }}
+                        </button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+<script>
+    $(document).ready(function() {
+        // Initialisation de DataTables
+        $('#modulesTable').DataTable({
+            responsive: true,
+        });
+    });
+</script>
+{% endblock %}

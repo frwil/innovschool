@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Reçu de paiement</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            font-size: 0.5rem; /* Taille de police réduite à 10px */
+        }
+        .header-table {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .header-table td {
+            vertical-align: top;
+            padding: 5px;
+        }
+        .header-table .school-info {
+            text-align: left;
+            width: 33%;
+        }
+        .header-table .logo {
+            text-align: center;
+            width: 33%;
+        }
+        .header-table .receipt-info {
+            text-align: right;
+            width: 33%;
+        }
+        .content {
+            font-size: 0.7rem; /* Taille de police réduite à 10px */
+        }
+        .footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.5rem; /* Taille de police réduite à 10px */
+            color: #888;
+        }
+        #table-payments {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        #table-payments, #table-payments th, #table-payments td {
+            border: 1px solid black;
+        }
+        #table-payments th, #table-payments td {
+            padding: 5px; /* Réduction du padding pour compacter le tableau */
+            text-align: left;
+        }
+        #table-payments th {
+            background-color: #f2f2f2;
+        }
+        #table-payments td:nth-child(3), #table-payments td:nth-child(4), #table-payments td:nth-child(5)) {
+            text-align: right;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <!-- En-tête -->
+    <table class="header-table">
+        <tr>
+            <!-- Bloc 1 : Informations de l'école -->
+            <td class="school-info">
+                <p><strong>{{ school.name }}</strong></p>
+                <p>{{ school.address }}</p>
+                <p>{{ school.phone }}</p>
+            </td>
+
+            <!-- Bloc 2 : Logo -->
+            <td class="logo">
+                <img src="{{ asset('img/logo_test.png') }}" alt="Logo" style="max-width: 100px;">
+            </td>
+
+            <!-- Bloc 3 : Informations du reçu -->
+            <td class="receipt-info">
+                <p><strong>Reçu de paiement</strong></p>
+                <p>Numéro : {{ receiptNumber }}</p>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Contenu -->
+    <div class="content">
+    <h3 style="width:100%; text-align:center;border:3px solid black;padding:10px">RECAPITULATIF DES PAIMENTS</h3>
+        <!-- Tableau des informations générales -->
+        <table id="general-info">
+            <tr>
+                <td><strong>Date :</strong></td>
+                <td>{{ "now"|date('d/m/Y') }}</td>
+            </tr>
+            <tr>
+                <td><strong>Élève :</strong></td>
+                <td>{{ student.name }}</td>
+            </tr>
+            <tr>
+                <td><strong>Matricule :</strong></td>
+                <td>{{ student.matricule }}</td>
+            </tr>
+            <tr>
+                <td><strong>Matricule National :</strong></td>
+                <td>{{ student.nationalRegistrationNumber }}</td>
+            </tr>
+            <tr>
+                <td><strong>Classe :</strong></td>
+                <td>{{ class }}</td>
+            </tr>
+            <tr>
+                <td><strong>Année scolaire :</strong></td>
+                <td>{{ schoolYear }}</td>
+            </tr>
+        </table>
+
+        <!-- Tableau des paiements -->
+        <table id="table-payments">
+            <thead>
+                <tr>
+                    <th>Modalité</th>
+                    <th>Date d'échéance</th>
+                    <th>Montant à payer</th>
+                    <th>Montant payé</th>
+                    <th>Reste à payer</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set totalAmountToPay = 0 %}
+                {% set totalPaymentAmount = 0 %}
+                {% set totalRemainingAmount = 0 %}
+                {% for payment in payments %}
+                    <tr>
+                        <td>{{ payment.modalite }}</td>
+                        <td>{{ payment.dueDate|date('d/m/Y') }}</td>
+                        <td>
+                            {{ payment.amountToPay|number_format(2, ',', ' ') }} 
+                            {% set totalAmountToPay = totalAmountToPay + payment.amountToPay %}
+                        </td>
+                        <td>
+                            {{ payment.paymentAmount|number_format(2, ',', ' ') }} 
+                            {% set totalPaymentAmount = totalPaymentAmount + payment.paymentAmount %}
+                        </td>
+                        <td>
+                            {{ (payment.amountToPay - payment.paymentAmount)|number_format(2, ',', ' ') }} 
+                            {% set totalRemainingAmount = totalRemainingAmount + (payment.amountToPay - payment.paymentAmount) %}
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr style="font-size:0.7rem">
+                    <td colspan="2"><strong>Total</strong></td>
+                    <td><strong>{{ totalAmountToPay|number_format(2, ',', ' ') }} </strong></td>
+                    <td><strong>{{ totalPaymentAmount|number_format(2, ',', ' ') }} </strong></td>
+                    <td><strong>{{ totalRemainingAmount|number_format(2, ',', ' ') }} </strong></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- Pied de page -->
+    <div class="footer">
+        <div style="width=100%; text-align:right">
+            <p>Fait à Douala, le {{ "now"|date('d/m/Y') }}</p>
+        </div>
+    </div>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+        window.print();
+        if(confirm('Cette Fenêtre va se fermer')) self.close()
+    }, 3000);
+});
+</script>
+</body>
+</html>

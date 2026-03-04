@@ -1,0 +1,115 @@
+<div class="card mt-4">
+	<div class="card-header">
+		<strong>Classes où la matière
+			<span class="text-primary">{{ subject.name }}</span>
+			est affectée</strong>
+	</div>
+	<div class="card-body p-0">
+		<table class="table table-sm mb-0">
+			<thead>
+				<tr>
+					<th>Classe</th>
+					<th>Coefficient</th>
+					<th>Groupe</th>
+					<th>Enseignant</th>
+					<th>Compétences attendues</th>
+					<th>Actions</th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for cs in classSubjects %}
+				<tr>
+					<td>{{ cs.schoolClassPeriod.classOccurence.name }}</td>
+					<td>
+						<input type="number" name="coefficient" value="{{ cs.coefficient }}" min="1"
+							class="form-control form-control-sm d-inline w-auto" style="display:inline-block;"
+							data-row-id="{{ cs.id }}">
+					</td>
+					<td style="max-width:500px;">
+						<select name="group_id" class="form-select select2select" data-row-id="{{ cs.id }}">
+							{% for group in all_subject_groups %}
+							<option value="{{ group.id }}" {% if cs.group and cs.group.id==group.id %} selected {% endif
+								%}>
+								{{ group.description }}
+							</option>
+							{% endfor %}
+						</select>
+					</td>
+					<td>
+						<select name="class_teacher" class="form-control select2select" data-row-id="{{ cs.id }}">
+							<option value="">Sélectionner un enseignant</option>
+							{% for teacher in all_teachers %}
+							<option value="{{ teacher.id }}" {% if cs.teacher and cs.teacher.id==teacher.id %} selected
+								{% endif %}>
+								{{ teacher.fullName }}
+							</option>
+							{% endfor %}
+						</select>
+					</td>
+					<td>
+						<textarea name="awaited_skills" class="form-control form-control-sm" rows="2"
+							data-row-id="{{ cs.id }}">{{ cs.awaitedSkills }}</textarea>
+					</td>
+					<td>
+						<button type="submit" class="btn btn-sm btn-primary data-update-btn" data-row-id="{{ cs.id }}"
+							title="Modifier"><i class="fas fa-pencil-alt"></i></button>
+						<form class="delete-affectation-form d-inline" method="post"
+							action="{{ path('app_delete_affectation', {'id': cs.id}) }}">
+							<input type="hidden" name="_token" value="{{ csrf_token('delete' ~ cs.id) }}">
+							<button type="submit" class="btn btn-sm btn-danger" title="Supprimer"><i
+									class="fas fa-trash"></i></button>
+						</form>
+					</td>
+				</tr>
+			</tbody>
+			</tbody>
+			</tr>
+			</tbody>
+			</td>
+			</tr>{% else %}<tr>
+				<td colspan="3" class="text-center">Aucune classe affectée.</td>
+			</tr>{% endfor %}</tbody>
+		</table>
+		<form class="update-affectation-form" method="post" style="display:none"></form>
+	</div>
+</div>
+<script>$('.update-affectation-form').on('submit', function (e) {
+		e.preventDefault();
+		var $form = $(this);
+		$.post($form.attr('action'), $form.serialize(), function (response) { // Optionnel : afficher un message ou rafraîchir la liste
+			location.reload();
+		}).fail(function () {
+			alert('Erreur lors de la modification.');
+		});
+	});
+
+	$('.delete-affectation-form').on('submit', function (e) {
+		e.preventDefault();
+		var $form = $(this);
+		if (confirm('Supprimer cette affectation ?')) {
+			$.post($form.attr('action'), $form.serialize(), function (response) {
+				$.notify('Affectation supprimée avec succès.', 'success');
+				setTimeout(() => { location.reload(); }, 2000);
+			}).fail(function () {
+				$.notify('Erreur lors de la suppression.', 'error');
+			});
+		}
+	});
+	$('.data-update-btn').on('click', function () {
+		var id = $(this).data('row-id');
+		var teachervalue = $('select[name="class_teacher"][data-row-id="' + id + '"]').val();
+		var groupvalue = $('select[name="group_id"][data-row-id="' + id + '"]').val();
+		$('.update-affectation-form').empty();
+		$('input[data-row-id="' + id + '"],select[name="class_teacher"][data-row-id="' + id + '"],select[name="group_id"][data-row-id="' + id + '"]').clone().removeClass('select2select').appendTo($('.update-affectation-form'));
+		$('.update-affectation-form select[name="class_teacher"][data-row-id="' + id + '"]').val(teachervalue);
+		$('.update-affectation-form select[name="group_id"][data-row-id="' + id + '"]').val(groupvalue);
+		$('.update-affectation-form').attr('action', "{{ path('app_update_affectation', {'id': 'ROW_ID'}) }}".replace('ROW_ID', id));
+		$('.update-affectation-form').submit();
+	});
+	$('.select2select').select2({
+		theme: 'bootstrap-5',
+		width: '100%',
+		placeholder: 'Sélectionner',
+		allowClear: true
+	});
+</script>

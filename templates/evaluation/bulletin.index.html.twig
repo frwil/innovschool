@@ -1,0 +1,1297 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}
+Bulletins de notes
+{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <!-- En-tête avec titre et informations -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div class="three">
+                    <h1 class="mb-0">Bulletins de notes</h1>
+                </div>
+                <div class="text-muted">
+                    <small><i class="fas fa-info-circle"></i> Générez et consultez les bulletins de notes des
+                        étudiants</small>
+                </div>
+            </div>
+            <hr class="mt-2">
+        </div>
+    </div>
+
+    <!-- Formulaire de sélection -->
+    <div class="card shadow-sm mb-4">
+        <div class="card-header bg-primary text-white">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-cog"></i> Paramètres de génération
+            </h5>
+        </div>
+        <div class="card-body">
+            <form id="bulletin-form" method="POST" action="javascript:void(0);">
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="form-group">
+                            <label for="section" class="form-label fw-bold">
+                                <i class="fas fa-graduation-cap"></i> Niveau d'étude
+                            </label>
+                            <select id="section" name="section" class="form-control select2" required>
+                                <option value="">Sélectionnez un niveau d'étude</option>
+                                {% for section in sections %}
+                                <option value="{{ section.id }}">{{ section.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="form-group">
+                            <label for="class" class="form-label fw-bold">
+                                <i class="fas fa-users"></i> Classe
+                            </label>
+                            <select id="class" name="class" class="form-control select2" disabled required>
+                                <option value="">Sélectionnez une classe</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <div class="form-group">
+                            <label for="bulletin-type" class="form-label fw-bold">
+                                <i class="fas fa-calendar-alt"></i> Type de bulletin
+                            </label>
+                            <select id="bulletin-type" name="bulletin_type" class="form-control select2" required>
+                                <option value="">Sélectionnez un type de bulletin</option>
+                                <option value="period">Par Période (Trimestre/Semestre)</option>
+                                <option value="sub-period">Par Sous-Période (Séquence/Mois, UA)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <div class="form-group">
+                            <label for="periodicity" class="form-label fw-bold">
+                                <i class="fas fa-clock"></i> Périodicité
+                            </label>
+                            <select id="periodicity" name="periodicity" class="form-control select2" disabled required>
+                                <option value="">Sélectionnez une périodicité</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-3 mb-3">
+                        <div class="form-group">
+                            <label for="template" class="form-label fw-bold">
+                                <i class="fas fa-palette"></i> Template
+                            </label>
+                            <select id="template" name="template" class="form-control select2" required>
+                                <option value="">Sélectionnez un template</option>
+                                {% for template in templates %}
+                                <option value="{{ template.id }}">{{ template.name }} ({{ template.description }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="form-group">
+                            <label for="notePass" class="form-label fw-bold">
+                                Note de passage
+                            </label>
+                            <select id="notePass" class="form-control select2" name="notePass">
+                                <option value="10" selected>10</option>
+                                <option value="11">11</option>
+                                <option value="12">12</option>
+                                <option value="13">13</option>
+                                <option value="14">14</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                        <div class="form-group">
+                            <label for="bulLang" class="form-label fw-bold">
+                                Langue
+                            </label>
+                            <select id="bulLang" class="form-control select2" name="bulLang">
+                                <option value="fr" selected>Français</option>
+                                <option value="en">Anglais</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-3 mb-3 d-flex align-items-end">
+                        <div class="form-group w-100">
+                            <button type="submit" id="show-students" class="btn btn-primary btn-lg w-100">
+                                <i class="fas fa-users me-2"></i> Afficher les étudiants
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barre de progression globale -->
+                <div id="evaluation-progress-container" class="alert alert-info mb-3" style="display: none;">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <label class="fw-bold mb-0">
+                            <i class="fas fa-chart-line me-1"></i>
+                            Progression globale des évaluations de la classe:
+                        </label>
+                        <span id="progress-percentage" class="badge bg-primary fs-6">0%</span>
+                    </div>
+                    <div class="progress" style="height: 20px;">
+                        <div id="evaluation-progress-bar" class="progress-bar h-100" role="progressbar"
+                            style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            <span id="progress-text" class="progress-text">0/0</span>
+                        </div>
+                    </div>
+                    <small class="form-text text-muted mt-2 d-block">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Pourcentage global de modules évalués (information seulement)
+                    </small>
+                </div>
+
+                <!-- Actions groupées -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="d-flex flex-wrap gap-2 align-items-center">
+                            <span class="fw-bold text-muted me-2">Actions groupées:</span>
+
+                            <!-- Bouton pour générer tous les bulletins en PDF -->
+                            <button type="button" id="generate-all-pdf" class="btn btn-warning" style="display: none;">
+                                <i class="fas fa-file-pdf me-2"></i> Générer tous les bulletins PDF
+                            </button>
+
+                            <!-- Bouton pour générer tous les bulletins -->
+                            <a href="#" id="generate-all-bulletins" class="btn btn-success" style="display: none;">
+                                <i class="fas fa-print me-2"></i> Générer tous les bulletins
+                            </a>
+
+                            <!-- Bouton de téléchargement -->
+                            <button type="button" id="downloadBtn" class="btn btn-info" style="display: none;">
+                                <i class="fas fa-download me-2"></i> Télécharger le PDF
+                            </button>
+
+                            <!-- Bouton de réinitialisation -->
+                            <button type="button" id="reset-form" class="btn btn-outline-secondary">
+                                <i class="fas fa-redo me-2"></i> Réinitialiser
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Barre de progression pour la génération asynchrone -->
+                <div id="progress-bar-container" class="mt-3" style="display:none;">
+                    <div class="alert alert-warning mb-2 alert-spin">
+                        <i class="fas fa-sync-alt fa-spin me-2"></i>
+                        <strong>Génération en cours...</strong>
+                    </div>
+                    <div class="progress mb-2">
+                        <div id="progress-bar" class="progress-bar progress-bar-striped progress-bar-animated"
+                            role="progressbar" style="width: 0%">
+                            <span class="progress-text fw-bold">0%</span>
+                        </div>
+                    </div>
+                    <div id="generation-messages" class="small alert alert-light"></div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tableau des étudiants -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-light">
+            <h5 class="card-title mb-0">
+                <i class="fas fa-list me-2"></i> Liste des étudiants
+            </h5>
+        </div>
+        <div class="card-body">
+            <div id="bulk-actions-container" class="mb-3" style="display: none;">
+                <button type="button" id="print-selected" class="btn btn-info" disabled>
+                    <i class="fas fa-print me-2"></i> Imprimer la sélection (<span id="selected-count">0</span>)
+                </button>
+            </div>
+            <div class="table-responsive">
+                <table id="students-table" class="table table-hover table-bordered" style="display: none; width: 100%;">
+                    <thead class="table-dark">
+                        <tr>
+                            <th width="5%" data-sort="false"><input type="checkbox" id="select-all-students"></th>
+                            <th width="25%">Étudiant</th>
+                            <th width="40%">Progression individuelle</th>
+                            <th width="30%">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Les données seront chargées dynamiquement -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Message lorsque aucun étudiant n'est affiché -->
+            <div id="no-students-message" class="text-center py-5">
+                <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted">Aucun étudiant affiché</h5>
+                <p class="text-muted">Veuillez sélectionner les paramètres et cliquer sur "Afficher les étudiants"</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Styles personnalisés -->
+<style>
+    .progress-bar {
+        transition: width 0.5s ease-in-out;
+        font-weight: 600;
+    }
+
+    .student-progress-bar {
+        transition: width 0.5s ease-in-out;
+    }
+
+    .progress-text {
+        font-weight: bold;
+        text-shadow: 1px 1px 1px rgba(0, 0, 0, 0.3);
+    }
+
+    .table-actions {
+        min-width: 200px;
+    }
+
+    #evaluation-progress-container {
+        border-left: 4px solid #17a2b8;
+    }
+
+    .card {
+        border: none;
+        border-radius: 10px;
+    }
+
+    .card-header {
+        border-radius: 10px 10px 0 0 !important;
+    }
+
+    .btn {
+        border-radius: 6px;
+        font-weight: 500;
+    }
+
+    .select2-container--bootstrap4 .select2-selection--single {
+        height: calc(1.5em + 0.75rem + 2px);
+        border-radius: 0.375rem;
+    }
+
+    .table th {
+        border-top: none;
+        font-weight: 600;
+    }
+
+    #no-students-message {
+        display: block;
+    }
+
+    /* Styles pour les deux barres de progression */
+    .dual-progress-container {
+        margin-bottom: 5px;
+    }
+
+    .progress-label {
+        font-size: 0.8em;
+        color: #666;
+        margin-bottom: 2px;
+    }
+
+    .progress-wrapper {
+        margin-bottom: 10px;
+    }
+
+    .modules-progress {
+        margin-top: 8px;
+    }
+
+    .progress-sm {
+        height: 12px;
+        margin-bottom: 0;
+    }
+
+    .progress-text-sm {
+        font-size: 0.75em;
+    }
+
+    /* Animation pour les boutons désactivés */
+    .btn:disabled {
+        cursor: not-allowed;
+        opacity: 0.6;
+    }
+
+    /* Styles améliorés pour la progression Redis */
+    #progress-bar-container {
+        border-left: 4px solid #ffc107;
+        background-color: #fffbf0;
+    }
+
+    .progress-bar-animated {
+        background-image: linear-gradient(45deg, rgba(255, 255, 255, 0.15) 25%, transparent 25%, transparent 50%, rgba(255, 255, 255, 0.15) 50%, rgba(255, 255, 255, 0.15) 75%, transparent 75%, transparent);
+        background-size: 1rem 1rem;
+    }
+
+    #generation-messages {
+        font-size: 0.9em;
+        max-height: 120px;
+        overflow-y: auto;
+    }
+
+    .generation-success {
+        border-color: #28a745 !important;
+        background-color: #f8fff9 !important;
+    }
+
+    .generation-error {
+        border-color: #dc3545 !important;
+        background-color: #fff8f8 !important;
+    }
+
+    /* Styles pour les tooltips */
+    .tooltip {
+        pointer-events: none;
+        /* Permet aux clics de passer à travers le tooltip */
+    }
+
+    .tooltip-wrapper {
+        cursor: help;
+        /* Curseur d'aide pour indiquer qu'il y a un tooltip */
+    }
+
+    /* Assurez-vous que les tooltips disparaissent correctement */
+    .tooltip.fade {
+        transition: opacity 0.15s linear;
+    }
+
+    /* Éviter les tooltips qui restent bloqués */
+    [data-bs-toggle="tooltip"] {
+        position: relative;
+    }
+
+    /* Correction pour les tooltips dans les tableaux */
+    .table td [data-bs-toggle="tooltip"] {
+        display: inline-block;
+        max-width: 100%;
+    }
+</style>
+{% endblock %}
+{% block javascripts %}
+{{ parent() }}
+<script>
+    $(document).ready(function () {
+        // Initialisation des variables
+        const $sectionSelect = $('#section');
+        const $classSelect = $('#class');
+        const $bulletinTypeSelect = $('#bulletin-type');
+        const $periodicitySelect = $('#periodicity');
+        const $templateSelect = $('#template');
+        const $studentsTable = $('#students-table');
+        const $noStudentsMessage = $('#no-students-message');
+        const $progressContainer = $('#evaluation-progress-container');
+        const $progressBar = $('#evaluation-progress-bar');
+        const $progressPercentage = $('#progress-percentage');
+        const $progressText = $('#progress-text');
+        const $generateAllPdfBtn = $('#generate-all-pdf');
+        const $generateAllBulletinsBtn = $('#generate-all-bulletins');
+        const $downloadBtn = $('#downloadBtn');
+        const $resetFormBtn = $('#reset-form');
+        const $showStudentsBtn = $('#show-students');
+        const $progressBarContainer = $('#progress-bar-container');
+        const $generationMessages = $('#generation-messages');
+        const $bulLangSelect = $('#bulLang');
+        const $notePassSelect = $('#notePass');
+
+        // Variables pour le suivi de progression
+        let progressInterval = null;
+
+        // Fonction pour réinitialiser le formulaire
+        $resetFormBtn.on('click', function () {
+            // Réinitialiser les sélecteurs
+            $sectionSelect.val('').trigger('change');
+            $classSelect.val('').prop('disabled', true).trigger('change');
+            $bulletinTypeSelect.val('').trigger('change');
+            $periodicitySelect.val('').prop('disabled', true).trigger('change');
+            $templateSelect.val('').trigger('change');
+            $bulLangSelect.val('fr').trigger('change');
+            $notePassSelect.val('10').trigger('change');
+
+            // Nettoyer tous les tooltips
+            $('[data-bs-toggle="tooltip"]').each(function () {
+                const tooltip = bootstrap.Tooltip.getInstance(this);
+                if (tooltip) {
+                    tooltip.dispose();
+                }
+            });
+
+            // Cacher les éléments
+            $progressContainer.hide();
+            $generateAllPdfBtn.hide();
+            $generateAllBulletinsBtn.hide();
+            $downloadBtn.hide();
+            $studentsTable.hide();
+            $noStudentsMessage.show();
+            $progressBarContainer.hide();
+
+            // Arrêter l'intervalle de progression s'il existe
+            if (progressInterval) {
+                clearInterval(progressInterval);
+                progressInterval = null;
+            }
+
+            // Détruire DataTable s'il existe
+            if ($.fn.DataTable.isDataTable($studentsTable)) {
+                $studentsTable.DataTable().clear().destroy();
+            }
+
+            // Afficher un message de confirmation
+            showNotification('Formulaire réinitialisé', 'success');
+        });
+
+        // Fonction pour afficher les notifications
+        function showNotification(message, type = 'info') {
+            $.notify(message, type);
+        }
+
+        // Fonction pour mettre à jour la couleur de la barre de progression
+        function updateProgressBarColor($progressBar, percentage) {
+            $progressBar.removeClass('bg-danger bg-warning bg-success');
+
+            if (percentage < 50) {
+                $progressBar.addClass('bg-danger');
+            } else if (percentage < 100) {
+                $progressBar.addClass('bg-warning');
+            } else {
+                $progressBar.addClass('bg-success');
+            }
+        }
+
+        // Fonction pour mettre à jour la progression globale (pour la classe)
+        function updateEvaluationProgress() {
+            const classId = $classSelect.val();
+            const periodicityId = $periodicitySelect.val();
+            const bulletinType = $bulletinTypeSelect.val();
+
+            if (classId && periodicityId && bulletinType) {
+                $.ajax({
+                    url: `{{ path('app_get_evaluation_progress') }}`,
+                    method: 'GET',
+                    data: {
+                        classId: classId,
+                        periodicityId: periodicityId,
+                        bulletinType: bulletinType
+                    },
+                    success: function (data) {
+                        $progressContainer.show();
+
+                        // Afficher les deux taux
+                        const percentageSubjects = data.percentage_subjects;
+                        const percentageModules = data.percentage_modules;
+
+                        // Mettre à jour l'affichage
+                        $progressPercentage.text(percentageSubjects + '% (Mat.) / ' + percentageModules + '% (Mod.)');
+                        $progressText.text(data.evaluated_subjects + '/' + data.total_subjects + ' matières, ' +
+                            data.evaluated_modules + '/' + data.total_modules + ' modules');
+
+                        // Pour la barre principale, on montre celle des matières
+                        $progressBar.css('width', percentageSubjects + '%')
+                            .attr('aria-valuenow', percentageSubjects);
+
+                        // Changer la couleur selon le pourcentage des matières
+                        updateProgressBarColor($progressBar, percentageSubjects);
+                    },
+                    error: function (xhr) {
+                        $progressContainer.hide();
+                        console.error('Erreur progression globale:', xhr.responseJSON);
+                    }
+                });
+            } else {
+                $progressContainer.hide();
+            }
+        }
+
+        // Fonction pour mettre à jour la progression de tous les étudiants
+        function updateAllStudentsProgress() {
+            const classId = $classSelect.val();
+            const periodicityId = $periodicitySelect.val();
+            const bulletinType = $bulletinTypeSelect.val();
+
+            if (!classId || !periodicityId || !bulletinType) {
+                return;
+            }
+
+            // Nettoyer tous les tooltips existants avant la mise à jour
+            $studentsTable.find('[data-bs-toggle="tooltip"]').each(function () {
+                const tooltip = bootstrap.Tooltip.getInstance(this);
+                if (tooltip) {
+                    tooltip.dispose();
+                }
+            });
+
+            // Afficher "Chargement..." pour tous les étudiants
+            $studentsTable.find('.subject-progress-text').text('Chargement...').removeClass('text-danger');
+            $studentsTable.find('.module-progress-text').text('Chargement...').removeClass('text-danger');
+
+            $.ajax({
+                url: `{{ path('app_get_students_progress') }}`,
+                method: 'GET',
+                data: {
+                    classId: classId,
+                    periodicityId: periodicityId,
+                    bulletinType: bulletinType
+                },
+                beforeSend: function () {
+                    // Désactiver tous les boutons pendant le chargement
+                    $studentsTable.find('.show-bulletin, .generate-pdf').prop('disabled', true);
+                },
+                success: function (data) {
+                    const studentsProgress = data.students_progress;
+
+                    // Mettre à jour chaque ligne du tableau
+                    $studentsTable.find('tbody tr').each(function () {
+                        const $row = $(this);
+                        const studentId = $row.find('.show-bulletin').data('student-id');
+
+                        if (studentId && studentsProgress[studentId]) {
+                            updateStudentProgress($row, studentsProgress[studentId]);
+                        }
+                    });
+                },
+                error: function (xhr) {
+                    console.log(xhr);
+                    console.error('Erreur progression étudiants:', xhr.responseJSON);
+                    $studentsTable.find('.subject-progress-text, .module-progress-text')
+                        .text('Erreur de chargement')
+                        .addClass('text-danger');
+                }
+            });
+        }
+
+        // Fonction pour mettre à jour la progression d'un étudiant spécifique
+        function updateStudentProgress($row, progress) {
+            const percentageSubjects = progress.percentage_subjects;
+            const percentageModules = progress.percentage_modules;
+
+            const $progressBarSubject = $row.find('.subject-progress-bar');
+            const $progressBarModule = $row.find('.module-progress-bar');
+            const $progressTextSubject = $row.find('.subject-progress-text');
+            const $progressTextModule = $row.find('.module-progress-text');
+            const $showBtn = $row.find('.show-bulletin');
+            const $pdfBtn = $row.find('.generate-pdf');
+
+            // Mettre à jour les barres de progression
+            $progressBarSubject.css('width', percentageSubjects + '%')
+                .attr('aria-valuenow', percentageSubjects);
+            $progressBarModule.css('width', percentageModules + '%')
+                .attr('aria-valuenow', percentageModules);
+
+            // Construire le texte pour les matières
+            let subjectText = progress.evaluated_subjects + '/' + progress.total_subjects + ' matières (' + percentageSubjects + '%)';
+            let moduleText = progress.evaluated_modules + '/' + progress.total_modules + ' modules (' + percentageModules + '%)';
+
+            // Ajouter une info-bulle si des modules ne sont pas complétés positivement
+            if (progress.non_completed_count && progress.non_completed_count > 0) {
+                let tooltipContent = '<strong>Modules sans note positive (>0) :</strong><br>';
+
+                // Grouper par matière
+                const modulesBySubject = {};
+                progress.non_completed_modules.forEach(module => {
+                    if (!modulesBySubject[module.subject_name]) {
+                        modulesBySubject[module.subject_name] = [];
+                    }
+                    let statusText = '';
+                    switch (module.status) {
+                        case 'not_evaluated':
+                            statusText = 'Non évalué';
+                            break;
+                        case 'completed_zero':
+                            statusText = 'Note = 0';
+                            break;
+                        case 'evaluated_null':
+                            statusText = 'Évaluation sans note';
+                            break;
+                        default:
+                            statusText = 'Incomplet';
+                    }
+                    modulesBySubject[module.subject_name].push(`${module.module_name} (${statusText})`);
+                });
+
+                // Construire le contenu de l'info-bulle
+                Object.keys(modulesBySubject).forEach(subject => {
+                    tooltipContent += `<br><strong>${subject}:</strong><br>`;
+                    modulesBySubject[subject].forEach(module => {
+                        tooltipContent += `- ${module}<br>`;
+                    });
+                });
+
+                // Ajouter l'info-bulle au texte des modules
+                moduleText = `
+            <span class="module-progress-text tooltip-wrapper" 
+                  data-bs-toggle="tooltip" 
+                  data-bs-html="true" 
+                  data-bs-placement="top" 
+                  title="${tooltipContent.replace(/'/g, "&apos;").replace(/"/g, '&quot;')}">
+                ${progress.evaluated_modules}/${progress.total_modules} modules (${percentageModules}%) 
+                <i class="fas fa-info-circle text-warning ms-1"></i>
+            </span>
+        `;
+            } else {
+                subjectText = progress.evaluated_subjects + '/' + progress.total_subjects + ' matières (' + percentageSubjects + '%)';
+                moduleText = progress.evaluated_modules + '/' + progress.total_modules + ' modules (' + percentageModules + '%)';
+            }
+
+            // Mettre à jour les textes
+            $progressTextSubject.html(subjectText);
+            $progressTextModule.html(moduleText);
+
+            // Changer la couleur selon le pourcentage
+            updateProgressBarColor($progressBarSubject, percentageSubjects);
+            updateProgressBarColor($progressBarModule, percentageModules);
+
+            // Activer/désactiver les boutons selon la progression des matières
+            updateStudentButtons($showBtn, $pdfBtn, percentageSubjects, progress.student_name);
+
+            // Initialiser les tooltips avec la fonction utilitaire
+            setTimeout(() => {
+                initTooltips($row);
+            }, 100);
+        }
+        // Fonction pour mettre à jour l'état des boutons étudiant
+        function updateStudentButtons($showBtn, $pdfBtn, percentage, studentName) {
+            if (percentage === 100) {
+                // Activer les boutons
+                $showBtn.prop('disabled', false)
+                    .removeClass('btn-secondary')
+                    .addClass('btn-primary')
+                    .attr('title', 'Cliquer pour générer le bulletin')
+                    .html('<i class="fas fa-eye"></i> Afficher');
+
+                $pdfBtn.prop('disabled', false)
+                    .attr('title', 'Générer le bulletin PDF')
+                    .html('<i class="fas fa-file-pdf"></i> PDF')
+                    .removeClass('btn-secondary')
+                    .addClass('btn-danger');
+            } else {
+                // Désactiver les boutons
+                $showBtn.prop('disabled', false)
+                    .removeClass('btn-primary')
+                    .addClass('btn-secondary')
+                    .attr('title', `Bulletin non disponible - ${percentage}% des matières évaluées`)
+                    .html('<i class="fas fa-eye"></i> Afficher');
+
+                $pdfBtn.prop('disabled', false)
+                    .attr('title', `Bulletin non disponible - ${percentage}% des matières évaluées`)
+                    .html('<i class="fas fa-file-pdf"></i> PDF')
+                    .removeClass('btn-danger')
+                    .addClass('btn-secondary');
+            }
+        }
+
+        // Charger les classes en fonction du niveau d'étude sélectionné
+        $sectionSelect.on('change', function () {
+            const sectionId = $(this).val();
+            $classSelect.html('<option value="">Chargement...</option>');
+            $classSelect.prop('disabled', true);
+            $generateAllPdfBtn.hide();
+            $generateAllBulletinsBtn.hide();
+            $downloadBtn.hide();
+            $studentsTable.hide();
+            $noStudentsMessage.show();
+
+            if (sectionId) {
+                $.ajax({
+                    url: `{{ path('app_classes_by_section') }}`,
+                    method: 'GET',
+                    data: { sectionId: sectionId },
+                    success: function (data) {
+                        $classSelect.html('<option value="">Sélectionnez une classe</option>');
+                        data.forEach(cls => {
+                            $classSelect.append(`<option value="${cls.id}">${cls.name}</option>`);
+                        });
+                        $classSelect.prop('disabled', false);
+                    },
+                    error: function (xhr) {
+                        $classSelect.html('<option value="">Erreur de chargement</option>');
+                        const errorMsg = xhr.responseJSON?.error || 'Erreur lors du chargement des classes';
+                        showNotification(errorMsg, 'error');
+                    }
+                });
+            }
+        });
+
+        // Charger les périodicités en fonction du type de bulletin et de la classe
+        $bulletinTypeSelect.on('change', updatePeriodicity);
+        $classSelect.on('change', updatePeriodicity);
+
+        function updatePeriodicity() {
+            const bulletinType = $bulletinTypeSelect.val();
+            const classId = $classSelect.val();
+            $periodicitySelect.html('<option value="">Chargement...</option>');
+            $periodicitySelect.prop('disabled', true);
+            $generateAllPdfBtn.hide();
+            $generateAllBulletinsBtn.hide();
+            $downloadBtn.hide();
+
+            if (bulletinType && classId) {
+                const endpoint = bulletinType === 'period'
+                    ? '{{ path("app_get_school_evaluation_frames") }}'
+                    : '{{ path("app_get_school_evaluation_times") }}?classId=' + classId;
+
+                $.ajax({
+                    url: `${endpoint}`,
+                    type: 'GET',
+                    success: function (data) {
+                        $periodicitySelect.html('<option value="">Sélectionnez une périodicité</option>');
+                        data.forEach(period => {
+                            $periodicitySelect.append(`<option value="${period.id}">${period.name}</option>`);
+                        });
+                        $periodicitySelect.prop('disabled', false);
+                    },
+                    error: function (xhr) {
+                        $periodicitySelect.html('<option value="">Erreur de chargement</option>');
+                        const errorMsg = xhr.responseJSON?.error || 'Erreur lors du chargement des périodicités';
+                        showNotification(errorMsg, 'error');
+                    }
+                });
+            }
+        }
+
+        // Écouter les changements pour la progression
+        $classSelect.on('change', function () {
+            updateEvaluationProgress();
+            updateAllStudentsProgress();
+        });
+
+        $periodicitySelect.on('change', function () {
+            updateEvaluationProgress();
+            updateAllStudentsProgress();
+        });
+
+        $bulletinTypeSelect.on('change', function () {
+            updateEvaluationProgress();
+            updateAllStudentsProgress();
+        });
+
+        // Afficher les élèves dans le DataTable
+        $showStudentsBtn.on('click', function (e) {
+            e.preventDefault();
+
+            const classId = $classSelect.val();
+            const periodicityId = $periodicitySelect.val();
+            const bulletinType = $bulletinTypeSelect.val();
+            const sectionId = $sectionSelect.val();
+            const templateId = $templateSelect.val();
+
+            if (!classId || !periodicityId || !bulletinType || !sectionId || !templateId) {
+                showNotification('Tous les champs sont obligatoires', 'error');
+                return;
+            }
+
+            // Afficher les boutons de génération globale
+            $generateAllPdfBtn.show();
+            $generateAllBulletinsBtn.show();
+
+            // Mettre à jour la progression globale
+            updateEvaluationProgress();
+
+            // Afficher l'indicateur de chargement
+            $showStudentsBtn.prop('disabled', true)
+                .html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Chargement...');
+
+            // Charger les données des élèves
+            $.ajax({
+                url: `{{ path('app_get_students_by_class') }}?classId=${classId}`,
+                type: 'GET',
+                success: function (data) {
+                    const $tbody = $studentsTable.find('tbody');
+
+                    // Détruire DataTable existant
+                    if ($.fn.DataTable.isDataTable($studentsTable)) {
+                        $studentsTable.DataTable().clear().destroy();
+                    }
+
+                    $tbody.empty();
+
+                    if (data.length === 0) {
+                        $noStudentsMessage.show();
+                        $studentsTable.hide();
+                        showNotification('Aucun étudiant trouvé dans cette classe', 'info');
+                        return;
+                    }
+
+                    // Ajouter les étudiants au tableau
+                    data.forEach(student => {
+                        const $row = $(`
+                        <tr>
+                            <td>
+                                <input type="checkbox" class="student-checkbox" value="${student.id}">
+                            </td>
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="avatar bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                                        <i class="fas fa-user"></i>
+                                    </div>
+                                    <div>
+                                        <strong>${student.name}</strong>
+                                        <br>
+                                        <small class="text-muted">Matricule: ${student.registrationNumber}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="dual-progress-container">
+                                    <!-- Progression par matière -->
+                                    <div class="progress-wrapper">
+                                        <div class="progress-label">Matières (au moins une note > 0)</div>
+                                        <div class="progress progress-sm">
+                                            <div class="subject-progress-bar progress-bar" role="progressbar" 
+                                                 style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <small class="subject-progress-text progress-text-sm text-muted">Chargement...</small>
+                                    </div>
+                                    
+                                    <!-- Progression par module -->
+                                    <div class="progress-wrapper modules-progress">
+                                        <div class="progress-label">Modules (note > 0)</div>
+                                        <div class="progress progress-sm">
+                                            <div class="module-progress-bar progress-bar" role="progressbar" 
+                                                 style="width: 0%; background-color: #6c757d;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                                            </div>
+                                        </div>
+                                        <small class="module-progress-text progress-text-sm text-muted">Chargement...</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="table-actions">
+                                <div class="btn-group" role="group">
+                                    <button class="btn btn-primary btn-sm show-bulletin" 
+                                            data-student-id="${student.id}" 
+                                            data-student-name="${student.name}"
+                                            data-student-matricule="${student.registrationNumber}"
+                                            disabled
+                                            title="Chargement de la progression...">
+                                        <i class="fas fa-eye"></i> Afficher
+                                    </button>
+                                    <button class="btn btn-danger btn-sm generate-pdf" 
+                                            data-student-id="${student.id}" 
+                                            data-student-name="${student.name}"
+                                            data-student-matricule="${student.registrationNumber}"
+                                            disabled
+                                            title="Chargement de la progression...">
+                                        <i class="fas fa-file-pdf"></i> PDF
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                    `);
+                        $tbody.append($row);
+                    });
+
+                    // Initialiser DataTable
+                    $studentsTable.DataTable({
+                        ordering: true,
+                        language: {
+                            url: "{{asset('i18n/fr-FR.json')}}"
+                        },
+                        columnDefs: [
+                            { orderable: false, targets: 0 } 
+                        ],
+                        responsive: true,
+                        pageLength: 25,
+                        dom: '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>rt<"row"<"col-sm-12 col-md-6"i><"col-sm-12 col-md-6"p>>',
+                        drawCallback: function (settings) {
+                            // Mettre à jour TOUTES les progressions après le rendu du tableau
+                            try {
+                                updateAllStudentsProgress();
+                            } catch (error) {
+                                console.error('Erreur lors de la mise à jour des progressions:', error);
+                            }
+                        },
+                        error: function (settings, techNote, message) {
+                            console.error('Erreur DataTable:', message);
+                            showNotification('Erreur d\'affichage du tableau', 'error');
+                        }
+                    });
+
+                    $studentsTable.show();
+                    $noStudentsMessage.hide();
+                    $showStudentsBtn.prop('disabled', false)
+                        .html('<i class="fas fa-users me-2"></i> Afficher les étudiants');
+
+                    // Charger les progressions immédiatement après l'affichage
+                    setTimeout(() => {
+                        updateAllStudentsProgress();
+                    }, 100);
+
+                    showNotification(`${data.length} étudiant(s) chargé(s)`, 'success');
+                },
+                error: function (xhr) {
+                    const errorMsg = xhr.responseJSON?.error || 'Erreur lors du chargement des étudiants';
+                    showNotification(errorMsg, 'error');
+                    $showStudentsBtn.prop('disabled', false)
+                        .html('<i class="fas fa-users me-2"></i> Afficher les étudiants');
+                }
+            });
+        });
+
+        // Gestion du clic sur le bouton "Afficher le bulletin"
+        $(document).on('click', '.show-bulletin:not(:disabled)', function () {
+            const $btn = $(this);
+
+            // Vérifier si le bouton est activé (progression à 100%)
+            if ($btn.prop('disabled')) {
+                const studentName = $btn.data('student-name');
+                alert(`Impossible d'afficher le bulletin de ${studentName} : la progression des matières n'est pas à 100%.`);
+                return;
+            }
+
+            $btn.prop('disabled', true);
+            $btn.html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Génération...');
+
+            const studentId = $btn.data('student-id');
+            const periodicityId = $periodicitySelect.val();
+            const bulletinType = $bulletinTypeSelect.val();
+            const classId = $classSelect.val();
+            const template = $templateSelect.val();
+            const bulLang = $bulLangSelect.val();
+            const notePass = $notePassSelect.val();
+
+            setTimeout(() => {
+                window.open(`{{ path('app_bulletin_frame')}}?studentId=${studentId}&bulletinType=${bulletinType}&periodicityId=${periodicityId}&classId=${classId}&templateId=${template}&bulLang=${bulLang}&notePass=${notePass}`, '_blank');
+                setTimeout(() => {
+                    $btn.prop('disabled', false);
+                    $btn.html('<i class="fas fa-eye"></i> Afficher');
+                }, 5000);
+            }, 2000);
+        });
+
+        // Gestion du clic sur le bouton "Générer PDF" individuel
+        $(document).on('click', '.generate-pdf:not(:disabled)', function () {
+            const $btn = $(this);
+            const studentId = $btn.data('student-id');
+            const studentName = $btn.data('student-name');
+            const periodicityId = $periodicitySelect.val();
+            const bulletinType = $bulletinTypeSelect.val();
+            const classId = $classSelect.val();
+            const templateId = $templateSelect.val();
+
+            // Vérifier que tous les paramètres sont présents
+            if (!studentId || !periodicityId || !bulletinType || !classId || !templateId) {
+                alert('Paramètres manquants pour générer le PDF.');
+                return;
+            }
+
+            // Vérifier la progression individuelle des matières
+            const studentRow = $btn.closest('tr');
+            const progressText = studentRow.find('.subject-progress-text').text();
+            const progressMatch = progressText.match(/\((\d+)%\)/);
+            const progress = progressMatch ? parseInt(progressMatch[1]) : 0;
+
+            if (progress < 100) {
+                if (!confirm(`La progression des matières de ${studentName} n'est qu'à ${progress}%. Voulez-vous quand même générer le PDF ?`)) {
+                    return;
+                }
+            }
+
+            // Afficher un indicateur de chargement
+            $btn.prop('disabled', true)
+                .html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>');
+
+            // Générer l'URL pour le PDF individuel
+            const pdfUrl = `{{ path('app_bulletin_pdf_individual') }}?studentId=${studentId}&periodicityId=${periodicityId}&bulletinType=${bulletinType}&classId=${classId}&templateId=${templateId}&bulLang=${$bulLangSelect.val()}&notePass=${$notePassSelect.val()}`;
+
+            // Ouvrir dans un nouvel onglet pour le téléchargement
+            const newWindow = window.open(pdfUrl, '_blank');
+
+            // Réactiver le bouton après un délai
+            setTimeout(() => {
+                $btn.prop('disabled', false)
+                    .html('<i class="fas fa-file-pdf"></i> PDF');
+
+                // Vérifier si la fenêtre a été bloquée
+                if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+                    alert('Le téléchargement a peut-être été bloqué par votre navigateur. Veuillez autoriser les pop-ups pour ce site.');
+                }
+            }, 3000);
+        });
+
+        // Gestion du clic sur le bouton "Générer tous les bulletins PDF" (synchrone)
+        $generateAllPdfBtn.on('click', function () {
+            const classId = $classSelect.val();
+            const periodicityId = $periodicitySelect.val();
+            const bulletinType = $bulletinTypeSelect.val();
+            const templateId = $templateSelect.val();
+
+            if (!classId || !periodicityId || !bulletinType || !templateId) {
+                alert('Veuillez sélectionner tous les paramètres requis.');
+                return;
+            }
+
+            // Vérifier la progression globale des matières
+            const globalProgress = parseInt($progressPercentage.text().split('%')[0]);
+            if (globalProgress < 100) {
+                if (!confirm(`La progression globale des matières n'est qu'à ${globalProgress}%. Voulez-vous quand même générer tous les bulletins PDF ?`)) {
+                    return;
+                }
+            }
+
+            // Afficher un indicateur de chargement
+            $generateAllPdfBtn.prop('disabled', true)
+                .html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Génération PDF...');
+
+            // Générer l'URL pour le PDF de tous les bulletins
+            const pdfUrl = `{{ path('app_bulletin_pdf_all_chunked') }}?classId=${classId}&periodicityId=${periodicityId}&bulletinType=${bulletinType}&templateId=${templateId}&bulLang=${$bulLangSelect.val()}&notePass=${$notePassSelect.val()}`;
+
+            // Ouvrir dans un nouvel onglet pour le téléchargement
+            const newWindow = window.open(pdfUrl, '_blank');
+
+            // Réactiver le bouton après un délai
+            setTimeout(() => {
+                $generateAllPdfBtn.prop('disabled', false)
+                    .html('<i class="fas fa-file-pdf me-2"></i> Générer tous les bulletins PDF');
+
+                // Vérifier si la fenêtre a été bloquée
+                if (!newWindow || newWindow.closed || typeof newWindow.closed == 'undefined') {
+                    alert('Le téléchargement a peut-être été bloqué par votre navigateur. Veuillez autoriser les pop-ups pour ce site.');
+                }
+            }, 5000);
+        });
+
+        // Gestion du clic sur le bouton "Générer tous les bulletins" (avec printType=full)
+        $generateAllBulletinsBtn.on('click', function (e) {
+            e.preventDefault();
+
+            const classId = $classSelect.val();
+            const periodicityId = $periodicitySelect.val();
+            const bulletinType = $bulletinTypeSelect.val();
+            const templateId = $templateSelect.val();
+            const bulLang = $bulLangSelect.val();
+            const notePass = $notePassSelect.val();
+
+            // Vérification que tous les paramètres sont présents
+            if (!classId || !periodicityId || !bulletinType || !templateId) {
+                showNotification('Veuillez sélectionner tous les paramètres requis.', 'error');
+                return;
+            }
+
+            // Désactiver le bouton et afficher l'indicateur
+            $generateAllBulletinsBtn.prop('disabled', true)
+                .html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Génération...');
+
+            // Ouvrir l'URL avec printType=full
+            setTimeout(() => {
+                window.open(`{{ path('app_bulletin_frame')}}?studentId=&bulletinType=${bulletinType}&periodicityId=${periodicityId}&classId=${classId}&templateId=${templateId}&bulLang=${bulLang}&notePass=${notePass}&printType=full`, '_blank');
+                setTimeout(() => {
+                    $generateAllBulletinsBtn.prop('disabled', false);
+                    $generateAllBulletinsBtn.html('<i class="fas fa-print me-2"></i> Générer tous les bulletins');
+                }, 5000);
+            }, 2000);
+        });
+
+        // Fonction pour démarrer le suivi de progression
+        function startProgressPolling(taskId) {
+            // Arrêter l'intervalle précédent s'il existe
+            if (progressInterval) {
+                clearInterval(progressInterval);
+            }
+
+            pollProgress(taskId);
+
+            // Démarrer un nouvel intervalle
+            // progressInterval = setInterval(() => {
+            //     pollProgress(taskId);
+            // }, 2000); // Interroger toutes les 2 secondes
+        }
+
+        // Fonction pour interroger la progression
+        function pollProgress(taskId) {
+            $.get("{{ path('app_bulletin_progress', {'taskId': 'TASK_ID'}) }}".replace('TASK_ID', taskId))
+                .done(function (response) {
+                    const progress = response.progress;
+                    if (response.status === 'success') {
+                        updateProgressBar(progress);
+
+                        if (progress.status === 'completed') {
+                            clearInterval(progressInterval);
+                            progressInterval = null;
+                            handleGenerationSuccess(taskId, progress);
+                        } else if (progress.status === 'failed') {
+                            clearInterval(progressInterval);
+                            progressInterval = null;
+                            handleGenerationError(progress.error || 'Erreur lors de la génération');
+                        }
+                        // Si le statut est 'processing', on continue à interroger
+                    } else {
+                        clearInterval(progressInterval);
+                        progressInterval = null;
+                        handleGenerationError(response.message || 'Erreur de réponse du serveur');
+                    }
+                    if (progress.status !== 'completed' && progress.status !== 'failed') pollProgress(taskId);
+                })
+                .fail(function (xhr) {
+                    console.error('Erreur de suivi:', xhr.responseJSON);
+                    clearInterval(progressInterval);
+                    progressInterval = null;
+                    handleGenerationError('Erreur de connexion lors du suivi de la progression');
+                });
+        }
+
+        // Fonction pour mettre à jour la barre de progression
+        function updateProgressBar(progress) {
+            const percentage = progress.percent || progress.percentage || 0;
+            const current = progress.current || 0;
+            const total = progress.total || 100;
+            const message = progress.message || 'Traitement en cours...';
+
+            const $progressBar = $('#progress-bar');
+            const $progressText = $progressBar.find('.progress-text');
+
+            $progressBar.css('width', percentage + '%');
+            $progressText.text(percentage + '%');
+
+            // Mettre à jour les messages
+            $generationMessages.html(`<div><i class="fas fa-info-circle me-2"></i>${message} (${current}/${total})</div>`);
+
+            // Changer la couleur selon la progression
+            if (percentage === 100) {
+                $progressBar.removeClass('bg-warning').addClass('bg-success');
+            }
+        }
+
+        // Fonction pour gérer le succès de la génération
+        function handleGenerationSuccess(taskId, progress) {
+            $progressBarContainer.addClass('generation-success');
+            $generationMessages.html(`<div class="text-success"><i class="fas fa-check-circle me-2"></i><strong>Génération terminée avec succès !</strong></div>`);
+
+            // Vérifier le statut du PDF pour obtenir l'URL de téléchargement
+            checkPdfStatus(progress, taskId);
+
+            showNotification('Génération des bulletins terminée avec succès !', 'success');
+        }
+
+        // Fonction pour vérifier le statut du PDF
+        function checkPdfStatus(progress, taskId) {
+            if (progress.status === 'completed' && progress.fileUrl) {
+                // Configurer le bouton de téléchargement
+                $downloadBtn.show()
+                    .data('task-id', progress.fileUrl)
+                    .off('click')
+                    .on('click', function () {
+                        window.open("{{ path('app_bulletin_pdf_download', {'fileUrl': 'FILE_URL'}) }}".replace('FILE_URL', progress.fileUrl), '_blank');
+                    });
+
+                $generationMessages.html(`<div class="text-success mt-2"><i class="fas fa-download me-2"></i>PDF prêt au téléchargement</div>`);
+                $('.alert-spin').hide();
+            }
+        }
+
+        // Fonction pour gérer les erreurs de génération
+        function handleGenerationError(errorMessage) {
+            $progressBarContainer.addClass('generation-error');
+            $('#progress-bar').removeClass('bg-warning bg-success').addClass('bg-danger');
+            $generationMessages.append(`<div class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i><strong>Erreur :</strong> ${errorMessage}</div>`);
+
+            showNotification('Erreur lors de la génération des bulletins: ' + errorMessage, 'error');
+        }
+
+        // Gestion du clic sur le bouton de téléchargement
+        $downloadBtn.on('click', function () {
+            const fileUrl = $(this).data('task-id');
+            if (fileUrl) {
+                window.open("{{ path('app_bulletin_pdf_download', { 'fileUrl': 'FILE_URL'}) }}".replace('FILE_URL', fileUrl), '_blank');
+            }
+        });
+
+        // Initialisation des sélecteurs Select2
+        if ($.fn.select2) {
+            $('.select2').select2({
+                theme: 'bootstrap4',
+                width: '100%',
+                placeholder: function () {
+                    return $(this).data('placeholder') || 'Sélectionnez...';
+                },
+                allowClear: true
+            });
+        }
+
+        function initTooltips($element) {
+            $element.find('[data-bs-toggle="tooltip"]').each(function () {
+                // Supprimer l'ancien tooltip s'il existe
+                const existingTooltip = bootstrap.Tooltip.getInstance(this);
+                if (existingTooltip) {
+                    existingTooltip.dispose();
+                }
+
+                // Créer un nouveau tooltip
+                new bootstrap.Tooltip(this, {
+                    html: true,
+                    boundary: 'window',
+                    trigger: 'hover focus',
+                    delay: { show: 100, hide: 100 }
+                });
+            });
+        }
+
+        const $selectAll = $('#select-all-students');
+        const $printSelectedBtn = $('#print-selected');
+        const $bulkContainer = $('#bulk-actions-container');
+
+        // 1. Gérer la sélection "Tout cocher"
+        $(document).on('change', '#select-all-students', function () {
+            $('.student-checkbox').prop('checked', $(this).prop('checked'));
+            updateBulkButtonState();
+        });
+
+        // 2. Gérer la sélection individuelle
+        $(document).on('change', '.student-checkbox', function () {
+            updateBulkButtonState();
+        });
+
+        // 3. Mettre à jour l'état du bouton d'impression
+        function updateBulkButtonState() {
+            const selectedCount = $('.student-checkbox:checked').length;
+            $('#selected-count').text(selectedCount);
+            $printSelectedBtn.prop('disabled', selectedCount === 0);
+
+            // Afficher le conteneur si le tableau est visible
+            if ($('#students-table').is(':visible')) {
+                $bulkContainer.show();
+            }
+        }
+
+        // 4. Action d'impression de la sélection
+        $printSelectedBtn.on('click', function () {
+            const selectedIds = [];
+            $('.student-checkbox:checked').each(function () {
+                selectedIds.push($(this).val());
+            });
+
+            const classId = $('#class').val();
+            const periodicityId = $('#periodicity').val();
+            const bulletinType = $('#bulletin-type').val();
+            const templateId = $('#template').val();
+            const bulLang = $('#bulLang').val();
+            const notePass = $('#notePass').val();
+
+            // Construction de l'URL avec les IDs sélectionnés
+            const baseUrl = "{{ path('app_bulletin_frame') }}";
+            const params = $.param({
+                studentIds: selectedIds, // Envoi du tableau d'IDs
+                bulletinType: bulletinType,
+                periodicityId: periodicityId,
+                classId: classId,
+                templateId: templateId,
+                bulLang: bulLang,
+                notePass: notePass,
+                printType: 'full' // Optionnel : pour différencier côté serveur
+            });
+
+            window.open(`${baseUrl}?${params}`, '_blank');
+        });
+    });
+</script>
+{% endblock %}

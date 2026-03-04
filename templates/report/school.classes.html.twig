@@ -1,0 +1,56 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Rapport classes{% endblock %}
+
+{% block body %}
+
+<twig:Breadcrumbs label="Rapport classes" />
+
+<div class="card height-auto">
+    <div class="card-body">
+        
+        <div class="row" data-turbo="false">
+            <div class="col-sm-12">
+                <div class="table-responsive mt-5">
+                    <table class="table display data-table text-nowrap">
+                        <thead>
+                            <tr>
+                                <th>StudyLevel</th>
+                                <th>Numéro d’admission</th>
+                                <th>Nom de l’élève</th>
+                                <th>Nom du père</th>
+                                <th>Date de naissance</th>
+                                <th>Sexe</th>
+                                <th>Catégorie</th>
+                                <th>Numéro de téléphone</th>
+                                <th>Numéro d'identification local</th>
+                                <th>Numéro d'identification national</th>
+                                <th>Droit à l’éducation (RTE)</th>
+                              </tr>
+                        </thead>
+                        <tbody>
+                           
+                            {% for item in classes %}
+                            <tr>
+                                <td>{{item.schoolClassPeriod.name}}</td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                                <td></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+        </div>
+        
+    </div>
+</div>
+
+
+{% endblock %}

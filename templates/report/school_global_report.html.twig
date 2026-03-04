@@ -1,0 +1,112 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Rapport Global de l'École{% endblock %}
+
+{% block body %}
+<twig:Breadcrumbs label="Rapport Global de l'École" />
+
+<div class="mb-4">
+    <div class="card ui-tab-card" data-turbo="true">
+        <div class="card-body">
+            <turbo-frame id="filter_repport_global">
+            {{ form_start(form, {'method': 'get','attr': {'class': 'new-added-form'}}) }}
+            <div class="row">
+                <twig:Form:FormGroup formel="{{ form.section }}" />
+                <twig:Form:FormGroup formel="{{ form.level }}" />
+                <twig:Form:FormGroup formel="{{ form.minClassCount }}" />
+                <twig:Form:FormGroup formel="{{ form.maxClassCount }}" />
+                <twig:Form:FormGroup formel="{{ form.subClass }}" />
+                <twig:Form:FormGroup formel="{{ form.teacher }}" />
+                <twig:Form:FormGroup formel="{{ form.minTeacher }}" />
+                <twig:Form:FormGroup formel="{{ form.maxTeacher }}" />
+                <twig:Form:FormGroup formel="{{ form.minCapacity }}" />
+                <twig:Form:FormGroup formel="{{ form.maxCapacity }}" />
+                <twig:Form:FormGroup formel="{{ form.minCurrentEnrollment }}" />
+                <twig:Form:FormGroup formel="{{ form.maxCurrentEnrollment }}" />
+                <twig:Form:FormGroup formel="{{ form.minRepeaters }}" />
+                <twig:Form:FormGroup formel="{{ form.maxRepeaters }}" />
+                <twig:Form:FormGroup formel="{{ form.minBoys }}" />
+                <twig:Form:FormGroup formel="{{ form.maxBoys }}" />
+                <twig:Form:FormGroup formel="{{ form.minGirls }}" />
+                <twig:Form:FormGroup formel="{{ form.maxGirls }}" />
+                <twig:Form:FormGroup formel="{{ form.minParents }}" />
+                <twig:Form:FormGroup formel="{{ form.maxParents }}" />
+                <twig:Form:FormGroup formel="{{ form.minPaid }}" />
+                <twig:Form:FormGroup formel="{{ form.maxPaid }}" />
+                <twig:Form:FormGroup formel="{{ form.minUnpaid }}" />
+                <twig:Form:FormGroup formel="{{ form.maxUnpaid }}" />
+                <twig:Form:FormGroup formel="{{ form.reportType }}" />
+                <div class="col-12 form-group mg-t-8">
+                    {{form_widget(form.submit)}}
+                </div>
+            </div>
+            {{ form_end(form) }}
+            </turbo-frame>
+        </div>
+    </div>
+</div>
+<div class="card height-auto">
+    <div class="card-body">
+    <div class="table-responsive">
+        <table class="table table-bordered text-nowrap">
+            <thead class="table-light">
+                <tr>
+                    <th>StudyLevel</th>
+                    <th>Niveau d’étude</th>
+                    <th>Sous-classes</th>
+                    <th>Capacité</th>
+                    <th>Effectif actuel</th>
+                    <th>NB Redoublant</th>
+                    <th>Garçons</th>
+                    <th>Filles</th>
+                    <th>Parents</th>
+                    <th>Payé</th>
+                    <th>Impayé</th>
+                    <th>Enseignants</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for section, levels in reportData %}
+                {% set sectionRowspan = levels|reduce((carry, subs) => carry + subs|length, 0) %}
+                {% set sectionDisplayed = false %}
+
+                {% for level, classes in levels %}
+                {% set levelRowspan = classes|length %}
+                {% set levelDisplayed = false %}
+
+                {% for class in classes %}
+                <tr>
+                    {% if not sectionDisplayed %}
+                    <td rowspan="{{ sectionRowspan }}">{{ section }}</td>
+                    {% set sectionDisplayed = true %}
+                    {% endif %}
+
+                    {% if not levelDisplayed %}
+                    <td rowspan="{{ levelRowspan }}">{{ level }}</td>
+                    {% set levelDisplayed = true %}
+                    {% endif %}
+
+                    <td>{{ class.subClass }}</td>
+                    <td>{{ class.capacity }}</td>
+                    <td>{{ class.currentEnrollment }}</td>
+                    <td>{{ class.repeaters }}</td>
+                    <td>{{ class.boys }}</td>
+                    <td>{{ class.girls }}</td>
+                    <td>{{ class.parents }}</td>
+                    <td>{{ class.paid }}</td>
+                    <td>{{ class.unpaid }}</td>
+                    <td>{{ class.teachers }}</td>
+                </tr>
+                {% endfor %}
+                {% endfor %}
+                {% else %}
+                <tr>
+                    <td colspan="11" class="text-center">Aucune donnée trouvée.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+</div>
+{% endblock %}

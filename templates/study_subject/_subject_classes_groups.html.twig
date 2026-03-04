@@ -1,0 +1,161 @@
+<div class="card mt-4">
+	<div class="card-header">
+		<strong>Affectation des groupes dans les classes</strong>
+	</div>
+	<div class="card-body p-0">
+		<table class="table table-sm mb-0" id="groupe-table">
+			<thead>
+				<tr>
+					<th>Groupe</th>
+					<th>Ordre</th>
+					<th>Classes</th>
+					<th></th>
+				</tr>
+			</thead>
+			<tbody>
+				{% for groupe in groups %}
+				<tr>
+					<td>
+						<input type="text" name="groupDescription" value="{{ groupe.description }}"
+							class="form-control form-control-sm d-inline w-auto groupDescription"
+							style="display:inline-block" data-row-id="{{ groupe.id }}">
+					</td>
+					<td>
+						<input type="number" name="posOrder" value="{{ groupe.posOrder }}" min="0"
+							class="form-control form-control-sm d-inline w-auto posOrder" style="display:inline-block"
+							data-row-id="{{ groupe.id }}">
+					</td>
+					<td style="min-width:300px">
+						{% set i = 0 %}
+						{% set classList = [] %}
+						{% set classNames = [] %}
+						{% for scs in schoolClassSubjects %}
+						{% if scs.group.id == groupe.id %}
+						{% if scs.schoolClassPeriod.classOccurence.name not in classNames %}
+						{% set classList =
+						classList|merge([{"name":scs.schoolClassPeriod.classOccurence.name,"id":scs.schoolClassPeriod.classOccurence.id}])
+						%}
+						{% set classNames = classNames|merge([scs.schoolClassPeriod.classOccurence.name]) %}
+						{% endif %}
+						{% endif %}
+						{% endfor %}
+						{% set i = 0 %}
+						<div class="row">
+							{% for classe in classList %}
+							<div class="col-2">
+								<div class="input-group"><span class="input-group-text" style="width:70%">{{ classe.name }}</span><button
+										class="btn btn-secondary del-class-from-group-btn" data-class-id="{{classe.id}}"
+										data-group-id="{{groupe.id}}" title="Supprimer la classe de ce groupe"><i
+											class="fa fa-times"></i></button></div>
+							</div>
+
+							{% set i = i + 1 %}
+							{% endfor %}
+					</td>
+					<td>
+						<button type="button" class="btn btn-sm btn-primary data-update-btn"
+							data-row-id="{{ groupe.id }}" title="Modifier"><i class="fas fa-pencil-alt"></i></button>
+						<form class="delete-affectation-form d-inline" method="post"
+							action="{{ path('app_delete_affectation_groupe', {'id': groupe.id}) }}">
+							<input type="hidden" name="_token" value="{{ csrf_token('delete' ~ groupe.id) }}">
+							<button type="submit" class="btn btn-sm btn-danger" title="Supprimer"><i
+									class="fas fa-trash"></i></button>
+						</form>
+					</td>
+				</tr>
+				{% endfor %}
+			</tbody>
+		</table>
+		<form class="update-affectation-form d-inline" method="post"></form>
+	</div>
+</div>
+<script>$('.update-affectation-form').on('submit', function (e) {
+		e.preventDefault();
+		var $form = $(this);
+		$.post($form.attr('action'), $form.serialize(), function (response) { // Optionnel : afficher un message ou rafraîchir la liste
+			location.reload();
+		}).fail(function () {
+			alert('Erreur lors de la modification.');
+		});
+	});
+
+	$('.delete-affectation-form').on('submit', function (e) {
+		e.preventDefault();
+		var $form = $(this);
+		if (confirm('Supprimer ce groupe de matière ?')) {
+			$.ajax({
+				url: $form.attr('action'),
+				type: 'POST',
+				data: $form.serialize(),
+				success: function (response) {
+					$.notify(response.message || 'Groupe supprimé avec succès.', 'success');
+					// on clique sur le bouton liste de groupes
+					$('#show-group-btn').click();
+				},
+				error: function (xhr) {
+					$.notify('Erreur lors de la suppression.' + (xhr.status == 0 ? '\nVérifiez votre connexion internet.' : (xhr.responseJSON && xhr.responseJSON.message ? '\n' + xhr.responseJSON.message : '')));
+				},
+				complete: function () {
+					// Optionnel : actions à effectuer après la requête (succès ou erreur)
+				},
+				fail: function (xhr) {
+					$.notify('Erreur lors de la suppression.' + (xhr.status == 0 ? '\nVérifiez votre connexion internet.' : (xhr.responseJSON && xhr.responseJSON.message ? '\n' + xhr.responseJSON.message : '')));
+				}
+			});
+		}
+	});
+	$('.data-update-btn').on('click', function () {
+		var id = $(this).data('row-id');
+		var value = $('input.posOrder[data-row-id="' + id + '"]').val();
+		var value2 = $('input.groupDescription[data-row-id="' + id + '"]').val();
+		var $form = $('.update-affectation-form');
+		$form.empty();
+		// Ajoute le champ posOrder dans le formulaire
+		$('<input>').attr({
+			type: 'hidden',
+			name: 'posOrder',
+			value: value
+		}).appendTo($form);
+		$('<input>').attr({
+			type: 'hidden',
+			name: 'groupDescription',
+			value: value2
+		}).appendTo($form);
+		$form.attr('action', "{{ path('app_update_affectation_groupe', {'id': 'ROW_ID'}) }}".replace('ROW_ID', id));
+		$form.submit();
+	});
+	//
+</script>
+<script>
+	$(function () {
+		$('.del-class-from-group-btn').on('click', function () {
+			var classId = $(this).data('class-id');
+			var groupId = $(this).data('group-id');
+			var $btn = $(this);
+
+			if (confirm('Retirer cette classe du groupe ?')) {
+				$.ajax({
+					url: '{{ path("app_remove_class_from_group") }}', // Crée cette route côté Symfony
+					method: 'POST',
+					data: {
+						classId: classId,
+						groupId: groupId,
+						_token: '{{ csrf_token("remove_class_from_group") }}'
+					},
+					success: function (response) {
+						// Optionnel : retirer la classe du DOM sans recharger toute la page
+						$btn.closest('.input-group').parent().remove();
+					},
+					error: function (xhr) {
+						$.notify('Erreur lors du retrait de la classe du groupe.' + (xhr.status == 0 ? '\nVerifiez votre connexion internet' : (xhr.responseJSON.message || xhr.responseText)));
+					},
+					fail: function (xhr) {
+						$.notify('Erreur lors du retrait de la classe du groupe.' + (xhr.status == 0 ? '\nVerifiez votre connexion internet' : (xhr.responseJSON.message || xhr.responseText)));
+					}
+				});
+			}
+		});
+		$('#groupe-table').DataTable();
+	})
+
+</script>

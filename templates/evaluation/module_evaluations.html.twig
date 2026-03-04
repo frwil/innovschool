@@ -1,0 +1,78 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Évaluations du module
+{% endblock %}
+
+{% block body %}
+	<div class="container mt-4">
+		<div class="three">
+			<h1>Évaluations du module</h1>
+		</div>
+		<table class="table table-bordered" id="evaluations-table">
+			<thead>
+				<tr>
+					<th>Classe</th>
+					<th>Période</th>
+					<!-- FrameName -->
+					<th>Sous-période</th>
+					<!-- TimeName -->
+				</tr>
+			</thead>
+			<tbody>
+				{% set groupedEvaluations = {} %}
+				{% for evaluation in evaluations %}
+					{% set className = evaluation.student.schoolClassPeriod.classOccurence.name %}
+					{% set frameName = evaluation.time.evaluationFrame.name %}
+					{% set timeName = evaluation.time.name %}
+
+					{% if groupedEvaluations[className] is not defined %}
+						{% set groupedEvaluations = groupedEvaluations|merge({ (className): {} }) %}
+					{% endif %}
+
+					{% if groupedEvaluations[className][frameName] is not defined %}
+						{% set groupedEvaluations = groupedEvaluations|merge({ (className): groupedEvaluations[className]|merge({ (frameName): [] }) }) %}
+					{% endif %}
+
+					{% if timeName not in groupedEvaluations[className][frameName] %}
+						{% set groupedEvaluations = groupedEvaluations|merge({ (className): groupedEvaluations[className]|merge({ (frameName): groupedEvaluations[className][frameName]|merge([timeName]) }) }) %}
+					{% endif %}
+				{% endfor %}
+{% set i = 0 %}
+{% set j = 0 %}		
+				{% for className, frames in groupedEvaluations %}
+					{% set classRowspan = 0 %}
+                    {% set frameRowspan = 0 %}
+                    {% set frameN = '' %}
+                    {% set t = [] %}
+					{% for frameName, times in frames %}
+						{% set classRowspan = classRowspan + times|length %}
+                        {% set frameRowspan = times|length %}
+                        {% set frameN = frameName|default('') %}
+                        {% set t = times %}
+					{% endfor %}
+                    <tr>
+						{% if i == 0 %} <td rowspan="{{ classRowspan }}">{{ className }}</td>{% endif %}
+						
+							{% if j == 0 %}<td rowspan="{{ frameRowspan }}">{{ frameN }}</td>{% endif %}
+								{% if t[j] is defined %}<td>{{ t[j] }}</td>{% else %}{% endif %}
+                    </tr>
+						{% set j = j + 1 %}
+                        {% if j == t|length %}
+                            {% set j = 0 %}
+                            {% set i = i + 1 %}
+                        {% endif %}
+				{% endfor %}
+			</tbody>
+		</table>
+
+		<!-- Bouton pour retourner à la route app_evaluation -->
+		<div class="mt-4">
+			<a href="{{ path('app_evaluation') }}" class="btn btn-secondary">Retour</a>
+		</div>
+	</div>
+    <script>
+        $('#evaluations-table').DataTable({
+            ordering: false
+        });
+    </script>
+{% endblock %}

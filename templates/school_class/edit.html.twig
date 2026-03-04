@@ -1,0 +1,41 @@
+{# filepath: d:\wamp64\www\innovschool\templates\school_class\edit.html.twig #}
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Modifier la classe
+{% endblock %}
+
+{% block body %}
+	<div class="container mt-4">
+		<div class="three">
+			<h1>Modifier la classe</h1>
+		</div>
+		<div class="row">
+			<div class="col-md-4 border rounded p-3">
+				<form method="post" action="{{ path('app_school_class_edit', {'id': class.id}) }}" id="edit-class-form">
+					<input type="hidden" name="_token" value="{{ csrf_token('edit' ~ class.id) }}">
+					<div class="mb-3">
+						<label for="name" class="form-label">Nom</label>
+						<input type="text" id="name" name="name" class="form-control" value="{{ class.classOccurence.name }}" required>
+					</div>
+					<div class="mb-3">
+						<label for="slug" class="form-label">Slug</label>
+						<input type="text" id="slug" name="slug" class="form-control" value="{{ class.classOccurence.slug }}" readonly>
+					</div>
+					<div class="mb-3">
+						<label for="class-master" class="form-label">Professeur principal</label>
+						<select id="class-master" name="classMaster" class="form-select select2">
+							<option value="">Sélectionner un professeur</option>
+							{% for teacher in teachers %}
+								<option value="{{ teacher.id }}" {% if class.classMaster and class.classMaster.id == teacher.id %} selected {% endif %}>
+									{{ teacher.fullName }}
+								</option>
+							{% endfor %}
+						</select>
+					</div>
+					<button type="submit" class="btn btn-primary">Enregistrer</button>
+					<a href="{{ path('app_school_class_show', {'id': section.id}) }}" class="btn btn-secondary">Annuler</a>
+				</form>
+			</div>
+		</div>
+	</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}SchoolEvaluation{% endblock %}
+
+{% block body %}
+
+<twig:Breadcrumbs label="Notes" />
+
+<div class="card height-auto">
+    <div class="card-body">
+        <twig:Form:ClasseFilter form="{{form}}" /> 
+
+        {% if subjects is defined %}
+        <div class="row" data-turbo="true">
+            <div class="col-sm-4">
+                <div class="table-responsive mt-5">
+                    <table class="table display data-table text-nowrap">
+                        <thead>
+                            <tr>
+                                <th>Matières</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                           
+                            {% for item in subjects %}
+                            <tr>
+                                <td>
+                                    <a href="{{path('app_school_evaluation_insert_notes', {
+                                        "sid": item.id,
+                                        "eid": evaluation.id,
+                                        'sclid': school_class.id
+                                    })}}" data-turbo-frame="notes_from">{{ item.name }}</a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="3">Aucun enregistrement</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col-sm-8">
+                <turbo-frame id="notes_from">
+                    
+                </turbo-frame>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+
+{% endblock %}

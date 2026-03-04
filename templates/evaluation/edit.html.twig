@@ -1,0 +1,28 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Modifier une évaluation{% endblock %}
+
+{% block body %}
+<div class="container">
+    <div class="three"><h1>Modifier une évaluation</h1></div>
+    <form method="post" action="{{ path('app_edit_evaluation_config', {'id': config.id}) }}" class="form-horizontal">
+        <div class="form-group row">
+            <label for="evaluationName" class="col-sm-2 control-label">Nom de l'évaluation</label>
+            <div class="col-sm-4">
+                <input type="text" id="evaluationName" name="evaluationName" value="{{ config.name }}" class="form-control" required>
+            </div>
+            <div class="col-sm-4">
+                <button class="btn btn-lg btn-primary" type="submit">Modifier</button>
+            </div>
+        </div>
+    </form>
+    <hr>
+   <div class="form-group">
+   <div class="three"><h1>Liaisons de l'évaluation</h1></div>
+        <label class="control-label" style="display:block">Période : {{ config.evaluationFrame.name }}</label>
+        <label class="control-label" style="display:block">Notes Saisies : {{ config.evaluations|length}}</label>
+    </div>
+
+    <a href="{{ path('app_evaluation') }}" class="btn btn-secondary">Retour</a>
+</div>
+{% endblock %}
