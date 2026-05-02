@@ -1,0 +1,42 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Hello UpdateController!{% endblock %}
+
+{% block body %}
+<div class="breadcrumbs-area">
+    <h3>Mise à jour du logiciel</h3>
+    <ul>
+        <li>
+            <a href="{{path('app_homepage')}}">Tableau de bord</a>
+        </li>
+        <li>Mise à jour</li>
+    </ul>
+</div>
+<div class="row">
+    <div class="col-12">
+        <p id="update-not" class="alert alert-info" style="display: none;">Aucune mise à jour disponbile</p>
+        <button id="update-btn" style="display: none;">Mettre à jour</button>
+    </div>
+</div>
+
+<script>
+fetch('{{path("app_update_check")}}')
+    .then(response => response.json())
+    .then(data => {
+        console.log(data);
+        if (data.update_available) {
+            document.getElementById('update-btn').style.display = 'block';
+            document.getElementById('update-btn').addEventListener('click', () => {
+                fetch('{{path("app_update_update_core")}}', { method: 'POST' })
+                    .then(response => response.json())
+                    .then(result => alert(result.message))
+                    .catch(error => alert('Erreur : ' + error));
+            });
+        }else {
+            document.getElementById('update-not').style.display = 'block';
+        }
+    })
+    .catch(error => console.error('Erreur lors de la vérification des mises à jour', error));
+</script>
+
+{% endblock %}

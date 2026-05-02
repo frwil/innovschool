@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}Welcome!{% endblock %}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon"
+        href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 128 128%22><text y=%221.2em%22 font-size=%2296%22>⚫️</text><text y=%221.3em%22 x=%220.2em%22 font-size=%2276%22 fill=%22%23fff%22>sf</text></svg>">
+    {% block stylesheets %}
+    <link rel="stylesheet" href="{{asset('css/normalize.css')}}">
+    <!-- Main CSS -->
+    <link rel="stylesheet" href="{{asset('css/main.css')}}">
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="{{asset('css/bootstrap.min.css')}}">
+    <!-- Fontawesome CSS -->
+    <link rel="stylesheet" href="{{asset('css/all.min.css')}}">
+    <!-- Flaticon CSS -->
+    <link rel="stylesheet" href="{{asset('fonts/flaticon.css')}}">
+    <!-- Full Calender CSS -->
+    <link rel="stylesheet" href="{{asset('css/fullcalendar.min.css')}}">
+    <!-- Animate CSS -->
+    <link rel="stylesheet" href="{{asset('css/animate.min.css')}}">
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{asset('style.css')}}">
+    <link href="{{ asset('css/bootstrap5.min.css')}}?" rel="stylesheet">
+
+    <!-- Modernize js -->
+    <script src="{{asset('js/modernizr-3.6.0.min.js')}}"></script>
+    {% endblock %}
+
+    {% block javascripts %}
+    <!-- {% block importmap %}{{ importmap('app') }}{% endblock %} -->
+    {% endblock %}
+</head>
+
+<body>
+    {% block body %}{% endblock %}
+
+    <!-- jquery-->
+    <script src="{{asset('js/jquery-3.3.1.min.js')}}"></script>
+    <!-- Plugins js -->
+    <script src="{{asset('js/plugins.js')}}"></script>
+    <!-- Popper js -->
+    <script src="{{asset('js/popper.min.js')}}"></script>
+    <!-- Bootstrap js -->
+    <script src="{{asset('js/bootstrap.min.js')}}"></script>
+    <!-- Counterup Js -->
+    <script src="{{asset('js/jquery.counterup.min.js')}}"></script>
+    <!-- Moment Js -->
+    <script src="{{asset('js/moment.min.js')}}"></script>
+    <!-- Waypoints Js -->
+    <script src="{{asset('js/jquery.waypoints.min.js')}}"></script>
+    <!-- Scroll Up Js -->
+    <script src="{{asset('js/jquery.scrollUp.min.js')}}"></script>
+    <!-- Full Calender Js -->
+    <script src="{{asset('js/fullcalendar.min.js')}}"></script>
+    <!-- Chart Js -->
+    <script src="{{asset('js/Chart.min.js')}}"></script>
+    <!-- Custom Js -->
+    <script src="{{asset('js/main.js')}}"></script>
+</body>
+
+</html>

@@ -1,0 +1,61 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}SchoolEvaluation{% endblock %}
+
+{% block body %}
+
+<twig:Breadcrumbs label="{{school_evaluation.time }} > {{school_evaluation.frame }}" />
+
+<div class="card height-auto">
+    <div class="card-body">
+        <div class="card-header">
+            <a class="btn btn-lg btn-dark" href="{{ path('app_school_evaluation_index') }}">Retour</a>
+            <a class="btn btn-lg btn-primary" href="{{ path('app_school_evaluation_edit', {'id': school_evaluation.id}) }}">Modifier</a>
+            {{ include('school_evaluation/_delete_form.html.twig') }}
+        </div>
+        <div class="table-responsive mt-5">
+            <table class="table display data-table text-nowrap">
+                <thead>
+                    <tr>
+                        <th>Matière</th>
+                        <th>Classe</th>
+                        <th>Fichier de notes</th>
+                        <th>Notes importées</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for data in subjects %}
+                    {% for subject in data.subjects %}
+                    <tr>
+                        <td>{{ subject.name }}</td>
+                        <td>{{ data.sClass.name }}</td>
+                        <td>
+                            <a class="btn btn-info" href="{{path("app_school_evaluation_download_grades_csv",{
+                                'evalid': school_evaluation.id,
+                                'subid': subject.id,
+                                'scoid': data.sClass.id
+                            })}}">Télécharger</a>
+                        </td>
+                        <td></td>
+                    </tr>
+
+                    {% endfor %}
+                    {% else %}
+                    <tr>
+                        <td colspan="6">Aucun enregistrement</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+
+
+   
+
+    
+
+   
+{% endblock %}

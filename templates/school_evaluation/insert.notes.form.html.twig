@@ -1,0 +1,52 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}SchoolEvaluation{% endblock %}
+
+{% block body %}
+
+<twig:Breadcrumbs label="Notes" />
+
+
+
+<div class="card height-auto">
+    <div class="card-body">
+        <turbo-frame id="notes_from">
+        {{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+            <h3>Matière: <strong>{{subject.name}}</strong> </h3>
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                   Elève
+                </div>
+                <div class="col-sm-6">
+                    Note
+                </div>
+            </div>
+            {% for item in form.studentNotes%}
+            
+            <div class="row mb-2">
+                <div class="col-sm-6">
+                    {{ form_row(item.student) }}
+                </div>
+                <div class="col-sm-6">
+                    {{ form_row(item.note) }}
+                </div>
+            </div>
+            {% endfor %}
+
+            {% for label, messages in app.flashes %}
+                {% for message in messages %}
+                    <div class="alert alert-{{ label }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endfor %}
+           
+            <button class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark">{{ button_label|default('Save') }}</button>
+        
+        {{ form_end(form) }}
+        </turbo-frame>
+    </div>
+</div>
+
+
+{% endblock %}

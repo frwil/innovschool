@@ -1,0 +1,48 @@
+{# templates/timetable/per_teacher.html.twig #}
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Emploi du temps par enseignant{% endblock %}
+
+
+{% block body %}
+<div class="container mt-4">
+    <div class="three">
+    <h1>Emploi du temps par enseignant</h1>
+    </div>
+    <form id="teacher-form" method="get" class="row g-3 mb-4">
+        <div class="col-md-6">
+            <label for="teacher" class="form-label">Enseignant</label>
+            <select id="teacher" name="teacher" class="form-select select2" required>
+                <option value="">-- Choisir un enseignant --</option>
+                {% for teacher in teachers %}
+                    <option value="{{ teacher.id }}">{{ teacher.fullName }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-6 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary">Afficher l'emploi du temps</button>
+        </div>
+    </form>
+    <div id="timetable-result"></div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+{{ parent() }}
+<script>
+$(function() {
+    $('#teacher-form').on('submit', function(e) {
+        e.preventDefault();
+        var teacherId = $('#teacher').val();
+        if(teacherId) {
+            $('#timetable-result').html('<div class="text-center my-4"><span class="spinner-border"></span> Chargement...</div>');
+            $.get('{{ path('app_timetable_show_per_teacher', {'id': 'TEACHER_ID'}) }}'.replace('TEACHER_ID', teacherId), function(html) {
+                $('#timetable-result').html(html);
+            });
+        } else {
+            $('#timetable-result').empty();
+        }
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Migration annuelle{% endblock %}
+
+{% block body %}
+<twig:Breadcrumbs label="Migration de nouvelle année scolaire" />
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4 class="card-title mb-0">
+                    <i class="ti ti-arrows-transfer-up me-2"></i>
+                    Configurer la migration
+                </h4>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <i class="ti ti-info-circle me-2"></i>
+                    Ce module vous permet de préparer la nouvelle année scolaire en reconduisant automatiquement
+                    les classes, matières, enseignants, modules et modalités de paiement d'une période à l'autre,
+                    et d'évaluer l'éligibilité des élèves à passer en classe supérieure.
+                </div>
+
+                <form method="POST" action="{{ path('app_year_migration_preview') }}">
+                    <div class="row g-3">
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Période source <span class="text-danger">*</span></label>
+                            <select name="source_period" class="form-select" required>
+                                <option value="">— Sélectionner —</option>
+                                {% for period in periods %}
+                                    <option value="{{ period.id }}">
+                                        {{ period.name }}
+                                        {% if period.enabled %}<span>(active)</span>{% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">L'année scolaire à partir de laquelle migrer.</div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="form-label fw-bold">Période cible <span class="text-danger">*</span></label>
+                            <select name="target_period" class="form-select" required>
+                                <option value="">— Sélectionner —</option>
+                                {% for period in periods %}
+                                    <option value="{{ period.id }}">{{ period.name }}</option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">La nouvelle année scolaire à configurer. Créez-la d'abord si besoin.</div>
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="form-label fw-bold">Note de passage <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <input type="number" name="passing_grade" class="form-control"
+                                       min="0" max="100" step="0.5" value="10" required />
+                                <span class="input-group-text">/20</span>
+                            </div>
+                            <div class="form-text">Moyenne minimale pour être promu en classe supérieure.</div>
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label fw-bold">Éléments à reconduire</label>
+                            <div class="row g-2">
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="opt_subject_groups" value="1" id="opt_sg" checked>
+                                        <label class="form-check-label" for="opt_sg">Groupes de matières</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="opt_classes" value="1" id="opt_cl" checked>
+                                        <label class="form-check-label" for="opt_cl">Classes</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="opt_subjects" value="1" id="opt_sub" checked>
+                                        <label class="form-check-label" for="opt_sub">Matières &amp; enseignants</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="opt_modules" value="1" id="opt_mod" checked>
+                                        <label class="form-check-label" for="opt_mod">Modules d'évaluation</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" name="opt_payment_modals" value="1" id="opt_pay" checked>
+                                        <label class="form-check-label" for="opt_pay">Modalités de paiement</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-12 mt-3">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="ti ti-eye me-1"></i>
+                                Prévisualiser la migration
+                            </button>
+                            <a href="{{ path('app_school_period_index') }}" class="btn btn-light ms-2">
+                                Gérer les périodes
+                            </a>
+                        </div>
+
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

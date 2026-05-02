@@ -1,0 +1,49 @@
+###> symfony/framework-bundle ###
+/.env.local
+/.env.local.php
+/.env.*.local
+/config/secrets/prod/prod.decrypt.private.php
+/public/bundles/
+/var/
+/vendor/
+###< symfony/framework-bundle ###
+
+###> phpunit/phpunit ###
+/phpunit.xml
+.phpunit.result.cache
+###< phpunit/phpunit ###
+
+###> symfony/phpunit-bridge ###
+.phpunit.result.cache
+/phpunit.xml
+###< symfony/phpunit-bridge ###
+
+###> symfony/asset-mapper ###
+/public/assets/
+/assets/vendor/
+###< symfony/asset-mapper ###
+
+.todo.md
+.env
+
+###> custom ###
+/node_modules/
+/utils/
+/public/uploads/
+/.DS_Store
+**/.DS_Store
+/.claude/
+/.ash_history
+# Archives de sauvegarde
+*.7z
+*.zip
+*.tar.gz
+# Gros vendor JS/CSS (à gérer via npm/composer)
+/public/js/jspdf.umd.min.js
+/public/js/jquery.min.js
+/public/js/fullcalendar.min.js
+/public/js/html2canvas.min.js
+/public/js/Chart.min.js
+/assets/js/fullcalendar.min.js
+/assets/js/Chart.min.js
+###< custom ###

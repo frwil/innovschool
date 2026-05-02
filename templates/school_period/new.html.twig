@@ -1,0 +1,11 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}New SchoolPeriod{% endblock %}
+
+{% block body %}
+    <h1>Create new SchoolPeriod</h1>
+
+    {{ include('school_period/_form.html.twig') }}
+
+    <a href="{{ path('app_school_period_index') }}">back to list</a>
+{% endblock %}

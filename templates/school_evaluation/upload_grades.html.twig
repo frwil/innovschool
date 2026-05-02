@@ -1,0 +1,30 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}New SchoolEvaluation{% endblock %}
+
+{% block body %}
+<twig:Breadcrumbs label="Charger les notes" />
+
+<div class="card height-auto">
+    <div class="card-body">
+        <div class="mb-4 mt-3">
+            <a class="btn btn-lg btn-dark" href="{{ path('app_school_evaluation_index') }}">Retour</a>
+        </div>
+        
+        {{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+        <div class="row">
+            <div class="col-12-xxxl col-xl-4 col-sm-6 col-12 form-group">
+                {{ form_label(form.csv_file) }}
+                {{ form_widget(form.csv_file) }}
+            </div>
+            <div class="col-12 form-group mg-t-8">
+                <button type="submit" class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark">{{ button_label|default('Enregistrer') }}</button>
+                <!-- <button type="reset" class="btn-fill-lg bg-blue-dark btn-hover-yellow">Reset</button> -->
+            </div>
+        </div>
+        {{ form_end(form) }}
+
+    </div>
+</div>
+
+{% endblock %}

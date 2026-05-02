@@ -1,0 +1,120 @@
+{# templates/timetable/_teacher_timetable.html.twig #}
+<div class="card mt-4">
+    <div class="card-header text-bg-dark text-white">
+        <h5 class="mb-0 text-white">Emploi du temps de {{ teacher.fullName }}</h5>
+    </div>
+    <div class="card-body">
+        {% if allTimes is empty %}
+            <div class="alert alert-warning">Aucun créneau trouvé pour cet enseignant.</div>
+        {% else %}
+            {% set days = {
+                1: 'Lundi',
+                2: 'Mardi',
+                3: 'Mercredi',
+                4: 'Jeudi',
+                5: 'Vendredi',
+                6: 'Samedi'
+            } %}
+            {# Les variables slotsByTimeAndDay et allTimes sont maintenant passées depuis le contrôleur #}
+            <table class="table table-bordered table-sm align-middle text-center">
+                <thead>
+                    <tr>
+                        <th>Plage horaire</th>
+                        {% for dayNum, dayName in days %}
+                            <th>{{ dayName }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                {% for time in allTimes %}
+                    <tr>
+                        <td><strong>{{ time }}</strong></td>
+                        {% for dayNum, dayName in days %}
+                            <td>
+                                {% set slotsCell = slotsByTimeAndDay[time][dayNum]|default([]) %}
+                                {% if slotsCell|length > 1 %}
+                                    <span class="text-warning" title="Plusieurs matières sur ce créneau"><i class="fas fa-exclamation-triangle"></i></span>
+                                {% endif %}
+                                {% if slotsCell|length == 0 %}
+                                    <span class="text-muted">-</span>
+                                {% else %}
+                                    {% for slot in slotsCell %}
+                                        {% if slot.subject and slot.className %}
+                                            <span class="badge bg-info mb-1">{{ slot.subject }}<br>{{ slot.className }}</span><br>
+                                        {% else %}
+                                            <span class="text-danger small">{{ slot.subject ~ ' / ' ~ slot.className }}</span>
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            </td>
+                        {% endfor %}
+                    </tr>
+                {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr class="text-bg-dark">
+                        <th>Total heures</th>
+                        {% for dayNum, dayName in days %}
+                            {% set totalHeures = 0 %}
+                            {% for time in allTimes %}
+                                {% set slotsCell = slotsByTimeAndDay[time][dayNum]|default([]) %}
+                                {% for slot in slotsCell %}
+                                    {% if slot.startTime and slot.endTime %}
+                                        {% set start = slot.startTime|split(':') %}
+                                        {% set end = slot.endTime|split(':') %}
+                                        {% set startMinutes = (start[0]|default('0')) * 60 + (start[1]|default('0')) %}
+                                        {% set endMinutes = (end[0]|default('0')) * 60 + (end[1]|default('0')) %}
+                                        {% set totalHeures = totalHeures + ((endMinutes - startMinutes) / 60) %}
+                                    {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+                            <th class="text-success">{{ totalHeures|number_format(2, '.', ' ') }}</th>
+                        {% endfor %}
+                    </tr>
+                    <tr class="text-bg-dark">
+                        <th>Chevauchements</th>
+                        {% for dayNum, dayName in days %}
+                            {% set chevauchements = 0 %}
+                            {% for time in allTimes %}
+                                {% set slotsCell = slotsByTimeAndDay[time][dayNum]|default([]) %}
+                                {% if slotsCell|length > 1 %}
+                                    {% set chevauchements = chevauchements + 1 %}
+                                {% endif %}
+                            {% endfor %}
+                            <th class="text-danger">{{ chevauchements }}</th>
+                        {% endfor %}
+                    </tr>
+                </tfoot>
+            </table>
+
+            {# Bloc récapitulatif total #}
+            {% set totalHeuresGlobal = 0 %}
+            {% set totalChevauchements = 0 %}
+            {% for dayNum, dayName in days %}
+                {% set totalHeures = 0 %}
+                {% set chevauchements = 0 %}
+                {% for time in allTimes %}
+                    {% set slotsCell = slotsByTimeAndDay[time][dayNum]|default([]) %}
+                    {% for slot in slotsCell %}
+                        {% if slot.startTime and slot.endTime %}
+                            {% set start = slot.startTime|split(':') %}
+                            {% set end = slot.endTime|split(':') %}
+                            {% set startMinutes = (start[0]|default('0')) * 60 + (start[1]|default('0')) %}
+                            {% set endMinutes = (end[0]|default('0')) * 60 + (end[1]|default('0')) %}
+                            {% set totalHeures = totalHeures + ((endMinutes - startMinutes) / 60) %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if slotsCell|length > 1 %}
+                        {% set chevauchements = chevauchements + 1 %}
+                    {% endif %}
+                {% endfor %}
+                {% set totalHeuresGlobal = totalHeuresGlobal + totalHeures %}
+                {% set totalChevauchements = totalChevauchements + chevauchements %}
+            {% endfor %}
+            <div class="alert alert-secondary mt-3">
+                <strong>Total heures sur la semaine :</strong> <span class="text-success">{{ totalHeuresGlobal|number_format(2, '.', ' ') }}</span><br>
+                <strong>Total chevauchements :</strong> <span class="text-danger">{{ totalChevauchements }}</span>
+            </div>
+        {% endif %}
+    </div>
+</div>

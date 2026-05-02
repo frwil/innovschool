@@ -1,0 +1,80 @@
+<turbo-frame id="userreg-form">
+{{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+<div class="row">
+    {% if form.fullName is defined %}
+    <twig:Form:FormGroup formel="{{ form.fullName }}" />
+    {% endif %}
+    {% if form.address is defined %}
+    <twig:Form:FormGroup formel="{{ form.address }}" />
+    {% endif %}
+    {% if form.phone is defined %}
+    <twig:Form:FormGroup formel="{{ form.phone }}" />
+    {% endif %}
+    {% if form.gender is defined %}
+    <twig:Form:FormGroup formel="{{ form.gender }}" />
+    {% endif %}
+    {% if form.repeated is defined %}
+    <twig:Form:FormGroup formel="{{ form.repeated }}" />
+    {% endif %}
+
+    {% if form.studentClasses is defined %}
+    <twig:Form:FormGroup formel="{{ form.studentClasses }}" />
+    {% endif %}
+    {% if form.dateOfBirth is defined %}
+    <twig:Form:FormGroup formel="{{ form.dateOfBirth }}" />
+    {% endif %}
+    {% if form.religion is defined %}
+    <twig:Form:FormGroup formel="{{ form.religion }}" />
+    {% endif %}
+
+    {% if form.classes is defined %}
+    <twig:Form:FormGroup formel="{{ form.classes }}" />
+    {% endif %}
+
+    {% if form.tutor is defined %}
+    <div class="col-12">
+        <h2>Informations du parent / tuteur</h2>
+        <hr>
+    </div>
+    <div class="col-12-xxxl col-xl-4 col-sm-6 col-12 form-group">
+        {{ form_label(form.tutor.phone) }}
+        {{ form_widget(form.tutor.phone) }}
+        {% if not tutorFinded %}
+        <button class="btn btn-lg btn-dark" onclick="this.form.requestSubmit()" type="button">Chercher</button>
+        {% endif %}
+    </div>
+    {% if form.tutor.fullName  is defined %}
+    <twig:Form:FormGroup formel="{{ form.tutor.fullName }}" />
+    {% endif  %}
+    {% if form.tutor.address  is defined %}
+    <twig:Form:FormGroup formel="{{ form.tutor.address }}" />
+    {% endif  %}
+    {% if form.tutor.gender  is defined %}
+    <twig:Form:FormGroup formel="{{ form.tutor.gender }}" />
+    {% endif  %}
+    {% if form.tutor.dateOfBirth  is defined %}
+    <twig:Form:FormGroup formel="{{ form.tutor.dateOfBirth }}" />
+    {% endif  %}
+    {% if form.tutor.religion  is defined %}
+    <twig:Form:FormGroup formel="{{ form.tutor.religion }}" />
+    {% endif  %}
+    {% if form.tutor.infos  is defined %}
+    <div class="col-12-xxxl col-xl-6 col-sm-6 col-12 form-group">
+        {{ form_label(form.tutor.infos) }}
+        {{ form_widget(form.tutor.infos, {attr: {'style': 'height: 120px'}}) }}
+    </div>
+    {% endif  %}
+    
+
+    {% endif %}
+
+    <div class="col-12 form-group mg-t-8">
+        
+        {{ form_widget(form.submit) }}
+        <!-- <button type="submit" class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark">{{
+            button_label|default('Enregistrer') }}</button> -->
+        <!-- <button type="reset" class="btn-fill-lg bg-blue-dark btn-hover-yellow">Reset</button> -->
+    </div>
+</div>
+{{ form_end(form) }}
+</turbo-frame>

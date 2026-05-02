@@ -1,0 +1,117 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}SchoolClassSubject index{% endblock %}
+
+{% block dataturbo %}true{% endblock %}
+
+{% block body %}
+
+<twig:Breadcrumbs label="Matières classe: {{school_class.name}}" />
+
+<twig:Layout:ListAdd>
+    <twig:block name="table">
+        <table class="table display data-table text-nowrap">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Coefficient</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for school_class_subject in school_class_subjects %}
+                <tr>
+                    <td>
+                        <a href="{{ path('app_school_class_subject_show', {'id': school_class_subject.id}) }}" data-turbo="false">{{
+                            school_class_subject.name }}</a>
+                    </td>
+                    <td>
+                        {{ school_class_subject.coefficient }}
+                    </td>
+                </tr>
+                
+                {% endfor %}
+            </tbody>
+        </table>
+    </twig:block>
+    <twig:block name="form" data-turbo="true">
+        <turbo-frame id="new_class_form">
+            <div class="row">
+                <div class="col-sm-6">
+                    <table class="table">
+                        <tbody>
+                            {% for item in school_class.defaultSectionCategorySubject %}
+                            <tr>
+                                <th> {{ item.name }}</th>
+                                <td> <a href="{{ path('app_school_class_subject_new', {'id': school_class.id, 'section_category_subject_id': item.id}) }}" class="btn btn-primary">Créer une matière</a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if form %}
+                <div class="col-sm-6">
+                    {{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+                    <div class="row">
+                        <div class="col-12 form-group">
+                            {{ form_label(form.name) }}
+                            {{ form_widget(form.name) }}
+                        </div>
+                        <div class="col-12 form-group">
+                            {{ form_label(form.coefficient) }}
+                            {{ form_widget(form.coefficient) }}
+                        </div>
+                        <div class="col-12 form-group">
+                            {{ form_label(form.teacher) }}
+                            {{ form_widget(form.teacher) }}
+                        </div>
+
+                        {% if form.pointKnowHomw is defined %}
+                        <div class="col-12 form-group">
+                            {{ form_label(form.pointKnowHomw) }}
+                            {{ form_widget(form.pointKnowHomw) }}
+                        </div>
+                        {% endif %}
+                        {% if form.pointOral is defined %}
+                        <div class="col-12 form-group">
+                            {{ form_label(form.pointOral) }}
+                            {{ form_widget(form.pointOral) }}
+                        </div>
+                        {% endif %}
+                        {% if form.pointWritten is defined %}
+                        <div class="col-12 form-group">
+                            {{ form_label(form.pointWritten) }}
+                            {{ form_widget(form.pointWritten) }}
+                        </div>
+                        {% endif %}
+                        {% if form.pointPractical is defined %}
+                        <div class="col-12 form-group">
+                            {{ form_label(form.pointPractical) }}
+                            {{ form_widget(form.pointPractical) }}
+                        </div>
+                        {% endif %}
+                        {% if form.targetSkills is defined %}
+                        <div class="col-12 form-group">
+                            {{ form_label(form.targetSkills) }}
+                            {{ form_widget(form.targetSkills) }}
+                        </div>
+                        {% endif %}
+                        <div class="col-12 form-group">
+                            {{ form_label(form.schoolClassSubjectGroup) }}
+                            {{ form_widget(form.schoolClassSubjectGroup) }}
+                        </div>
+                        <div class="col-12 form-group mg-t-8">
+                            <button data-turbo="false" type="submit" class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark">{{ button_label|default('Enregistrer') }}</button>
+                            <!-- <button type="reset" class="btn-fill-lg bg-blue-dark btn-hover-yellow">Reset</button> -->
+                        </div>
+                    </div>
+                    {{ form_end(form) }}
+                </div>
+                {% endif %}
+
+
+            </div>
+        </turbo-frame>
+    </twig:block>
+</twig:Layout:ListAdd>
+
+{% endblock %}

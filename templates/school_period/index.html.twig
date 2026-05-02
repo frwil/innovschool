@@ -1,0 +1,43 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}SchoolPeriod index{% endblock %}
+
+{% block body %}
+<twig:Breadcrumbs label="Gérer les périodes" />
+
+<twig:Layout:ListAdd>
+    <twig:block name="table">
+        <table class="table display data-table text-nowrap">
+            <thead>
+                <tr>
+                    <th>Nom</th>
+                    <th>Actuelle</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for school_period in school_periods %}
+                <tr>
+                    <td>
+                        <a href="{{ path('app_school_period_edit', {'id': school_period.id}) }}">{{ school_period.name }}</a>
+                    </td>
+                    <td>
+                        {% if school_period.enabled %}
+                        <span class="badge badge-success">Oui</span>
+                        {% else %}
+                        <span class="badge badge-danger">Non</span>
+                        <a class="btn btn-info" href="{{path('app_school_period_default', {id: school_period.id})}}">Définir par defaut</a>
+                        {% endif %}
+                    </td>
+                </tr>
+               
+                {% endfor %}
+            </tbody>
+        </table>
+    </twig:block>
+    <twig:block name="form">
+        {{ include('school_period/_form.html.twig') }}
+    </twig:block>
+</twig:Layout:ListAdd>
+
+
+{% endblock %}

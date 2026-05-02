@@ -1,0 +1,96 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Résultat de la migration{% endblock %}
+
+{% block body %}
+<twig:Breadcrumbs label="Résultat de la migration" />
+
+<div class="row">
+    <div class="col-md-10 mx-auto">
+
+        <div class="alert alert-success">
+            <i class="ti ti-circle-check me-2 fs-5"></i>
+            <strong>Migration réussie !</strong>
+            La configuration de <strong>{{ sourcePeriod.name }}</strong> a été reconduite vers
+            <strong>{{ targetPeriod.name }}</strong>.
+        </div>
+
+        {# ── Résumé configuration ── #}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="ti ti-copy me-2"></i>Configuration reconduite</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center g-3">
+                    <div class="col">
+                        <div class="display-6 fw-bold text-primary">{{ configSummary.subject_groups }}</div>
+                        <div class="text-muted">Groupe(s) de matières</div>
+                    </div>
+                    <div class="col">
+                        <div class="display-6 fw-bold text-primary">{{ configSummary.classes }}</div>
+                        <div class="text-muted">Classe(s)</div>
+                    </div>
+                    <div class="col">
+                        <div class="display-6 fw-bold text-primary">{{ configSummary.subjects }}</div>
+                        <div class="text-muted">Matière(s) / Enseignant(s)</div>
+                    </div>
+                    <div class="col">
+                        <div class="display-6 fw-bold text-primary">{{ configSummary.modules }}</div>
+                        <div class="text-muted">Module(s)</div>
+                    </div>
+                    <div class="col">
+                        <div class="display-6 fw-bold text-primary">{{ configSummary.payment_modals }}</div>
+                        <div class="text-muted">Modalité(s) de paiement</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# ── Résumé élèves ── #}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="ti ti-users me-2"></i>Promotion des élèves</h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center g-3">
+                    <div class="col">
+                        <div class="display-6 fw-bold text-success">{{ studentStats.promoted }}</div>
+                        <div class="text-muted">Élève(s) promu(s)</div>
+                        <div class="text-muted small">Moyenne &ge; {{ passingGrade }}/20</div>
+                    </div>
+                    <div class="col">
+                        <div class="display-6 fw-bold text-warning">{{ studentStats.repeated }}</div>
+                        <div class="text-muted">Élève(s) redoublant(s)</div>
+                        <div class="text-muted small">Moyenne &lt; {{ passingGrade }}/20</div>
+                    </div>
+                    <div class="col">
+                        <div class="display-6 fw-bold text-secondary">{{ studentStats.skipped }}</div>
+                        <div class="text-muted">Non affecté(s)</div>
+                        <div class="text-muted small">Classe cible non définie</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {% if studentStats.skipped > 0 %}
+        <div class="alert alert-warning">
+            <i class="ti ti-alert-circle me-2"></i>
+            <strong>{{ studentStats.skipped }} élève(s)</strong> n'ont pas été affectés car aucune classe cible
+            n'était définie pour leur classe source. Vous pouvez les inscrire manuellement.
+        </div>
+        {% endif %}
+
+        <div class="d-flex gap-2">
+            <a href="{{ path('app_year_migration_index') }}" class="btn btn-primary">
+                <i class="ti ti-arrows-transfer-up me-1"></i>
+                Nouvelle migration
+            </a>
+            <a href="{{ path('app_school_period_index') }}" class="btn btn-light">
+                <i class="ti ti-calendar me-1"></i>
+                Gérer les périodes
+            </a>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

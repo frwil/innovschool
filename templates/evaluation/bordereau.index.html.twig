@@ -1,0 +1,567 @@
+<<<<<<< HEAD
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Bordereaux
+{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+	<div class="three">
+		<h1>Bordereaux</h1>
+	</div>
+	<form id="bordereau-form" method="GET" action="{{ path('app_evaluation_bordereau_individuel') }}">
+		<div class="row">
+			<div class="col-md-7 border border-dark rounded p-3">
+				<div class="row">
+					<!-- Colonne gauche -->
+					<div class="col-md-6">
+						<!-- Champ pour les niveaux d'étude -->
+						<div class="mb-3">
+							<label for="sectionId" class="form-label">Niveau d'étude</label>
+							<select id="sectionId" name="sectionId" class="form-select select2" required>
+								<option value="">Sélectionnez un niveau</option>
+								{% for section in sections %}
+								<option value="{{ section.id }}">{{ section.name }}</option>
+								{% endfor %}
+							</select>
+						</div>
+
+						<!-- Champ pour les classes -->
+						<div class="mb-3">
+							<label for="classId" class="form-label">Classe</label>
+							<select id="classId" name="classId" class="form-select select2" required>
+								<option value="">Sélectionnez une classe</option>
+								<!-- Options dynamiques chargées via JavaScript -->
+							</select>
+						</div>
+					</div>
+
+					<!-- Colonne droite -->
+					<div class="col-md-6">
+						<!-- Champ pour la période d'évaluation -->
+						<div class="mb-3">
+							<label for="evaluationFrameId" class="form-label">Période d'évaluation</label>
+							<select id="evaluationFrameId" name="evaluationFrameId" class="form-select select2"
+								required>
+								<option value="">Sélectionnez une période</option>
+								{% for frame in evaluationFrames %}
+								<option value="{{ frame.id }}">{{ frame.name }}</option>
+								{% endfor %}
+								<option value="all">Annuel</option>
+							</select>
+						</div>
+
+						<!-- Champ pour la périodicité -->
+						<div class="mb-3">
+							<label for="evaluationTimeTypeId" class="form-label">Périodicité</label>
+							<select id="evaluationTimeTypeId" name="evaluationTimeTypeId" class="form-select select2"
+								required>
+								<option value="">Sélectionnez une périodicité</option>
+								{% for type in evaluationTimeTypes %}
+								<option value="{{ type.id }}">{{ type.name }}</option>
+								{% endfor %}
+							</select>
+						</div>
+
+						<!-- Champ pour la sous-période d'évaluation -->
+						<div class="mb-3">
+							<label for="evaluationTimeId" class="form-label">Sous-périodes d'évaluation</label>
+							<select id="evaluationTimeId" name="evaluationTimeId[]" class="form-select select2" multiple
+								required>
+								<option value="">Sélectionnez une ou plusieurs sous-périodes</option>
+								<!-- Options dynamiques chargées via JavaScript -->
+							</select>
+						</div>
+
+						<!-- Champ pour les matières -->
+						<div class="mb-3">
+							<label for="subjectId" class="form-label">Matière</label>
+							<select id="subjectId" name="subjectId" class="form-select select2" required>
+								<option value="">Sélectionnez une matière</option>
+								<!-- Options dynamiques chargées via JavaScript -->
+							</select>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div class="col-md-5">
+				<!-- Boutons d'action -->
+				<div class="mt-4">
+					<button type="submit" class="btn btn-primary btn-block" id="bordereauIndividuelBtn">Bordereau individuel</button>
+					<div class="row mt-3 mb-3">
+						<div class="col-md-6">
+							<button type="button" class="btn btn-secondary me-4 btn-block"
+								id="printGeneralBordereau">Bordereau général</button>
+						</div>
+						<div class="col-md-6">
+							<div class="form-check d-inline-block ms-3">
+								<input class="form-check-input" type="checkbox" id="includeNotes" name="includeNotes">
+								<label class="form-check-label" for="includeNotes">Inclure les notes</label>
+							</div>
+						</div>
+
+					</div>
+					<button type="button" class="btn btn-primary btn-block" id="pv-btn">Procès verbal</button>
+				</div>
+			</div>
+		</div>
+	</form>
+</div>
+<hr>
+
+<script>
+	$(document).ready(function () {
+		$('#sectionId').on('change', function () {
+			const sectionId = $(this).val();
+			const classSelect = $('#classId');
+
+			// Effacer les options actuelles
+			classSelect.empty();
+			classSelect.append(new Option('Sélectionnez une classe', ''));
+
+			if (sectionId) {
+				$.ajax({
+					url: '{{ path("app_classes_by_section") }}',
+					method: 'GET',
+					data: {
+						sectionId: sectionId
+					},
+					success: function (data) {
+						data.forEach(function (classItem) {
+							classSelect.append(new Option(classItem.name, classItem.id));
+						});
+					},
+					error: function () {
+						alert('Une erreur est survenue lors du chargement des classes.');
+					}
+				});
+			}
+		});
+
+		$('#classId').on('change', function () {
+			const classId = $(this).val();
+			const subjectSelect = $('#subjectId');
+
+			// Effacer les options actuelles
+			subjectSelect.empty();
+			subjectSelect.append(new Option('Sélectionnez une matière', ''));
+
+			if (classId) {
+				$.ajax({
+					url: '{{ path("app_subjects_by_class") }}',
+					method: 'GET',
+					data: {
+						classId: classId
+					},
+					success: function (data) {
+						data.forEach(function (subjectItem) {
+							subjectSelect.append(new Option(subjectItem.name, subjectItem.id));
+						});
+					},
+					error: function () {
+						alert('Une erreur est survenue lors du chargement des matières.');
+					}
+				});
+			}
+		});
+
+		// Gestion du changement de la période d'évaluation
+		$('#evaluationFrameId').on('change', function () {
+			const frameId = $(this).val();
+			const timeTypeSelect = $('#evaluationTimeTypeId');
+			const timeSelect = $('#evaluationTimeId');
+			
+			if (frameId === 'all') {
+				// Mode Annuel : désactiver périodicité et sous-périodes
+				timeTypeSelect.val('').prop('disabled', true);
+				timeSelect.empty().prop('disabled', true);
+				timeSelect.append(new Option('Toutes les sous-périodes (Annuel)', ''));
+			} else {
+				// Mode normal : réactiver
+				timeTypeSelect.prop('disabled', false);
+				timeSelect.prop('disabled', false);
+				timeSelect.empty();
+				timeSelect.append(new Option('Sélectionnez une ou plusieurs sous-périodes', ''));
+				
+				// Recharger si le type est déjà sélectionné
+				if (timeTypeSelect.val()) {
+					loadTimes(frameId, timeTypeSelect.val());
+				}
+			}
+		});
+
+		// Chargement des sous-périodes
+		$('#evaluationTimeTypeId').on('change', function () {
+			const frameId = $('#evaluationFrameId').val();
+			const typeId = $(this).val();
+			
+			if (frameId && frameId !== 'all' && typeId) {
+				loadTimes(frameId, typeId);
+			}
+		});
+
+		function loadTimes(frameId, typeId) {
+			const timeSelect = $('#evaluationTimeId');
+			timeSelect.empty();
+			timeSelect.append(new Option('Chargement...', ''));
+			timeSelect.prop('disabled', true);
+			
+			$.ajax({
+				url: '{{ path("app_times_by_frame_and_type") }}',
+				method: 'GET',
+				data: { frameId: frameId, typeId: typeId },
+				success: function (data) {
+					timeSelect.empty();
+					timeSelect.append(new Option('Sélectionnez une ou plusieurs sous-périodes', ''));
+					data.forEach(function (timeItem) {
+						timeSelect.append(new Option(timeItem.name, timeItem.id));
+					});
+					timeSelect.prop('disabled', false);
+				},
+				error: function () {
+					alert('Une erreur est survenue lors du chargement des sous-périodes.');
+					timeSelect.empty();
+					timeSelect.append(new Option('Sélectionnez une ou plusieurs sous-périodes', ''));
+					timeSelect.prop('disabled', false);
+				}
+			});
+		}
+
+		// Validation du formulaire pour le bordereau individuel
+		$('#bordereau-form').on('submit', function (e) {
+			const sectionId = $('#sectionId').val();
+			const classId = $('#classId').val();
+			const evaluationFrameId = $('#evaluationFrameId').val();
+			const subjectId = $('#subjectId').val();
+			const isAnnual = (evaluationFrameId === 'all');
+
+			if (!sectionId || !classId || !evaluationFrameId || !subjectId) {
+				e.preventDefault();
+				alert('Veuillez remplir tous les champs obligatoires.');
+				return;
+			}
+
+			if (!isAnnual) {
+				const evaluationTimeId = $('#evaluationTimeId').val();
+				if (!evaluationTimeId || evaluationTimeId.length === 0) {
+					e.preventDefault();
+					alert('Veuillez sélectionner au moins une sous-période.');
+					return;
+				}
+			}
+		});
+
+		// Gestion du bouton "Bordereau général"
+		$('#printGeneralBordereau').on('click', function () {
+			const sectionId = $('#sectionId').val();
+			const classId = $('#classId').val();
+			const evaluationFrameId = $('#evaluationFrameId').val();
+			const evaluationTimeTypeId = $('#evaluationTimeTypeId').val();
+			const evaluationTimeIds = $('#evaluationTimeId').val();
+			const includeNotes = $('#includeNotes').is(':checked');
+			const isAnnual = (evaluationFrameId === 'all');
+
+			if (!sectionId || !classId || !evaluationFrameId) {
+				alert('Veuillez remplir tous les champs obligatoires.');
+				return;
+			}
+
+			if (!isAnnual && (!evaluationTimeTypeId || !evaluationTimeIds || evaluationTimeIds.length === 0)) {
+				alert('Veuillez sélectionner une périodicité et au moins une sous-période.');
+				return;
+			}
+
+			const baseUrl = '{{ path("app_evaluation_bordereau_general") }}';
+			const params = new URLSearchParams({
+				sectionId: sectionId,
+				classId: classId,
+				evaluationFrameId: evaluationFrameId,
+				includeNotes: includeNotes,
+				docType: isAnnual ? 'pv' : (evaluationTimeIds && evaluationTimeIds.length == 1 ? 'bordereau_general' : 'pv'),
+			});
+
+			if (!isAnnual) {
+				params.append('evaluationTimeTypeId', evaluationTimeTypeId);
+				let ev = '';
+				evaluationTimeIds.forEach(id => { ev += id + ','; });
+				params.append('evaluationTimeId', ev);
+			}
+
+			const url = `${baseUrl}?${params.toString()}`;
+			window.open(url, '_blank');
+		});
+
+		// Gestion du bouton "Procès verbal"
+		$('#pv-btn').on('click', function () {
+			const sectionId = $('#sectionId').val();
+			const classId = $('#classId').val();
+			const evaluationFrameId = $('#evaluationFrameId').val();
+			const evaluationTimeTypeId = $('#evaluationTimeTypeId').val();
+			const evaluationTimeIds = $('#evaluationTimeId').val();
+			const isAnnual = (evaluationFrameId === 'all');
+
+			if (!sectionId || !classId || !evaluationFrameId) {
+				alert('Veuillez remplir tous les champs obligatoires.');
+				return;
+			}
+
+			if (!isAnnual && (!evaluationTimeTypeId || !evaluationTimeIds || evaluationTimeIds.length === 0)) {
+				alert('Veuillez sélectionner une périodicité et au moins une sous-période.');
+				return;
+			}
+
+			const baseUrl = '{{ path("app_evaluation_bordereau_general") }}';
+			const params = new URLSearchParams({
+				sectionId: sectionId,
+				classId: classId,
+				evaluationFrameId: evaluationFrameId,
+				includeNotes: true,
+				docType: 'pv'
+			});
+
+			if (!isAnnual) {
+				params.append('evaluationTimeTypeId', evaluationTimeTypeId);
+				let ev = '';
+				evaluationTimeIds.forEach(id => { ev += id + ','; });
+				params.append('evaluationTimeId', ev);
+			}
+
+			const url = `${baseUrl}?${params.toString()}`;
+			window.open(url, '_blank');
+		});
+	});
+</script>
+{% endblock %}
+=======
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Bordereaux
+{% endblock %}
+
+{% block body %}
+	<div class="container mt-4">
+		<div class="three">
+			<h1>Bordereaux</h1>
+		</div>
+		<form id="bordereau-form" method="GET" action="{{ path('app_evaluation_bordereau_individuel') }}">
+			<div class="row">
+				<div class="col-md-7 border border-dark rounded p-3">
+					<div
+						class="row">
+						<!-- Colonne gauche -->
+						<div
+							class="col-md-6">
+							<!-- Champ pour les niveaux d'étude -->
+							<div class="mb-3">
+								<label for="sectionId" class="form-label">Niveau d'étude</label>
+								<select id="sectionId" name="sectionId" class="form-select select2" required>
+									<option value="">Sélectionnez un niveau</option>
+									{% for section in sections %}
+										<option value="{{ section.id }}">{{ section.name }}</option>
+									{% endfor %}
+								</select>
+							</div>
+
+							<!-- Champ pour les classes -->
+							<div class="mb-3">
+								<label for="classId" class="form-label">Classe</label>
+								<select id="classId" name="classId" class="form-select select2" required>
+									<option value="">Sélectionnez une classe</option>
+									<!-- Options dynamiques chargées via JavaScript -->
+								</select>
+							</div>
+						</div>
+
+						<!-- Colonne droite -->
+						<div
+							class="col-md-6">
+							<!-- Champ pour la période d'évaluation -->
+							<div class="mb-3">
+								<label for="evaluationFrameId" class="form-label">Période d'évaluation</label>
+								<select id="evaluationFrameId" name="evaluationFrameId" class="form-select select2" required>
+									<option value="">Sélectionnez une période</option>
+									{% for frame in evaluationFrames %}
+										<option value="{{ frame.id }}">{{ frame.name }}</option>
+									{% endfor %}
+								</select>
+							</div>
+
+							<!-- Champ pour la périodicité -->
+							<div class="mb-3">
+								<label for="evaluationTimeTypeId" class="form-label">Périodicité</label>
+								<select id="evaluationTimeTypeId" name="evaluationTimeTypeId" class="form-select select2" required>
+									<option value="">Sélectionnez une périodicité</option>
+									{% for type in evaluationTimeTypes %}
+										<option value="{{ type.id }}">{{ type.name }}</option>
+									{% endfor %}
+								</select>
+							</div>
+
+							<!-- Champ pour la sous-période d'évaluation -->
+							<div class="mb-3">
+								<label for="evaluationTimeId" class="form-label">Sous-période d'évaluation</label>
+								<select id="evaluationTimeId" name="evaluationTimeId" class="form-select select2" required>
+									<option value="">Sélectionnez une sous-période</option>
+									<!-- Options dynamiques chargées via JavaScript -->
+								</select>
+							</div>
+
+							<!-- Champ pour les matières -->
+							<div class="mb-3">
+								<label for="subjectId" class="form-label">Matière</label>
+								<select id="subjectId" name="subjectId" class="form-select select2" required>
+									<option value="">Sélectionnez une matière</option>
+									<!-- Options dynamiques chargées via JavaScript -->
+								</select>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div
+					class="col-md-5">
+					<!-- Boutons d'action -->
+					<div class="mt-4">
+						<button type="submit" class="btn btn-primary btn-block">Bordereau individuel</button>
+						<div class="row mt-3">
+							<div class="col-md-6">
+								<button type="button" class="btn btn-secondary me-4 btn-block" id="printGeneralBordereau">Bordereau général</button>
+							</div>
+							<div class="col-md-6">
+								<div class="form-check d-inline-block ms-3">
+									<input class="form-check-input" type="checkbox" id="includeNotes" name="includeNotes">
+									<label class="form-check-label" for="includeNotes">Inclure les notes</label>
+								</div>
+							</div>
+
+						</div>
+					</div>
+				</div>
+			</div>
+		</form>
+	</div>
+	<hr>
+
+	<script>
+		$(document).ready(function () {
+$('#sectionId').on('change', function () {
+const sectionId = $(this).val();
+const classSelect = $('#classId');
+
+// Effacer les options actuelles
+classSelect.empty();
+classSelect.append(new Option('Sélectionnez une classe', ''));
+
+if (sectionId) { // Charger les classes via AJAX
+$.ajax({
+url: '{{ path("app_classes_by_section") }}',
+method: 'GET',
+data: {
+sectionId: sectionId
+},
+success: function (data) {
+data.forEach(function (classItem) {
+classSelect.append(new Option(classItem.name, classItem.id));
+});
+},
+error: function () {
+alert('Une erreur est survenue lors du chargement des classes.');
+}
+});
+}
+});
+
+$('#classId').on('change', function () {
+const classId = $(this).val();
+const subjectSelect = $('#subjectId');
+
+// Effacer les options actuelles
+subjectSelect.empty();
+subjectSelect.append(new Option('Sélectionnez une matière', ''));
+
+if (classId) { // Charger les matières via AJAX
+$.ajax({
+url: '{{ path("app_subjects_by_class") }}', // Remplacez par votre route
+method: 'GET',
+data: {
+classId: classId
+},
+success: function (data) {
+data.forEach(function (subjectItem) {
+subjectSelect.append(new Option(subjectItem.name, subjectItem.id));
+});
+},
+error: function () {
+alert('Une erreur est survenue lors du chargement des matières.');
+}
+});
+}
+});
+
+$('#evaluationFrameId, #evaluationTimeTypeId').on('change', function () {
+const frameId = $('#evaluationFrameId').val();
+const typeId = $('#evaluationTimeTypeId').val();
+const timeSelect = $('#evaluationTimeId');
+
+// Effacer les options actuelles
+timeSelect.empty();
+timeSelect.append(new Option('Sélectionnez une sous-période', ''));
+
+if (frameId && typeId) { // Charger les sous-périodes via AJAX
+$.ajax({
+url: '{{ path("app_times_by_frame_and_type") }}',
+method: 'GET',
+data: {
+frameId: frameId,
+typeId: typeId
+},
+success: function (data) {
+data.forEach(function (timeItem) {
+timeSelect.append(new Option(timeItem.name, timeItem.id));
+});
+},
+error: function () {
+alert('Une erreur est survenue lors du chargement des sous-périodes.');
+}
+});
+}
+});
+
+// Validation du formulaire
+document.getElementById('bordereau-form').addEventListener('submit', function (e) {
+const sectionId = document.getElementById('sectionId').value;
+const classId = document.getElementById('classId').value;
+const evaluationFrameId = document.getElementById('evaluationFrameId').value;
+const evaluationTimeId = document.getElementById('evaluationTimeId').value;
+const subjectId = document.getElementById('subjectId').value;
+
+// Vérifier si tous les champs sont remplis
+if (! sectionId || ! classId || ! evaluationFrameId || ! evaluationTimeId || ! subjectId) {
+e.preventDefault(); // Empêche la soumission du formulaire
+alert('Veuillez remplir tous les champs avant de soumettre le formulaire.');
+}
+});
+
+// Gestion du bouton "Imprimer le bordereau général"
+$('#printGeneralBordereau').on('click', function () {
+const sectionId = $('#sectionId').val();
+const classId = $('#classId').val();
+const evaluationFrameId = $('#evaluationFrameId').val();
+const evaluationTimeId = $('#evaluationTimeId').val();
+const includeNotes = $('#includeNotes').is(':checked');
+
+// Vérifier si les champs obligatoires sont remplis
+if (! sectionId || ! classId || ! evaluationFrameId || ! evaluationTimeId) {
+alert('Veuillez remplir tous les champs avant d\'imprimer le bordereau général.');
+return;
+}
+
+// Rediriger vers une route pour générer le bordereau général
+const url = `{{ path('app_evaluation_bordereau_general') }}?sectionId=${sectionId}&classId=${classId}&evaluationFrameId=${evaluationFrameId}&evaluationTimeId=${evaluationTimeId}&includeNotes=${includeNotes}`;
+window.open(url, '_blank');
+});
+});
+	</script>
+{% endblock %}
+>>>>>>> claude/naughty-rubin-200ad9

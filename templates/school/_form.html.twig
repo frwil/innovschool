@@ -1,0 +1,29 @@
+{{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+<div class="row">
+    <twig:Form:FormGroup formel="{{ form.name }}" />
+    <twig:Form:FormGroup formel="{{ form.address }}" />
+    <twig:Form:FormGroup formel="{{ form.contactName }}" />
+    <twig:Form:FormGroup formel="{{ form.contactPhone }}" />
+    <twig:Form:FormGroup formel="{{ form.trialStartAt }}" />
+    <twig:Form:FormGroup formel="{{ form.trialDuration }}" />
+    <twig:Form:FormGroup formel="{{ form.fee.amount }}" />
+    <twig:Form:FormGroup formel="{{ form.acronym }}" />
+    <twig:Form:FormGroup formel="{{ form.schoolNumber }}" />
+    <twig:Form:FormGroup formel="{{ form.section }}" />
+
+    <div class="col-12">
+        <h3>Administrateur</h3> <hr>
+    </div>
+
+    <twig:Form:FormGroup formel="{{ form.admin.fullName }}" />
+    <twig:Form:FormGroup formel="{{ form.admin.address }}" />
+    <twig:Form:FormGroup formel="{{ form.admin.phone }}" />
+    <twig:Form:FormGroup formel="{{ form.admin.gender }}" />
+    
+    
+    <div class="col-12 form-group mg-t-8">
+        <button type="submit" class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark">{{ button_label|default('Enregistrer') }}</button>
+        <!-- <button type="reset" class="btn-fill-lg bg-blue-dark btn-hover-yellow">Reset</button> -->
+    </div>
+</div>
+{{ form_end(form) }}

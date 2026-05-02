@@ -1,0 +1,54 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}StudentAttendance index{% endblock %}
+
+{% block body %}
+
+
+<twig:Breadcrumbs label="Présences" />
+
+<div class="card height-auto">
+    <div class="card-body">
+        <twig:Form:ClasseFilter form="{{form}}" />
+
+        {% if classes is defined %}
+        <div class="row" data-turbo="true">
+            <div class="col-sm-4">
+                <div class="table-responsive mt-5">
+                    <table class="table display data-table text-nowrap">
+                        <thead>
+                            <tr>
+                                <th>Matières</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                           
+                            {% for item in classes %}
+                            <tr>
+                                <td>
+                                    <a href="{{path("app_student_attendance_insert_abscences", {
+                                        "scid": item.id,
+                                        "evaluationId": evaluation.id,
+                                    })}}" data-turbo-frame="att_from">{{ item.name }}</a>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="1">Aucun enregistrement</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="col-sm-8">
+                <turbo-frame id="att_from">
+                    
+                </turbo-frame>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% endblock %}

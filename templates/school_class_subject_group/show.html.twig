@@ -1,0 +1,26 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}SchoolClassSubjectGroup{% endblock %}
+
+{% block body %}
+    <h1>SchoolClassSubjectGroup</h1>
+
+    <table class="table">
+        <tbody>
+            <tr>
+                <th>Id</th>
+                <td>{{ school_class_subject_group.id }}</td>
+            </tr>
+            <tr>
+                <th>Name</th>
+                <td>{{ school_class_subject_group.name }}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <a href="{{ path('app_school_class_subject_group_index') }}">back to list</a>
+
+    <a href="{{ path('app_school_class_subject_group_edit', {'id': school_class_subject_group.id}) }}">edit</a>
+
+    {{ include('school_class_subject_group/_delete_form.html.twig') }}
+{% endblock %}

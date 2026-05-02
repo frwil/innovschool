@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-size: 12px;
+            color: #343232;
+        }
+
+        @page {
+            size: A4 landscape;
+            /* Mode paysage */
+            margin: 10mm;
+            /* Ajuste les marges selon tes besoins */
+        }
+
+        .invoice-table {
+            width: 297mm;
+            /* Largeur de la page en mode paysage */
+            margin: 0 auto;
+            border-collapse: collapse;
+            box-sizing: border-box;
+            table-layout: fixed;
+            /* Fixe la largeur des colonnes */
+        }
+
+        .invoice-table td {
+            padding: 10px;
+            border: 1px solid #343232;
+            vertical-align: top;
+            word-wrap: normal;
+            /* Permet de forcer le retour à la ligne si le texte est trop long */
+        }
+
+        .listTable td {
+            padding: 7px;
+        }
+
+        .head-table td {
+            padding: 2px;
+        }
+
+        .col-1 {
+            width: 4.16%;
+            /* 1/24 */
+        }
+
+        .col-2 {
+            width: 8.33%;
+            /* 2/24 */
+        }
+
+        .col-3 {
+            width: 12.5%;
+            /* 3/24 */
+        }
+
+        .col-4 {
+            width: 16.66%;
+            /* 4/24 */
+        }
+
+        .col-5 {
+            width: 20.83%;
+            /* 5/24 */
+        }
+
+        .col-6 {
+            width: 25%;
+            /* 6/24 */
+        }
+
+        .col-7 {
+            width: 29.16%;
+            /* 7/24 */
+        }
+
+        .col-8 {
+            width: 33.33%;
+            /* 8/24 */
+        }
+
+        .col-9 {
+            width: 37.5%;
+            /* 9/24 */
+        }
+
+        .col-10 {
+            width: 41.66%;
+            /* 10/24 */
+        }
+
+        .col-11 {
+            width: 45.83%;
+            /* 11/24 */
+        }
+
+        .col-12 {
+            width: 50%;
+            /* 12/24 */
+        }
+
+        .col-13 {
+            width: 54.16%;
+            /* 13/24 */
+        }
+
+        .col-14 {
+            width: 58.33%;
+            /* 14/24 */
+        }
+
+        .col-15 {
+            width: 62.5%;
+            /* 15/24 */
+        }
+
+        .col-16 {
+            width: 66.66%;
+            /* 16/24 */
+        }
+
+        .col-17 {
+            width: 70.83%;
+            /* 17/24 */
+        }
+
+        .col-18 {
+            width: 75%;
+            /* 18/24 */
+        }
+
+        .col-19 {
+            width: 79.16%;
+            /* 19/24 */
+        }
+
+        .col-20 {
+            width: 83.33%;
+            /* 20/24 */
+        }
+
+        .col-21 {
+            width: 87.5%;
+            /* 21/24 */
+        }
+
+        .col-22 {
+            width: 91.66%;
+            /* 22/24 */
+        }
+
+        .col-23 {
+            width: 95.83%;
+            /* 23/24 */
+        }
+
+        .col-24 {
+            width: 100%;
+            /* 24/24 */
+        }
+
+        .header,
+        .footer,
+        .invoice-details,
+        .totals,
+        .signature {
+            padding: 0;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .header p,
+        .footer p {
+            margin: 0;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .invoice-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .invoice-details th,
+        .invoice-details td {
+            padding: 10px;
+            border: 1px solid #000;
+            text-align: left;
+        }
+
+        .invoice-details th {
+            background-color: #f2f2f2;
+        }
+
+        .totals {
+            text-align: right;
+        }
+
+        .totals table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .totals th,
+        .totals td {
+            padding: 10px;
+            border: 1px solid #000;
+        }
+
+        .totals th {
+            background-color: #f2f2f2;
+        }
+
+        .signature {
+            text-align: right;
+            font-size: 14px;
+        }
+
+        .objectRaw p {
+            margin-top: 0px;
+            margin-bottom: auto;
+        }
+
+        .pv-header td {
+            border: none;
+            text-align: right;
+            line-height: 1px;
+            padding: 8px;
+        }
+    </style>
+</head>
+
+<body>
+    <table class="invoice-table">
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px; text-align: center;">
+                EN TETE
+            </td>
+        </tr>
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px; text-align: center;">
+                PROCES VERBAL DU CONSEIL DE CLASSE
+            </td>
+        </tr>
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px; text-align: center;">
+
+            </td>
+        </tr>
+        <tr class="pv-header">
+            <td colspan="6" class="col-6">
+                <table>
+                    <tr>
+                        <th>Moyenne générale</th>
+                        <td>{{ general_average_average['general'] ?? '' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Ecart type</th>
+                        <td>{{ general_deviation['general'] ?? '' }}</td>
+                    </tr>
+                    <tr>
+                        <th>Moyenne du premier</th>
+                        <td>{{ average_of_the_first }}</td>
+                    </tr>
+                    <tr>
+                        <th>Moyenne du dernier</th>
+                        <td>{{ average_of_the_last }}</td>
+                    </tr>
+                </table>
+            </td>
+            <td colspan="6" class="col-6">
+                <table>
+                    <tr>
+                        <th>Effectif</th>
+                        <td> {{infos.headcount}} </td>
+                    </tr>
+                    <tr>
+                        <th>Filles classées</th>
+                        <td>{{infos.fermales}}/{{infos.headcount}}</td>
+                    </tr>
+                    <tr>
+                        <th>Garçons classées</th>
+                        <td>{{infos.males}}/{{infos.headcount}}</td>
+                    </tr>
+                    <tr>
+                        <th>Redoublant classé</th>
+                        <td>{{infos.repeated}}/{{infos.headcount}}</td>
+                    </tr>
+                </table>
+            </td>
+            <td colspan="6" class="col-6">
+                <table>
+                    <tr>
+                        <th>Nombre d'admis</th>
+                        <td> {{count_admited.admitted}} </td>
+                    </tr>
+                    <tr>
+                        <th>Filles admises</th>
+                        <td> {{count_admited_gender.admitted.female}} </td>
+                    </tr>
+                    <tr>
+                        <th>Garçons admis</th>
+                        <td> {{count_admited_gender.admitted.male}} </td>
+                    </tr>
+                    <tr>
+                        <th>Redoublant admis</th>
+                        <td> {{count_admited_gender.repeatedAdmitted}} </td>
+                    </tr>
+                </table>
+            </td>
+            <td colspan="6" class="col-6">
+                <table>
+                    <tr>
+                        <th>Taux de réussite</th>
+                        <td> {{count_admited_gender_rate.totalRate}}% </td>
+                    </tr>
+                    <tr>
+                        <th>Taux de réussite - Filles</th>
+                        <td> {{count_admited_gender_rate.fermaleRate}}% </td>
+                    </tr>
+                    <tr>
+                        <th>Taux de réussite - Garçons</th>
+                        <td> {{count_admited_gender_rate.malRate}}% </td>
+                    </tr>
+                    <tr>
+                        <th>Taux de réussite - Redoublants</th>
+                        <td> {{count_admited_gender_rate.repeatedAdmitted}}% </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px; text-align: center;">
+
+            </td>
+        </tr>
+        <tr>
+            <td colspan="3" class="col-3"></td>
+            <td colspan="1" class="col-1" style=" writing-mode: sideways-lr; ">Abscences</td>
+            {% for subject in model.subjects %}
+            <td colspan="1" class="col-1" style=" writing-mode: sideways-lr; ">{{ subject }}</td>
+            {% endfor %}
+            {% for group in model.subjectGroups %}
+            <td colspan="1" class="col-1" style=" writing-mode: sideways-lr; ">{{ group.name }}</td>
+            {% endfor %}
+            <td colspan="1" class="col-1" style=" writing-mode: sideways-lr; ">Moyenne géénrale</td>
+            <td colspan="1" class="col-1" style=" writing-mode: sideways-lr; ">Rng de l'élève</td>
+        </tr>
+        <tr>
+            <td colspan="3" class="col-3">
+                Coéfficient
+            </td>
+            <td colspan="1" class="col-1"></td>
+            {% for subject in model.subjects %}
+            <td colspan="1" class="col-1"> {{ subject.coefficient }} </td>
+            {% endfor %}
+            {% for group in model.subjectGroups %}
+            <td colspan="1" class="col-1"></td>
+            {% endfor %}
+            <td colspan="1" class="col-1"></td>
+            <td colspan="1" class="col-1"></td>
+        </tr>
+        {% for student in model.students %}
+        <tr>
+            <td colspan="3" class="col-3">
+                {{ student.fullName }}
+            </td>
+            <td colspan="1" class="col-1">{{ attendances[student.id] ?? '' }}</td>
+            {% for subject in model.subjects %}
+            <td colspan="1" class="col-1">{{ notes[student.id][subject.id] ?? '' }}</td>
+            {% endfor %}
+            {% for group in model.subjectGroups %}
+            <td colspan="1" class="col-1">{{ groupes[student.id][group.id] ?? '' }}</td>
+            {% endfor %}
+            <td colspan="1" class="col-1">{{ general_average[student.id] ?? '' }}</td>
+            <td colspan="1" class="col-1">{{ rank[student.id] ?? '' }}</td>
+        </tr>
+        {% endfor %}
+        <tr>
+            <td colspan="3" class="col-3">
+                Moyenne générale
+            </td>
+            <td colspan="1" class="col-1"></td>
+            {% for subject in model.subjects %}
+            <td colspan="1" class="col-1">{{ subject_average[subject.id] ?? '' }}</td>
+            {% endfor %}
+            {% for group in model.subjectGroups %}
+            <td colspan="1" class="col-1">{{ groupes_average[group.id] ?? '' }}</td>
+            {% endfor %}
+            <td colspan="1" class="col-1">{{ general_average_average['general'] ?? '' }}</td>
+            <td colspan="1" class="col-1"></td>
+        </tr>
+        <tr>
+            <td colspan="3" class="col-3">
+                Moyenne la plus faible
+            </td>
+            <td colspan="1" class="col-1"></td>
+            {% for subject in model.subjects %}
+            <td colspan="1" class="col-1">{{ subject_lowest_average[subject.id] ?? '' }}</td>
+            {% endfor %}
+            {% for group in model.subjectGroups %}
+            <td colspan="1" class="col-1">{{ group_lowest_average[group.id] ?? '' }}</td>
+            {% endfor %}
+            <td colspan="1" class="col-1">{{ general_lowest_average['lowest'] ?? '' }}</td>
+            <td colspan="1" class="col-1"></td>
+        </tr>
+        <tr>
+            <td colspan="3" class="col-3">
+                Moyenne la plus forte
+            </td>
+            <td colspan="1" class="col-1"></td>
+            {% for subject in model.subjects %}
+            <td colspan="1" class="col-1">{{ subject_highest_average[subject.id] ?? '' }}</td>
+            {% endfor %}
+            {% for group in model.subjectGroups %}
+            <td colspan="1" class="col-1">{{ group_highest_average[group.id] ?? '' }}</td>
+            {% endfor %}
+            <td colspan="1" class="col-1">{{ general_highest_average['highest'] ?? '' }}</td>
+            <td colspan="1" class="col-1"></td>
+        </tr>
+        <tr>
+            <td colspan="3" class="col-3">
+                Taux de réussite
+            </td>
+            <td colspan="1" class="col-1"></td>
+            {% for subject in model.subjects %}
+            <td colspan="1" class="col-1">{{ subject_success_rate[subject.id] ?? '' }}%</td>
+            {% endfor %}
+            {% for group in model.subjectGroups %}
+            <td colspan="1" class="col-1">{{ group_success_rate[group.id] ?? '' }}%</td>
+            {% endfor %}
+            <td colspan="1" class="col-1">{{ general_success_rate['general'] ?? '' }}%</td>
+            <td colspan="1" class="col-1"></td>
+        </tr>
+        <tr>
+            <td colspan="3" class="col-3">
+                Ecart-type
+            </td>
+            <td colspan="1" class="col-1"></td>
+            {% for subject in model.subjects %}
+            <td colspan="1" class="col-1">{{ subject_deviation[subject.id] ?? '' }}</td>
+            {% endfor %}
+            {% for group in model.subjectGroups %}
+            <td colspan="1" class="col-1">{{ group_deviation[group.id] ?? '' }}</td>
+            {% endfor %}
+            <td colspan="1" class="col-1">{{ general_deviation['general'] ?? '' }}</td>
+            <td colspan="1" class="col-1"></td>
+        </tr>
+    </table>
+</body>
+
+</html>

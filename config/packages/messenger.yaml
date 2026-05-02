@@ -1,0 +1,30 @@
+framework:
+    messenger:
+        failure_transport: failed
+
+        transports:
+            # Remplacez la variable d'environnement par la DSN Doctrine directement
+            async:
+                dsn: 'doctrine://default'
+                options:
+                    table_name: messenger_messages
+                    queue_name: default
+                    auto_setup: false
+                retry_strategy:
+                    max_retries: 3
+                    multiplier: 2
+                    
+            failed: 'doctrine://default?queue_name=failed'
+            sync: 'sync://'
+
+        default_bus: messenger.bus.default
+
+        buses:
+            messenger.bus.default: []
+
+        routing:
+            Symfony\Component\Mailer\Messenger\SendEmailMessage: async
+            Symfony\Component\Notifier\Message\ChatMessage: async
+            Symfony\Component\Notifier\Message\SmsMessage: async
+            App\Message\GenerateAllBulletinsMessage: async
+            App\Message\GenerateAllBulletinsPdfMessage: async

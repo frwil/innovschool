@@ -1,0 +1,135 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Configuration{% endblock %}
+
+{% block body %}
+    <h1>Configuration de l'École</h1>
+
+    <form action="{{ path('app_registration_card_configuration') }}" method="post" enctype="multipart/form-data">
+        <div class="row">
+            <div class="form-group col-md-6">
+                <label for="cardHeader">En-tête de la carte</label>
+                <input type="text" id="cardHeader" name="cardHeader" class="form-control" value="{{ config.cardHeader ?? '' }}" required>
+            </div>
+
+            <div class="form-group col-md-6">
+                <label for="nationalMotto">Devise nationale</label>
+                <input type="text" id="nationalMotto" name="nationalMotto" class="form-control" value="{{ config.nationalMotto ?? '' }}" required>
+            </div>
+
+            <div class="form-group col-md-6">
+                <label for="signTitle">Titre de la signature</label>
+                <input type="text" id="signTitle" name="signTitle" class="form-control" value="{{ config.signTitle ?? '' }}">
+            </div>
+
+            <div class="form-group col-md-6">
+                <label for="doubleHeaderLayout">En-tête double</label>
+                <select id="doubleHeaderLayout" name="doubleHeaderLayout" class="form-control select2">
+                    <option value="0" {% if not config.doubleHeaderLayout %}selected{% endif %}>Non</option>
+                    <option value="1" {% if config.doubleHeaderLayout %}selected{% endif %}>Oui</option>
+                </select>
+            </div>
+
+            <div id="alternativeFields" class="col-md-12" style="display: {% if config.doubleHeaderLayout %}block{% else %}none{% endif %};">
+                <div class="row">
+                    <div class="form-group col-md-6">
+                        <label for="cardHeaderA">En-tête alternatif de la carte</label>
+                        <input type="text" id="cardHeaderA" name="cardHeaderA" class="form-control" value="{{ config.cardHeaderA ?? '' }}">
+                    </div>
+
+                    <div class="form-group col-md-6">
+                        <label for="nationalMottoA">Devise nationale alternative</label>
+                        <input type="text" id="nationalMottoA" name="nationalMottoA" class="form-control" value="{{ config.nationalMottoA ?? '' }}">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-group col-md-6">
+                <label for="headOfficerSign">Signature du responsable (image)</label>
+                <input type="file" id="headOfficerSign" name="headOfficerSign" class="form-control">
+            </div>
+            {% if config.headOfficerSign %}
+                <div class="form-group col-md-6">
+                    <label>Signature actuelle</label><br>
+                    <img src="{{ asset('uploads/' ~ config.headOfficerSign) }}" alt="Signature" style="max-width: 100px; max-height: 50px;">
+                </div>
+            {% endif %}
+
+            <div class="form-group col-md-6">
+                <label for="cardBg">Image de fond de la carte</label>
+                <input type="file" id="cardBg" name="cardBg" class="form-control">
+            </div>
+            {% if config.cardBg %}
+                <div class="form-group col-md-6">
+                    <label>Image actuelle</label><br>
+                    <img src="{{ asset('uploads/' ~ config.cardBg) }}" alt="Image de fond" style="max-width: 100px; max-height: 50px;" class="signature-preview">
+                </div>
+            {% endif %}
+            <div class="form-group col-md-12 text-right">
+                <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </div>
+        </div>
+    </form>
+
+    <style>
+        .signature-preview {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+        }
+
+        .signature-preview:hover {
+            transform: scale(4); /* Agrandit l'image */
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2); /* Ajoute une ombre */
+            z-index: 10; /* Place l'image au-dessus des autres éléments */
+            position: relative;
+        }
+    </style>
+
+    <script>
+    $jq=jQuery.noConflict();
+        $jq(document).ready(function () {
+            const $doubleHeaderSelect = $jq('#doubleHeaderLayout');
+            const $alternativeFields = $jq('#alternativeFields');
+            const $cardHeaderA = $jq('#cardHeaderA');
+            const $nationalMottoA = $jq('#nationalMottoA');
+
+            // Fonction pour gérer l'affichage et les attributs required
+            function toggleAlternativeFields() {
+                if ($doubleHeaderSelect.val() === '1') {
+                    $alternativeFields.show(); // Affiche les champs alternatifs
+                    $cardHeaderA.attr('required', 'required'); // Ajoute l'attribut required
+                    $nationalMottoA.attr('required', 'required'); // Ajoute l'attribut required
+                } else {
+                    $alternativeFields.hide(); // Masque les champs alternatifs
+                    $cardHeaderA.removeAttr('required'); // Supprime l'attribut required
+                    $nationalMottoA.removeAttr('required'); // Supprime l'attribut required
+                }
+            }
+
+            // Initialiser l'état des champs alternatifs
+            toggleAlternativeFields();
+
+            // Ajouter un événement pour détecter les changements
+            $doubleHeaderSelect.on('change', toggleAlternativeFields);
+        });
+    </script>
+    {% for message in app.flashes('success') %}
+        <script>
+        $=jQuery.noConflict();
+        $jq(function() {
+            // Affiche le message de succès
+            $jq.notify("{{ message }}", { className: "success", position: "top" });
+        });
+        </script>
+    {% endfor %}
+
+    {% for message in app.flashes('error') %}
+        <script>
+        $=jQuery.noConflict();
+        $jq(function() {
+            $jq.notify("{{ message }}", { className: "error", position: "top" });
+        });
+        </script>
+    {% endfor %}
+
+{% endblock %}

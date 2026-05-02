@@ -1,0 +1,216 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Rapport financier des admissions{% endblock %}
+
+{% block body %}
+<div class="container mt-4">
+    <div class="three">
+        <h1>Rapport financier des admissions</h1>
+    </div>
+    <form id="finance-report-form" method="get" class="row g-3 mb-4">
+        <div class="col-md-4">
+            <label for="start_date" class="form-label">Date de début</label>
+            <input type="date" id="start_date" name="start_date" class="form-control" value="{{ start_date }}" required>
+        </div>
+        <div class="col-md-4">
+            <label for="end_date" class="form-label">Date de fin</label>
+            <input type="date" id="end_date" name="end_date" class="form-control" value="{{ end_date }}" required>
+        </div>
+        <div class="col-md-4 d-flex align-items-end">
+            <button type="submit" class="btn btn-primary w-100">Afficher le rapport</button>
+        </div>
+
+    </form>
+    <hr>
+    <div id="finance-report-result">
+         {% if payments is not empty %}
+            <div class="mb-3 d-flex justify-content-end">
+                <div class="dropdown">
+                    <button class="btn btn-success dropdown-toggle" type="button" id="exportDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                        Exporter / Imprimer
+                    </button>
+                    <ul class="dropdown-menu" aria-labelledby="exportDropdown">
+                        <li><a class="dropdown-item" href="#" id="export-excel">Exporter en Excel</a></li>
+                        <li><a class="dropdown-item" href="#" id="print-direct">Imprimer</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-bordered table-striped" id="finance-table">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Classe</th>
+                            <th>Élève</th>
+                            <th>Modalité</th>
+                            <th>Montant</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% set last_date = null %}
+                    {% set day_total = 0 %}
+                    {% set grand_total = 0 %}
+                    {% for payment in payments %}
+                        {% set current_date = payment.paymentDate|date('d/m/Y') %}
+                        {% if last_date is not same as(current_date) and last_date is not null %}
+                            <tr class="table-secondary fw-bold">
+                                <td colspan="4" class="text-end">Total du {{ last_date }}</td>
+                                <td class="text-end">{{ day_total|number_format(0, ',', ' ') }} FCFA</td>
+                            </tr>
+                            {% set day_total = 0 %}
+                        {% endif %}
+                        <tr>
+                            <td>{{ current_date }}</td>
+                            <td>{{ payment.getSchoolClass.classOccurence.name }}</td>
+                            <td>{{ payment.student.fullName }}</td>
+                            <td>{{ payment.getPaymentModal.label }}</td>
+                            <td class="text-end">{{ payment.getPaymentAmount|number_format(0, ',', ' ') }} FCFA</td>
+                        </tr>
+                        {% set day_total = day_total + payment.getPaymentAmount %}
+                        {% set grand_total = grand_total + payment.getPaymentAmount %}
+                        {% set last_date = current_date %}
+                        {# Si c'est le dernier paiement, afficher le total du jour #}
+                        {% if loop.last %}
+                            <tr class="table-secondary fw-bold">
+                                <td colspan="4" class="text-end">Total du {{ current_date }}</td>
+                                <td class="text-end">{{ day_total|number_format(0, ',', ' ') }} FCFA</td>
+                            </tr>
+                            <tr class="table-dark fw-bold">
+                                <td colspan="4" class="text-end">Total général</td>
+                                <td class="text-end">{{ grand_total|number_format(0, ',', ' ') }} FCFA</td>
+                            </tr>
+                        {% endif %}
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% elseif start_date and end_date %}
+            <div class="alert alert-info">Aucun paiement trouvé pour la période sélectionnée.</div>
+        {% endif %}
+        <div id="print-footer"></div>
+    </div>
+
+<script>
+$(function() {
+    $('#finance-report-form').on('submit', function(e) {
+        e.preventDefault();
+        var $form = $(this);
+        var $result = $('#finance-report-result');
+        // Si une date n'est pas renseignée, on met la date du jour
+        var today = new Date().toISOString().slice(0, 10);
+        if (!$('#start_date').val()) {
+            $('#start_date').val(today);
+        }
+        if (!$('#end_date').val()) {
+            $('#end_date').val(today);
+        }
+        $result.html('<div class="text-center text-muted py-4"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Chargement...</span></div><div>Chargement du rapport...</div></div>');
+        $.ajax({
+            url: $form.attr('action') || window.location.pathname,
+            method: 'GET',
+            data: $form.serialize(),
+            success: function(data) {
+                // Extraire le bloc #finance-report-result du HTML retourné
+                var html = $(data).find('#finance-report-result').html();
+                if (!html) html = data; // fallback si rendu partiel
+                $result.html(html);
+            },
+            error: function() {
+                $result.html('<div class="alert alert-danger">Erreur lors du chargement du rapport.</div>');
+            }
+        });
+    });
+
+    // Export Excel
+    $(document).on('click', '#export-excel', function(e) {
+        e.preventDefault();
+        var params = $('#finance-report-form').serialize();
+        var url = '/admission/finance-report/export-excel?' + params;
+        window.open(url, '_blank');
+    });
+
+    // Export direct (téléchargement immédiat dans la même fenêtre)
+    $(document).on('click', '#print-direct', function(e) {
+        e.preventDefault();
+        window.print();
+    });
+});
+</script>
+<style>
+    /* Astuce : Pour imprimer les couleurs, activez l'option "Imprimer les couleurs d'arrière-plan" dans la boîte de dialogue d'impression de votre navigateur. */
+    @media print {
+      body * { visibility: hidden !important; }
+      #finance-report-result, #finance-report-result *:not(.dropdown, .btn) {
+        visibility: visible !important;
+      }
+      #finance-report-result {
+        display: block !important;
+        width: 100vw !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+      }
+      html, body {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100vw !important;
+        background: #fff !important;
+      }
+      #finance-table {
+        page-break-inside: auto;
+        width: 100% !important;
+        border-collapse: collapse !important;
+      }
+      #finance-table th, #finance-table td {
+        border: 1px solid #dee2e6 !important;
+        padding: 0.5rem !important;
+      }
+      #finance-table tr {
+        page-break-inside: avoid;
+        page-break-after: auto;
+      }
+      .table-secondary {
+        background-color: #f2f2f2 !important;
+        color: #212529 !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        /* Pour forcer l'impression des couleurs sur Chrome/Edge/Firefox */
+        box-shadow: 0 0 0 1000px #f2f2f2 inset !important;
+      }
+      .table-dark {
+        background-color: #343a40 !important;
+        color: #fff !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+        box-shadow: 0 0 0 1000px #343a40 inset !important;
+      }
+      .fw-bold { font-weight: bold !important; }
+      @page { margin-bottom: 2cm; }
+      #print-footer {
+        display: block !important;
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        text-align: right;
+        font-size: 12px;
+        color: #888;
+        /* Pour Chrome/Edge pagination avancée */
+        position: running(printFooter);
+      }
+      #print-footer:after {
+        content: 'Page ' counter(page) ' / ' counter(pages);
+      }
+      @page {
+        margin-bottom: 2cm;
+        @bottom-center {
+          content: element(printFooter);
+        }
+      }
+    }
+    #print-footer { display: none; }
+    </style>
+</div>
+{% endblock %}

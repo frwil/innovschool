@@ -1,0 +1,74 @@
+<div class="card">
+    <div class="card-header text-bg-dark text-white">
+        <h5 class="mb-0 text-white">Emploi du temps de la classe : {{ classPeriod.classOccurence.name }}</h5>
+    </div>
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Heure</th>
+                        {% set daysOfWeek = {1:'Lundi',2:'Mardi',3:'Mercredi',4:'Jeudi',5:'Vendredi',6:'Samedi'} %}
+                        {% for day in 1..6 %}
+                            <th>{{ attribute(daysOfWeek, day) }}</th>
+                        {% endfor %}
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for time in allTimes %}
+                        <tr>
+                            <td><strong>{{ time }}</strong></td>
+                            {% for day in 1..6 %}
+                                {% set slotsCell = slotsByTimeAndDay[time][day]|default([]) %}
+                                <td{% if slotsCell|length > 1 %} class="bg-warning bg-opacity-25 position-relative"{% endif %}>
+                                    {% if slotsCell|length > 0 %}
+                                        {% if slotsCell|length > 1 %}
+                                            <div class="alert alert-warning p-1 mb-1" style="font-size:0.95em;">
+                                                <i class="fas fa-exclamation-triangle"></i> Chevauchement ({{ slotsCell|length }} créneaux)
+                                            </div>
+                                        {% endif %}
+                                        {% for slot in slotsCell %}
+                                            <div class="mb-1">
+                                                <span class="badge bg-info">{{ slot.subject }}</span><br>
+                                                <small>Prof : {{ slot.teacher }}</small>
+                                                {% if slot.notes %}<br><em>{{ slot.notes }}</em>{% endif %}
+                                            </div>
+                                        {% endfor %}
+                                    {% else %}
+                                        <span class="text-muted">-</span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        </tr>
+                    {% else %}
+                        <tr><td colspan="7" class="text-center">Aucun créneau trouvé pour cette classe.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3">
+            <h6 class="mb-2">Récapitulatif des chevauchements</h6>
+            <ul class="list-group">
+                {% set totalOverlaps = 0 %}
+                {% for day in 1..6 %}
+                    {% set dayOverlaps = 0 %}
+                    {% for time in allTimes %}
+                        {% set slotsCell = slotsByTimeAndDay[time][day]|default([]) %}
+                        {% if slotsCell|length > 1 %}
+                            {% set dayOverlaps = dayOverlaps + 1 %}
+                        {% endif %}
+                    {% endfor %}
+                    {% set totalOverlaps = totalOverlaps + dayOverlaps %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span><strong>{{ attribute(daysOfWeek, day) }}</strong></span>
+                        <span class="badge bg-warning text-dark">{{ dayOverlaps }} chevauchement{{ dayOverlaps > 1 ? 's' : '' }}</span>
+                    </li>
+                {% endfor %}
+                <li class="list-group-item d-flex justify-content-between align-items-center bg-light">
+                    <span><strong>Total semaine</strong></span>
+                    <span class="badge bg-danger">{{ totalOverlaps }} chevauchement{{ totalOverlaps > 1 ? 's' : '' }}</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>

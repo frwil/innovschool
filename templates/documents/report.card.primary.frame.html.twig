@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="fr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-size: 10px;
+            color: #343232;
+        }
+
+        @page {
+            size: A4 portrait;
+            margin: 10mm;
+        }
+
+        .invoice-table {
+            width: 210mm;
+            margin: 0 auto;
+            border-collapse: collapse;
+            box-sizing: border-box;
+            table-layout: fixed;
+        }
+
+        .subtable-table {
+            margin: 0 auto;
+            border-collapse: collapse;
+            box-sizing: border-box;
+            table-layout: fixed;
+        }
+
+        .invoice-table td, .subtable-table td {
+            padding: 5px;
+            border: 1px solid #343232;
+            vertical-align: top;
+            word-wrap: normal;
+        }
+
+        .listTable td {
+            padding: 7px;
+        }
+
+        .head-table td {
+            padding: 2px;
+        }
+
+        /* 24 colonnes */
+        .col-1 {
+            width: 4.16%;
+        }
+
+        .col-2 {
+            width: 8.33%;
+        }
+
+        .col-3 {
+            width: 12.5%;
+        }
+
+        .col-4 {
+            width: 16.66%;
+        }
+
+        .col-5 {
+            width: 20.83%;
+        }
+
+        .col-6 {
+            width: 25%;
+        }
+
+        .col-7 {
+            width: 29.16%;
+        }
+
+        .col-8 {
+            width: 33.33%;
+        }
+
+        .col-9 {
+            width: 37.5%;
+        }
+
+        .col-10 {
+            width: 41.66%;
+        }
+
+        .col-11 {
+            width: 45.83%;
+        }
+
+        .col-12 {
+            width: 50%;
+        }
+
+        .col-13 {
+            width: 54.16%;
+        }
+
+        .col-14 {
+            width: 58.33%;
+        }
+
+        .col-15 {
+            width: 62.5%;
+        }
+
+        .col-16 {
+            width: 66.66%;
+        }
+
+        .col-17 {
+            width: 70.83%;
+        }
+
+        .col-18 {
+            width: 75%;
+        }
+
+        .col-19 {
+            width: 79.16%;
+        }
+
+        .col-20 {
+            width: 83.33%;
+        }
+
+        .col-21 {
+            width: 87.5%;
+        }
+
+        .col-22 {
+            width: 91.66%;
+        }
+
+        .col-23 {
+            width: 95.83%;
+        }
+
+        .col-24 {
+            width: 100%;
+        }
+
+        .header,
+        .footer,
+        .invoice-details,
+        .totals,
+        .signature {
+            padding: 0;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            text-align: center;
+        }
+
+        .header p,
+        .footer p {
+            margin: 0;
+            text-align: center;
+            font-size: 12px;
+        }
+
+        .invoice-details table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .invoice-details th,
+        .invoice-details td {
+            padding: 10px;
+            border: 1px solid #000;
+            text-align: left;
+        }
+
+        .invoice-details th {
+            background-color: #f2f2f2;
+        }
+
+        .totals {
+            text-align: right;
+        }
+
+        .totals table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .totals th,
+        .totals td {
+            padding: 10px;
+            border: 1px solid #000;
+        }
+
+        .totals th {
+            background-color: #f2f2f2;
+        }
+
+        .signature {
+            text-align: right;
+            font-size: 14px;
+        }
+
+        .objectRaw p {
+            margin-top: 0px;
+            margin-bottom: auto;
+        }
+
+        .pv-header td {
+            border: none;
+            text-align: right;
+            line-height: 1px;
+            padding: 8px;
+        }
+    </style>
+</head>
+
+
+<body>
+    <table class="invoice-table">
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px; text-align: center;">
+                EN TETE
+            </td>
+        </tr>
+        <tr>
+            <td colspan="24" class="col-24" style="border: 0px; text-align: center;">
+                BULLETIN DE NOTES
+            </td>
+        </tr>
+        {% set uaColspan = model.cardItems.colspan %}
+        {% for item in model.cardItems.items[0].items %}
+        <tr>            
+            <td colspan="4" class="col-4" style="text-align: center; vertical-align: middle;">
+                <table class="subtable-table" style="border: none; padding: 0; margin: 0;">
+                    <tr style="border: none;">
+                        <td style="border: none;">{{item.group}}</td>
+                    </tr>
+                </table>
+            </td>
+            <td colspan="20" class="col-20" style="padding: 0;">
+                {% for line in item.subjects %}
+                <table class="subtable-table" style="border: none; padding: 0; margin: 0; width: 100%;">
+                    {% if loop.first %}
+                    <tr style="border: none;">
+                        <td colspan="6" class="col-6" style="background-color: #d3d3d3; text-align: center;">
+                            Compétences Ciblées
+                        </td>
+                        <td colspan="6" class="col-6" style="background-color: #d3d3d3; text-align: center;">
+                            Unité D'apprentissage
+                        </td>
+                    {% for ua in model.cardItems.items %}
+                        <td colspan="{{uaColspan}}" class="col-{{uaColspan}}" style="background-color: #d3d3d3; text-align: center;">
+                            {{ ua.uaName }}
+                        </td>
+                    {% endfor %}
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td rowspan="{{line.rows}}" class="col-6" colspan="6" style="vertical-align: middle; text-align: center;">
+                            {{line.name}}
+                        </td>
+                        <td colspan="6" class="col-6">Évaluation</td>
+                        <!-- UA -->
+                        {% for ua in model.cardItems.items %}
+                        <td colspan="{{uaColspan / 2}}" class="col-{{uaColspan / 2}}">Notes</td>
+                        <td colspan="{{uaColspan / 2}}" class="col-{{uaColspan / 2}}">Cote</td>
+                        {% endfor %}
+                        <!-- UA -->
+                        
+                    </tr>
+                    {% if line.oral is defined %}
+                    <tr>
+                        <td colspan="6" class="col-6">Oral - {{line.oral}}pts</td>
+                        <!-- UA -->
+                        {% for ua in model.cardItems.items %}
+                        <td colspan="{{uaColspan / 2}}" class="col-{{uaColspan / 2}}">
+                            {% for itema in ua.items %}
+                                {% if itema.group == item.group %}
+                                    {% for subj in itema.subjects %}
+                                        {% if subj.name == line.name %}
+                                            {{subj.oral_grade}}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td rowspan="{{line.rows - 1}}" colspan="{{uaColspan / 2}}" class="col-{{uaColspan / 2}}"></td>
+                        <!-- UA -->
+                        {% endfor %}
+                    </tr>
+                    {% endif %}
+                    {% if line.written is defined %}
+                    <tr>
+                        <td colspan="6" class="col-6">Écrit - {{line.written}}pts</td>
+                        <!-- UA -->
+                        {% for ua in model.cardItems.items %}
+                        <td colspan="{{uaColspan / 2}}" class="col-6">
+                            {% for itema in ua.items %}
+                                {% if itema.group == item.group %}
+                                    {% for subj in itema.subjects %}
+                                        {% if subj.name == line.name %}
+                                            {{subj.written_grade}}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                        <!-- UA -->
+                        {% endfor %}
+                    </tr>
+                    {% endif %}
+                    {% if line.practical is defined %}
+                     <tr>
+                        <td colspan="6" class="col-6">Pratique - {{line.practical}}pts</td>
+                        <!-- UA -->
+                        {% for ua in model.cardItems.items %}
+                        <td colspan="{{uaColspan / 2}}" class="col-6">
+                            {% for itema in ua.items %}
+                                {% if itema.group == item.group %}
+                                    {% for subj in itema.subjects %}
+                                        {% if subj.name == line.name %}
+                                            {{subj.practical_grade}}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                        <!-- UA -->
+                        {% endfor %}
+                    </tr>
+                    {% endif %}
+                    {% if line.know_how is defined %}
+                    <tr>
+                       <td colspan="6" class="col-6">Savoir-être - {{line.know_how}}pts</td>
+                       <!-- UA -->
+                       {% for ua in model.cardItems.items %}
+                       <td colspan="{{uaColspan / 2}}" class="col-6">
+                            {% for itema in ua.items %}
+                                {% if itema.group == item.group %}
+                                    {% for subj in itema.subjects %}
+                                        {% if subj.name == line.name %}
+                                            {{subj.know_how_grade}}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                       </td>
+                       <!-- UA -->
+                       {% endfor %}
+                   </tr>
+                   {% endif %}
+                    
+                    <tr>
+                        <td colspan="12" class="col-12" style="text-align: center;">Total  {{line.totalPoint}}pts</td>
+                        <!-- UR  -->
+                        {% for ua in model.cardItems.items %}
+                        <td colspan="{{uaColspan / 2}}" class="col-{{uaColspan / 2}}">
+                            {% for itema in ua.items %}
+                                {% if itema.group == item.group %}
+                                    {% for subj in itema.subjects %}
+                                        {% if subj.name == line.name %}
+                                            {{subj.note}}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                        <td colspan="{{uaColspan / 2}}" class="col-{{uaColspan / 2}}">
+                            {% for itema in ua.items %}
+                                {% if itema.group == item.group %}
+                                    {% for subj in itema.subjects %}
+                                        {% if subj.name == line.name %}
+                                            {{subj.appreciation}}
+                                        {% endif %}
+                                    {% endfor %}
+                                {% endif %}
+                            {% endfor %}
+                        </td>
+                        {% endfor %}
+                        <!-- UR  -->
+                       
+                    </tr>
+                    
+                    <tr>
+                        <td colspan="18" class="col-18" style="text-align: center;"><strong>Cote</strong></td>
+                        <td colspan="6" class="col-6" style="text-align: center;"><strong>{{line.appreciation}}</strong></td>
+                    </tr>
+                    {% if loop.last %}
+                    <tr>
+                        <td colspan="6" class="col-6" style="background-color: #d3d3d3; text-align: center;">
+                            Code
+                        </td>
+                        <td colspan="6" class="col-6" style="background-color: #d3d3d3; text-align: center;">
+                            {{item.totalPoints}}pts
+                        </td>
+                        <td colspan="6" class="col-6" style="background-color: #d3d3d3; text-align: center;">
+                            {{item.totalNotes}}
+                        </td>
+                        <td colspan="6" class="col-6" style="background-color: #d3d3d3; text-align: center;">
+                            {{item.appreciation}}
+                        </td>
+                    </tr>
+                    {% endif %}
+                </table>
+                {% endfor %}
+            </td>            
+        </tr>
+        <tr>
+            <td colspan="24" style="border: none;"></td>
+        </tr>
+        {% endfor %}     
+        <tr >
+            <td colspan="24" class="col-24" style="border: 0px; text-align: center;">
+                
+            </td>
+        </tr>
+        <tr>
+            <td colspan="6" class="col-6" style="border: 0px; text-align: center;">
+                Appreciation <br> <br>
+                <table class="subtable-table" style="border: none; padding: 0; margin: 0; width: 100%;">
+                    <tr>
+                        <td colspan="6" class="col-6">NA</td>
+                        <td colspan="12" class="col-12">Non acquis</td>
+                        <td colspan="6" class="col-6">0-10</td>
+                    </tr>
+                    <tr>
+                        <td colspan="6" class="col-6">ECA</td>
+                        <td colspan="12" class="col-12">En cours d'acquisition</td>
+                        <td colspan="6" class="col-6">11-14</td>
+                    </tr>
+                    <tr>
+                        <td colspan="6" class="col-6">A</td>
+                        <td colspan="12" class="col-12">Acquis</td>
+                        <td colspan="6" class="col-6">15-17</td>
+                    </tr>
+                    <tr>
+                        <td colspan="6" class="col-6">A+</td>
+                        <td colspan="12" class="col-12">Expert</td>
+                        <td colspan="6" class="col-6">18-20</td>
+                    </tr>
+                </table>
+            </td>
+            <td colspan="12" class="col-12" style="border: 0px; text-align: center;">
+                Recapitulatif Séquentiel <br> <br>
+                <table class="subtable-table" style="border: none; padding: 0; margin: 0; width: 100%;">
+                    <tr>
+                        <td colspan="6" class="col-6">Éléments</td>
+                        {% for ua in model.cardItems.items %}
+                        <td colspan="{{uaColspan}}" class="col-{{uaColspan}}">{{ua.uaName}}</td>
+                        {% endfor %}
+                        <td colspan="6" class="col-6">{{model.cardItems.name}}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="6" class="col-6">Total</td>
+                        {% for ua in model.cardItems.items %}
+                        <td colspan="{{uaColspan}}" class="col-{{uaColspan}}">{{ua.totalNotes}} / {{ua.totalPoints}}</td>
+                        {% endfor %}
+                        <td colspan="6" class="col-6">{{model.cardItems.totalNotes}}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="6" class="col-6">Moyenne</td>
+                        {% for ua in model.cardItems.items %}
+                        <td colspan="{{uaColspan}}" class="col-{{uaColspan}}">{{ua.middle | number_format(2)}}</td>
+                        {% endfor %}
+                        <td colspan="6" class="col-6">{{model.cardItems.middle | number_format(2) }}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="6" class="col-6">Rang</td>
+                        {% for ua in model.cardItems.items %}
+                        <td colspan="{{uaColspan}}" class="col-{{uaColspan}}"></td>
+                        {% endfor %}
+                        <td colspan="6" class="col-6"></td>
+                    </tr>
+                   
+                </table>
+            </td>
+            <td colspan="6" class="col-6" style="border: 0px; text-align: center;">
+                Légende <br> <br>
+                UA = Unité d'apprentissage
+            </td>
+        </tr>
+        <tr>
+            <td colspan="24" style="border: none; height: 40px;"></td>
+        </tr>
+        <tr style="border-top: 1px solid black;">
+            <td colspan="24" class="col-24" style="border: 0px; text-align: center; border-top: 1px;">
+                <br>DECISION DU CONSEIL DE CLASSE
+            </td>
+        </tr>
+        <tr style="border-bottom: 1px solid black;">
+            <td colspan="24" style="border: none; height: 40px;"></td>
+        </tr>
+        <tr>
+            <td colspan="24" style="border: none; height: 40px;"></td>
+        </tr>
+        <tr>
+            <td colspan="8" class="col-8" style="border: 0px; text-align: center;">
+                SIGNATURE <br> <br>
+                Parent
+               
+            </td>
+            <td colspan="8" class="col-8" style="border: 0px; text-align: center;">
+                OBSERVATION ET SIGNATURE <br> <br>
+                Enseignant(e)s
+            </td>
+            <td colspan="8" class="col-8" style="border: 0px; text-align: center;">
+                OBSERVATION ET SIGNATURE <br> <br>
+                Directeur(trice)
+            </td>
+        </tr>
+        <tr style="height: 100px;">
+            <td colspan="8" class="col-8" style="border: 0px; border-right: 2px solid black;">
+             
+               
+            </td>
+            <td colspan="8" class="col-8" style="border: 0px; border-right: 2px solid black;">
+               
+            </td>
+            <td colspan="8" class="col-8" style="border: 0px; border-right: 2px solid black;">
+              
+            </td>
+        </tr>
+    </table>
+    <!-- <table class="invoice-table">
+        
+            <tr>
+                <th>Compétences Ciblées</th>
+                <th>Unité D'apprentissage</th>
+                <th>Evaluation</th>
+                <th>Notes</th>
+                <th>UA</th>
+                <th>Cote</th>
+            </tr>
+        
+        
+            <tr>
+                <td rowspan="3">COMMUNIQUER EN FRANCAIS C1A</td>
+                <td>Oral-12pts</td>
+                <td>Oral</td>
+                <td>12</td>
+                <td>12</td>
+                <td rowspan="3">A+</td>
+            </tr>
+            <tr>
+                <td>Ecrit-15pts</td>
+                <td>Ecrit</td>
+                <td>12.33333333333</td>
+                <td>12.33333333333</td>
+            </tr>
+            <tr>
+                <td>Savoir-etre-3pts</td>
+                <td>Savoir-être</td>
+                <td>2.83333333333</td>
+                <td>2.83333333333</td>
+            </tr>
+            <tr>
+                <td>Total 30pts</td>
+                <td colspan="2"></td>
+                <td>27.16666666667</td>
+                <td></td>
+                <td></td>
+            </tr>
+            <tr>
+                <td>Cote</td>
+                <td colspan="5">A+</td>
+            </tr>
+        
+    </table> -->
+</body>
+
+</html>
