@@ -1,4 +1,4 @@
-{% extends 'base.html.twig' %}
+{% extends 'base.up.html.twig' %}
 
 {% block title %}Migration annuelle{% endblock %}
 
@@ -112,4 +112,67 @@
         </div>
     </div>
 </div>
+
+{# ── Historique des migrations ── #}
+{% if logs is defined and logs|length > 0 %}
+<div class="row mt-4">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="ti ti-history me-2"></i>Historique des migrations</h5>
+                <span class="badge bg-secondary">{{ logs|length }}</span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Source → Cible</th>
+                            <th>Note de passage</th>
+                            <th>Promus</th>
+                            <th>Redoublants</th>
+                            <th>Date</th>
+                            <th>Par</th>
+                            <th>Statut</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {% for log in logs %}
+                    <tr>
+                        <td>
+                            <strong>{{ log.sourcePeriod.name }}</strong>
+                            <i class="ti ti-arrow-right mx-1 text-muted"></i>
+                            <strong>{{ log.targetPeriod.name }}</strong>
+                        </td>
+                        <td>{{ log.passingGrade }}/20</td>
+                        <td><span class="badge bg-success">{{ log.studentStats.promoted ?? 0 }}</span></td>
+                        <td><span class="badge bg-warning text-dark">{{ log.studentStats.repeated ?? 0 }}</span></td>
+                        <td>{{ log.executedAt|date('d/m/Y H:i') }}</td>
+                        <td>{{ log.executedBy }}</td>
+                        <td>
+                            {% if log.status == 'executed' %}
+                                <span class="badge bg-success">Active</span>
+                            {% elseif log.status == 'cancelled' %}
+                                <span class="badge bg-danger">Annulée</span>
+                            {% else %}
+                                <span class="badge bg-warning text-dark">Corrigée</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <a href="{{ path('app_year_migration_manage', {id: log.id}) }}"
+                               class="btn btn-sm {{ log.status == 'executed' ? 'btn-outline-warning' : 'btn-outline-secondary' }}">
+                                <i class="ti ti-{{ log.status == 'executed' ? 'settings' : 'eye' }} me-1"></i>
+                                {{ log.status == 'executed' ? 'Gérer' : 'Voir' }}
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}

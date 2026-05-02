@@ -34,6 +34,11 @@ services:
         autoconfigure: true
         public: true
 
+    App\Service\:
+        resource: '../src/Service/*'
+        autowire: true
+        autoconfigure: true
+
     App\MessageHandler\GenerateAllBulletinsMessageHandler:
         arguments:
             $projectDir: '%kernel.project_dir%'

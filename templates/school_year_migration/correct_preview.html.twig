@@ -1,0 +1,163 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Prévisualisation de la correction{% endblock %}
+
+{% block body %}
+<twig:Breadcrumbs label="Correction de migration" />
+
+<div class="row">
+<div class="col-md-10 mx-auto">
+
+    <div class="alert alert-info">
+        <i class="ti ti-info-circle me-2"></i>
+        Prévisualisation avec note de passage <strong>{{ newPassingGrade }}/20</strong>
+        (ancienne : <strong>{{ log.passingGrade }}/20</strong>).
+    </div>
+
+    {# ── Élèves verrouillés ── #}
+    {% if changes.locked|length > 0 %}
+    <div class="card border-danger mb-4">
+        <div class="card-header bg-danger text-white">
+            <h6 class="mb-0">
+                <i class="ti ti-lock me-2"></i>
+                {{ changes.locked|length }} élève(s) verrouillé(s) — notes déjà saisies
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr><th>Élève</th><th>Moyenne</th><th>Était</th><th>Devrait être</th><th>État</th></tr>
+                </thead>
+                <tbody>
+                {% for item in changes.locked %}
+                <tr class="table-danger">
+                    <td>{{ item.student.lastName }} {{ item.student.firstName }}</td>
+                    <td>{{ item.average ?? '—' }}</td>
+                    <td><span class="badge bg-secondary">{{ item.wasStatus }}</span></td>
+                    <td><span class="badge bg-secondary">{{ item.nowStatus }}</span></td>
+                    <td><span class="badge bg-danger"><i class="ti ti-lock me-1"></i>Notes saisies</span></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Élèves à rétrograder ── #}
+    {% if changes.toDemote|length > 0 %}
+    <div class="card border-warning mb-4">
+        <div class="card-header bg-warning">
+            <h6 class="mb-0">
+                <i class="ti ti-arrow-down me-2"></i>
+                {{ changes.toDemote|length }} élève(s) à rétrograder (promu → redoublant)
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr><th>Élève</th><th>Moyenne</th><th>Action</th></tr>
+                </thead>
+                <tbody>
+                {% for item in changes.toDemote %}
+                <tr>
+                    <td>{{ item.student.lastName }} {{ item.student.firstName }}</td>
+                    <td>{{ item.average ?? '—' }}</td>
+                    <td>
+                        {% if item.repeaterSCP %}
+                            Sera placé en <strong>{{ item.repeaterSCP.classOccurence.name }}</strong>
+                        {% else %}
+                            <span class="text-muted">Aucune classe redoublant disponible</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Élèves à promouvoir ── #}
+    {% if changes.toPromote|length > 0 or changes.toAdd|length > 0 %}
+    <div class="card border-success mb-4">
+        <div class="card-header bg-success text-white">
+            <h6 class="mb-0">
+                <i class="ti ti-arrow-up me-2"></i>
+                {{ changes.toPromote|length + changes.toAdd|length }} élève(s) à promouvoir
+            </h6>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-sm mb-0">
+                <thead class="table-light">
+                    <tr><th>Élève</th><th>Moyenne</th><th>Classe source</th><th>Classe cible</th></tr>
+                </thead>
+                <tbody>
+                {% for item in changes.toPromote %}
+                <tr>
+                    <td>{{ item.student.lastName }} {{ item.student.firstName }}</td>
+                    <td>{{ item.average ?? '—' }}</td>
+                    <td>{{ item.sourceSCP.classOccurence.name }}</td>
+                    <td>
+                        <select name="class_mapping[{{ item.sourceSCP.id }}]" class="form-select form-select-sm">
+                            <option value="">— Non affecté —</option>
+                            {% for id, name in targetClassOptions %}
+                                <option value="{{ id }}">{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% for item in changes.toAdd %}
+                <tr class="table-info">
+                    <td>{{ item.student.lastName }} {{ item.student.firstName }} <span class="badge bg-info">à ajouter</span></td>
+                    <td>{{ item.average ?? '—' }}</td>
+                    <td>{{ item.sourceSCP.classOccurence.name }}</td>
+                    <td>
+                        <select name="class_mapping[{{ item.sourceSCP.id }}]" class="form-select form-select-sm">
+                            <option value="">— Non affecté —</option>
+                            {% for id, name in targetClassOptions %}
+                                <option value="{{ id }}">{{ name }}</option>
+                            {% endfor %}
+                        </select>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Aucun changement ── #}
+    {% if changes.locked|length == 0 and changes.toDemote|length == 0 and changes.toPromote|length == 0 and changes.toAdd|length == 0 %}
+    <div class="alert alert-success">
+        <i class="ti ti-circle-check me-2"></i>
+        Aucun changement : tous les élèves ont la même classification avec cette note de passage.
+    </div>
+    {% else %}
+    {# ── Bouton confirmation ── #}
+    <form method="POST" action="{{ path('app_year_migration_correct', {id: log.id}) }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('correct_migration_' ~ log.id) }}">
+        <input type="hidden" name="new_passing_grade" value="{{ newPassingGrade }}">
+        {% for item in changes.toPromote %}
+            {% if app.request.request.get('class_mapping') %}
+                <input type="hidden" name="class_mapping[{{ item.sourceSCP.id }}]"
+                       value="{{ app.request.request.all('class_mapping')[item.sourceSCP.id]|default('') }}">
+            {% endif %}
+        {% endfor %}
+        <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-success"
+                    onclick="return confirm('Appliquer la correction ? Les élèves verrouillés ne seront pas modifiés.')">
+                <i class="ti ti-check me-1"></i>Appliquer la correction
+            </button>
+            <a href="{{ path('app_year_migration_manage', {id: log.id}) }}" class="btn btn-light">
+                <i class="ti ti-arrow-left me-1"></i>Retour
+            </a>
+        </div>
+    </form>
+    {% endif %}
+
+</div>
+</div>
+{% endblock %}

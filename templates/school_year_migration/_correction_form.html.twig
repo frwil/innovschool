@@ -1,0 +1,19 @@
+<form method="POST" action="{{ path('app_year_migration_correct_preview', {id: log.id}) }}">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+            <label class="form-label fw-bold">Nouvelle note de passage</label>
+            <div class="input-group">
+                <input type="number" name="new_passing_grade" class="form-control"
+                       min="0" max="20" step="0.5"
+                       value="{{ log.passingGrade }}" required>
+                <span class="input-group-text">/20</span>
+            </div>
+            <div class="form-text">Ancienne valeur : {{ log.passingGrade }}/20</div>
+        </div>
+        <div class="col-md-4">
+            <button type="submit" class="btn btn-warning">
+                <i class="ti ti-eye me-1"></i>Prévisualiser les changements
+            </button>
+        </div>
+    </div>
+</form>

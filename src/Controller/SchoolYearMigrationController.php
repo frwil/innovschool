@@ -2,9 +2,11 @@
 
 namespace App\Controller;
 
+use App\Entity\MigrationLog;
 use App\Entity\School;
 use App\Entity\SchoolClassPeriod;
 use App\Entity\SchoolPeriod;
+use App\Repository\MigrationLogRepository;
 use App\Repository\SchoolClassPeriodRepository;
 use App\Repository\SchoolPeriodRepository;
 use App\Service\SchoolYearMigrationService;
@@ -23,9 +25,14 @@ final class SchoolYearMigrationController extends AbstractController
         private SchoolYearMigrationService $migrationService,
     ) {}
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // INDEX + PREVIEW + EXECUTE (inchangés sauf execute qui appelle executeMigration)
+    // ─────────────────────────────────────────────────────────────────────────
+
     #[Route('', name: 'app_year_migration_index', methods: ['GET'])]
     public function index(
         SchoolPeriodRepository $periodRepo,
+        MigrationLogRepository $logRepo,
         SessionInterface $session
     ): Response {
         $school = $this->getSchool($session);
@@ -34,22 +41,17 @@ final class SchoolYearMigrationController extends AbstractController
             return $this->redirectToRoute('app_school_period_index');
         }
 
-        $periods = $periodRepo->findAll();
-
         return $this->render('school_year_migration/index.html.twig', [
-            'periods' => $periods,
-            'school' => $school,
+            'periods'  => $periodRepo->findAll(),
+            'school'   => $school,
+            'logs'     => $logRepo->findBySchool($school),
         ]);
     }
 
-    /**
-     * Preview: show student eligibility per class + class mapping form.
-     */
     #[Route('/preview', name: 'app_year_migration_preview', methods: ['POST'])]
     public function preview(
         Request $request,
         SchoolPeriodRepository $periodRepo,
-        SchoolClassPeriodRepository $scpRepo,
         SessionInterface $session
     ): Response {
         $school = $this->getSchool($session);
@@ -58,49 +60,27 @@ final class SchoolYearMigrationController extends AbstractController
             return $this->redirectToRoute('app_year_migration_index');
         }
 
-        $sourcePeriodId = $request->request->get('source_period');
-        $targetPeriodId = $request->request->get('target_period');
-        $passingGrade   = (float) ($request->request->get('passing_grade', 10));
-        $options = [
-            'subject_groups' => (bool) $request->request->get('opt_subject_groups', true),
-            'classes'        => (bool) $request->request->get('opt_classes', true),
-            'subjects'       => (bool) $request->request->get('opt_subjects', true),
-            'modules'        => (bool) $request->request->get('opt_modules', true),
-            'payment_modals' => (bool) $request->request->get('opt_payment_modals', true),
-        ];
+        $sourcePeriod = $periodRepo->find($request->request->get('source_period'));
+        $targetPeriod = $periodRepo->find($request->request->get('target_period'));
+        $passingGrade = (float) $request->request->get('passing_grade', 10);
+        $options      = $this->extractOptions($request);
 
-        $sourcePeriod = $periodRepo->find($sourcePeriodId);
-        $targetPeriod = $periodRepo->find($targetPeriodId);
-
-        if (!$sourcePeriod || !$targetPeriod) {
-            $this->addFlash('danger', 'Périodes invalides.');
+        if (!$sourcePeriod || !$targetPeriod || $sourcePeriod === $targetPeriod) {
+            $this->addFlash('danger', 'Périodes invalides ou identiques.');
             return $this->redirectToRoute('app_year_migration_index');
         }
-
-        if ($sourcePeriod === $targetPeriod) {
-            $this->addFlash('danger', 'La période source et cible doivent être différentes.');
-            return $this->redirectToRoute('app_year_migration_index');
-        }
-
-        $preview = $this->migrationService->previewStudentMigration($school, $sourcePeriod, $passingGrade);
-
-        // Target period classes for the mapping dropdowns
-        $targetClassOptions = $this->migrationService->getTargetClassOptions($school, $targetPeriod);
 
         return $this->render('school_year_migration/preview.html.twig', [
-            'school'            => $school,
-            'sourcePeriod'      => $sourcePeriod,
-            'targetPeriod'      => $targetPeriod,
-            'passingGrade'      => $passingGrade,
-            'options'           => $options,
-            'preview'           => $preview,
-            'targetClassOptions' => $targetClassOptions,
+            'school'             => $school,
+            'sourcePeriod'       => $sourcePeriod,
+            'targetPeriod'       => $targetPeriod,
+            'passingGrade'       => $passingGrade,
+            'options'            => $options,
+            'preview'            => $this->migrationService->previewStudentMigration($school, $sourcePeriod, $passingGrade),
+            'targetClassOptions' => $this->migrationService->getTargetClassOptions($school, $targetPeriod),
         ]);
     }
 
-    /**
-     * Execute the full migration (configuration + students).
-     */
     #[Route('/execute', name: 'app_year_migration_execute', methods: ['POST'])]
     public function execute(
         Request $request,
@@ -118,22 +98,11 @@ final class SchoolYearMigrationController extends AbstractController
             return $this->redirectToRoute('app_year_migration_index');
         }
 
-        $sourcePeriodId = $request->request->get('source_period');
-        $targetPeriodId = $request->request->get('target_period');
-        $passingGrade   = (float) ($request->request->get('passing_grade', 10));
-        $options = [
-            'subject_groups' => (bool) $request->request->get('opt_subject_groups'),
-            'classes'        => (bool) $request->request->get('opt_classes'),
-            'subjects'       => (bool) $request->request->get('opt_subjects'),
-            'modules'        => (bool) $request->request->get('opt_modules'),
-            'payment_modals' => (bool) $request->request->get('opt_payment_modals'),
-        ];
-
-        // classMapping: [sourceSchoolClassPeriodId => targetSchoolClassPeriodId]
+        $sourcePeriod = $periodRepo->find($request->request->get('source_period'));
+        $targetPeriod = $periodRepo->find($request->request->get('target_period'));
+        $passingGrade = (float) $request->request->get('passing_grade', 10);
+        $options      = $this->extractOptions($request);
         $classMapping = $request->request->all('class_mapping');
-
-        $sourcePeriod = $periodRepo->find($sourcePeriodId);
-        $targetPeriod = $periodRepo->find($targetPeriodId);
 
         if (!$sourcePeriod || !$targetPeriod || $sourcePeriod === $targetPeriod) {
             $this->addFlash('danger', 'Périodes invalides.');
@@ -141,19 +110,15 @@ final class SchoolYearMigrationController extends AbstractController
         }
 
         try {
-            $configSummary = $this->migrationService->migrateConfiguration(
-                $school,
-                $sourcePeriod,
-                $targetPeriod,
-                $options
-            );
-
-            $studentStats = $this->migrationService->migrateStudents(
+            $user = $this->getUser();
+            $log  = $this->migrationService->executeMigration(
                 $school,
                 $sourcePeriod,
                 $targetPeriod,
                 $passingGrade,
-                $classMapping
+                $options,
+                $classMapping,
+                $user ? ($user->getUserIdentifier()) : 'inconnu'
             );
         } catch (\Exception $e) {
             $this->addFlash('danger', 'Erreur lors de la migration : ' . $e->getMessage());
@@ -164,15 +129,138 @@ final class SchoolYearMigrationController extends AbstractController
             'school'        => $school,
             'sourcePeriod'  => $sourcePeriod,
             'targetPeriod'  => $targetPeriod,
-            'configSummary' => $configSummary,
-            'studentStats'  => $studentStats,
+            'configSummary' => $log->getConfigSummary(),
+            'studentStats'  => $log->getStudentStats(),
             'passingGrade'  => $passingGrade,
+            'log'           => $log,
         ]);
     }
 
+    // ─────────────────────────────────────────────────────────────────────────
+    // GESTION D'UNE MIGRATION (annuler ou corriger)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[Route('/{id}/manage', name: 'app_year_migration_manage', methods: ['GET'])]
+    public function manage(MigrationLog $log, SessionInterface $session): Response
+    {
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $state              = $this->migrationService->checkMigrationState($log);
+        $targetClassOptions = $this->migrationService->getTargetClassOptions($school, $log->getTargetPeriod());
+
+        return $this->render('school_year_migration/manage.html.twig', [
+            'log'                => $log,
+            'state'              => $state,
+            'targetClassOptions' => $targetClassOptions,
+            'school'             => $school,
+        ]);
+    }
+
+    #[Route('/{id}/cancel', name: 'app_year_migration_cancel', methods: ['POST'])]
+    public function cancel(MigrationLog $log, Request $request, SessionInterface $session): Response
+    {
+        if (!$this->isCsrfTokenValid('cancel_migration_' . $log->getId(), $request->request->get('_token'))) {
+            $this->addFlash('danger', 'Token CSRF invalide.');
+            return $this->redirectToRoute('app_year_migration_manage', ['id' => $log->getId()]);
+        }
+
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        if ($log->getStatus() !== 'executed') {
+            $this->addFlash('warning', 'Cette migration a déjà été annulée ou corrigée.');
+            return $this->redirectToRoute('app_year_migration_index');
+        }
+
+        try {
+            $this->migrationService->cancelMigration($log);
+            $this->addFlash('success', 'Migration annulée avec succès. Toutes les données créées ont été supprimées.');
+        } catch (\LogicException $e) {
+            $this->addFlash('danger', $e->getMessage());
+        } catch (\Exception $e) {
+            $this->addFlash('danger', 'Erreur lors de l\'annulation : ' . $e->getMessage());
+        }
+
+        return $this->redirectToRoute('app_year_migration_index');
+    }
+
+    #[Route('/{id}/correct-preview', name: 'app_year_migration_correct_preview', methods: ['POST'])]
+    public function correctPreview(MigrationLog $log, Request $request, SessionInterface $session): Response
+    {
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $newPassingGrade    = (float) $request->request->get('new_passing_grade', $log->getPassingGrade());
+        $changes            = $this->migrationService->previewCorrection($log, $newPassingGrade);
+        $targetClassOptions = $this->migrationService->getTargetClassOptions($school, $log->getTargetPeriod());
+        $sourceClassOptions = $this->migrationService->getTargetClassOptions($school, $log->getSourcePeriod());
+
+        return $this->render('school_year_migration/correct_preview.html.twig', [
+            'log'                => $log,
+            'newPassingGrade'    => $newPassingGrade,
+            'changes'            => $changes,
+            'targetClassOptions' => $targetClassOptions,
+            'sourceClassOptions' => $sourceClassOptions,
+            'school'             => $school,
+        ]);
+    }
+
+    #[Route('/{id}/correct', name: 'app_year_migration_correct', methods: ['POST'])]
+    public function correct(MigrationLog $log, Request $request, SessionInterface $session): Response
+    {
+        if (!$this->isCsrfTokenValid('correct_migration_' . $log->getId(), $request->request->get('_token'))) {
+            $this->addFlash('danger', 'Token CSRF invalide.');
+            return $this->redirectToRoute('app_year_migration_manage', ['id' => $log->getId()]);
+        }
+
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $newPassingGrade = (float) $request->request->get('new_passing_grade', $log->getPassingGrade());
+        $classMapping    = $request->request->all('class_mapping');
+
+        try {
+            $applied = $this->migrationService->applyCorrection($log, $newPassingGrade, $classMapping);
+            $this->addFlash('success', sprintf(
+                'Correction appliquée : %d promu(s), %d rétrogradé(s), %d ajouté(s).',
+                $applied['promoted'],
+                $applied['demoted'],
+                $applied['added']
+            ));
+        } catch (\Exception $e) {
+            $this->addFlash('danger', 'Erreur lors de la correction : ' . $e->getMessage());
+        }
+
+        return $this->redirectToRoute('app_year_migration_manage', ['id' => $log->getId()]);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // HELPERS
+    // ─────────────────────────────────────────────────────────────────────────
+
     private function getSchool(SessionInterface $session): ?School
     {
-        $schoolId = $session->get('school_id');
-        return $schoolId ? $this->em->getRepository(School::class)->find($schoolId) : null;
+        $id = $session->get('school_id');
+        return $id ? $this->em->getRepository(School::class)->find($id) : null;
+    }
+
+    private function extractOptions(Request $request): array
+    {
+        return [
+            'subject_groups' => (bool) $request->request->get('opt_subject_groups'),
+            'classes'        => (bool) $request->request->get('opt_classes'),
+            'subjects'       => (bool) $request->request->get('opt_subjects'),
+            'modules'        => (bool) $request->request->get('opt_modules'),
+            'payment_modals' => (bool) $request->request->get('opt_payment_modals'),
+        ];
     }
 }
