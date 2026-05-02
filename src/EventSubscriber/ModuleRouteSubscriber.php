@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // src/EventSubscriber/ModuleRouteSubscriber.php
 namespace App\EventSubscriber;
 

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 namespace App\Controller;
 
@@ -25,6 +25,16 @@ use App\Service\LicenseManager;
 use Doctrine\ORM\EntityManager;
 use App\Service\OperationLogger;
 use Symfony\Component\HttpFoundation\Session\Session;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
+
+#[IsGranted("ROLE_SUPER_ADMIN")]
+final class SchoolController extends AbstractController
+{
+    private School $currentSchool;
+    private SchoolSection $currentSection;
+    private SessionInterface $session;
+    private EntityManagerInterface $entityManager;
+    private SchoolPeriod $currentPeriod;
 
     public function __construct(
         EntityManagerInterface $entityManager,

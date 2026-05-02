@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 namespace App\MessageHandler;
 
 use App\Message\GenerateAllBulletinsMessage;

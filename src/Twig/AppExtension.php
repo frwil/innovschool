@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // src/Twig/AppExtension.php
 namespace App\Twig;
 

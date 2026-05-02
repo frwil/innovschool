@@ -1,14 +1,9 @@
-﻿<?php
+<?php
 
 namespace App\Service;
 
-use App\Contract\GenderEnum;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Html;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use App\Entity\StudentClass;
-use App\Entity\SchoolClassPeriod;
-use App\Entity\EvaluationAppreciationTemplate;
 use App\Repository\StudentClassRepository;
 use App\Repository\SchoolClassPeriodRepository;
 use App\Repository\EvaluationRepository;
@@ -25,21 +20,13 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use App\Repository\SchoolEvaluationTimeRepository;
 use App\Repository\SchoolEvaluationFrameRepository;
 use App\Repository\StudySubjectRepository;
-use PhpOffice\PhpSpreadsheet\Worksheet\Drawing;
-use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
-use PhpOffice\PhpSpreadsheet\Worksheet\PageSetup;
-use PhpOffice\PhpSpreadsheet\Style\Fill;
 use App\Entity\School;
 use App\Entity\SchoolPeriod;
-use App\Entity\StudentClassAttendance;
-use App\Entity\SubjectModule;
-use App\Entity\SubjectsModules;
 use App\Entity\SchoolClassSubject;
 use App\Repository\StudentClassAttendanceRepository;
 use Psr\Log\LoggerInterface;
 use App\Entity\ReportCardTemplate;
-use Proxies\__CG__\App\Entity\StudentClass as EntityStudentClass;
 
 class BulletinGenerator
 {

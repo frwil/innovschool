@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // filepath: src/Controller/HomeController.php
 namespace App\Controller;
 

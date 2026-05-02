@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // filepath: src/Controller/SchoolClassPaymentModalsController.php
 namespace App\Controller;
 

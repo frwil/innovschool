@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // src/Service/ModuleManager.php
 namespace App\Service;
 

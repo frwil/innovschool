@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 
 namespace App\Controller;
 
@@ -26,6 +26,20 @@ use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use App\Service\OperationLogger;
 use Symfony\Component\HttpFoundation\Session\Session;
+
+#[Route('/school-class-subject')]
+final class SchoolClassSubjectController extends AbstractController
+{
+    private EntityManagerInterface $entityManager;
+    private School $currentSchool;
+    private SchoolPeriod $currentPeriod;
+    private SessionInterface $session;
+    public function __construct(
+        EntityManagerInterface $entityManager
+    ) {
+        $this->entityManager = $entityManager;
+    }
+
     #[Route('/study', name: 'app_study_show', methods: ['GET', 'POST'])]
     public function showStudies(
         Request $request,
@@ -508,6 +522,40 @@ use Symfony\Component\HttpFoundation\Session\Session;
         }
 
         try {
+            $entityManager->flush();
+            // Log l'opération de modification de l'affectation
+            $operationLogger->log(
+                'MODIFICATION DE L\'AFFECTATION',
+                'SUCCESS',
+                'SchoolClassSubject',
+                $affectation->getId(),
+                null,
+                ['coefficient' => $affectation->getCoefficient(), 'group' => $groupId, 'teacher' => $teacher ? $teacher->getUsername() : null, 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
+            );
+            $this->addFlash('success', 'Affectation modifiée avec succès.');
+            // Retourne une réponse JSON pour une requête AJAX
+
+            return $this->json([
+                'status' => 'success',
+                'message' => 'Affectation modifiée avec succès.',
+            ]);
+        } catch (\Exception $e) {
+            // Log de l'erreur
+            $operationLogger->log(
+                'MODIFICATION DE L\'AFFECTATION',
+                'ERROR',
+                'SchoolClassSubject',
+                $affectation->getId(),
+                $e->getMessage(),
+                ['coefficient' => $affectation->getCoefficient(), 'group' => $groupId, 'teacher' => $teacher ? $teacher->getUsername() : null, 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
+            );
+            $this->addFlash('danger', 'Erreur lors de la modification de l\'affectation : ' . $e->getMessage());
+            // Retourne une réponse JSON pour une requête AJAX
+            return $this->json([
+                'status' => 'error',
+                'message' => 'Erreur lors de la modification de l\'affectation : ' . $e->getMessage(),
+            ], 500);
+        }
     }
 
     #[Route('/affectation/{id}/delete', name: 'app_delete_affectation', methods: ['POST'])]
@@ -867,6 +915,7 @@ use Symfony\Component\HttpFoundation\Session\Session;
         $token = $request->request->get('_token');
         $this->session = $session;
         $this->entityManager = $entityManager;
+        // Récupère l'école et la période actuelles
         $this->currentSchool = $entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
 
@@ -880,6 +929,7 @@ use Symfony\Component\HttpFoundation\Session\Session;
 
         $class = $entityManager->getRepository(SchoolClassPeriod::class)->findBy(['classOccurence' => $classId, 'school' => $this->currentSchool, 'period' => $this->currentPeriod]);
 
+        // Récupère tous les SchoolClassSubject concernés
         $subjects = $schoolClassSubjectRepo->findBy([
             'schoolClassPeriod' => $class,
             'group' => $groupId,
@@ -892,17 +942,30 @@ use Symfony\Component\HttpFoundation\Session\Session;
 
         try {
             $entityManager->flush();
-            $operationLogger->log('SUPPRESSION DU GROUPE DE MATIÈRES DANS LA CLASSE', 'SUCCESS', 'SchoolClassSubject', null, null,
+            // Log l'opération de suppression de la matière
+            $operationLogger->log(
+                'SUPPRESSION DU GROUPE DE MATIÈRES DANS LA CLASSE',
+                'SUCCESS',
+                'SchoolClassSubject',
+                null,
+                null,
                 ['class' => $classId, 'group' => $groupId, 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
             );
         } catch (\Exception $e) {
             if (!$this->entityManager->isOpen()) {
                 $this->entityManager = $doctrine->resetManager();
             }
-            $operationLogger->log('SUPPRESSION DU GROUPE DE MATIÈRES DANS LA CLASSE', 'ERROR', 'SchoolClassSubject', null, $e->getMessage(),
+            // Log de l'erreur
+            $operationLogger->log(
+                'SUPPRESSION DU GROUPE DE MATIÈRES DANS LA CLASSE',
+                'ERROR',
+                'SchoolClassSubject',
+                null,
+                $e->getMessage(),
                 ['class' => $classId, 'group' => $groupId, 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
             );
-            return new JsonResponse(['error' => 'Erreur lors de la suppression : ' . $e->getMessage()], 500);
+            // Retourne une réponse JSON avec l'erreur
+            return new JsonResponse(['error' => 'Erreur lors de la suppression de la matière.' . $e->getMessage()], 500);
         }
 
         return new JsonResponse(['success' => true]);

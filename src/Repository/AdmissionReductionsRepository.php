@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 namespace App\Repository;
 
 use App\Entity\AdmissionReductions;
