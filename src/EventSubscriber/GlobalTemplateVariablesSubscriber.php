@@ -1,168 +1,154 @@
-﻿<?php
+<?php
 
 namespace App\EventSubscriber;
 
-use App\Repository\SchoolRepository;
-use App\Repository\SchoolPeriodRepository;
-use App\Service\LicenseManager;
-use Symfony\Component\EventDispatcher\EventSubscriberInterface;
-use Symfony\Component\HttpKernel\Event\ControllerEvent;
-use Symfony\Bundle\SecurityBundle\Security;
-use Twig\Environment;
-use Symfony\Component\HttpFoundation\Response;
-use App\Repository\AppLicenseRepository;
+use App\Entity\AppLicense;
 use App\Entity\School;
 use App\Entity\SchoolPeriod;
+use App\Repository\AppLicenseRepository;
+use App\Repository\SchoolPeriodRepository;
+use App\Repository\SchoolRepository;
+use App\Service\LicenseManager;
 use Doctrine\ORM\EntityManagerInterface;
-use App\Entity\AppLicense;
+use Symfony\Bundle\SecurityBundle\Security;
+use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Event\ControllerEvent;
+use Twig\Environment;
 
 class GlobalTemplateVariablesSubscriber implements EventSubscriberInterface
 {
-    private $twig;
-    private $schoolRepo;
-    private $periodRepo;
-    private $licenseManager;
-    private $security;
-    private $appLicenseRepo;
-    private School $currentSchool;
-    private SchoolPeriod $currentPeriod;
-    private EntityManagerInterface $entityManager;
+    /**
+     * Routes exclues de la vérification de licence.
+     * Inclut toutes les routes liées à l'authentification, à la sélection
+     * d'école et aux pages de gestion de licence elles-mêmes.
+     */
+    private const EXCLUDED_ROUTES = [
+        // Auth
+        'app_login',
+        'app_logout',
+        'app_register',
+        'app_force_password_reset',
+        // Sélection d'école / période
+        'app_choose_school',
+        'app_create_school',
+        'app_school_show',
+        'app_show_school',
+        'period_create',
+        // Gestion de licence (évite les boucles de redirection)
+        'app_licence_index',
+        'app_renew_license',
+        'app_licence_add_payment',
+        // API
+        'api_login_check',
+    ];
 
     public function __construct(
-        Environment $twig,
-        SchoolRepository $schoolRepo,
-        SchoolPeriodRepository $periodRepo,
-        LicenseManager $licenseManager,
-        Security $security,
-        AppLicenseRepository $licenseRepo,
-        EntityManagerInterface $entityManager
-    ) {
-        $this->twig = $twig;
-        $this->schoolRepo = $schoolRepo;
-        $this->periodRepo = $periodRepo;
-        $this->licenseManager = $licenseManager;
-        $this->security = $security;
-        $this->appLicenseRepo = $licenseRepo;
-        $this->entityManager = $entityManager;
-    }
+        private Environment            $twig,
+        private SchoolRepository       $schoolRepo,
+        private SchoolPeriodRepository $periodRepo,
+        private LicenseManager         $licenseManager,
+        private Security               $security,
+        private AppLicenseRepository   $appLicenseRepo,
+        private EntityManagerInterface $entityManager,
+    ) {}
 
-    public function onKernelController(ControllerEvent $event)
+    public function onKernelController(ControllerEvent $event): void
     {
-        $request = $event->getRequest();
-        $route = $request->attributes->get('_route');
-
-        $excludedRoutes = [
-            'app_login',
-            'app_logout',
-            'app_register',
-            'app_show_school',
-            // Ajoute ici toutes les routes publiques ou de sécurité
-        ];
-        if (in_array($route, $excludedRoutes, true)) {
+        // Ignorer les sous-requêtes et les routes de debug
+        if (!$event->isMainRequest()) {
             return;
         }
 
         $request = $event->getRequest();
+        $route   = (string) $request->attributes->get('_route', '');
+
+        // Routes internes Symfony (_wdt, _profiler…) et routes exclues
+        if (str_starts_with($route, '_') || in_array($route, self::EXCLUDED_ROUTES, true)) {
+            return;
+        }
+
         $session = $request->getSession();
 
-        $this->currentSchool = new School();
-        $this->currentPeriod = new SchoolPeriod();
-
-        if ($session->has('school_id')) {
-            $this->currentSchool = $this->schoolRepo->find($session->get('school_id'));
-        }
-        if ($session->has('period_id')) {
-            $this->currentPeriod = $this->periodRepo->find($session->get('period_id'));
+        // Pas d'école en session → SchoolSelectionListener s'en charge
+        if (!$session->has('school_id')) {
+            return;
         }
 
-
-
-        /* $this->twig->addGlobal('schools', $schools);
-        $this->twig->addGlobal('periods', $periods);
-        $this->twig->addGlobal('currentSchool', $this->currentSchool);
-        $this->twig->addGlobal('currentPeriod', $currentPeriod); */
-        if ($request->isMethod('POST') && $request->attributes->get('_route')=='app_renew_license') {
-            $license = $this->appLicenseRepo->findOneBy(['school' => $this->currentSchool, 'enabled' => true]);
-            $token = $request->request->get('license_token');
-            $this->licenseManager->validateAndApplyToken($license, $token,$this->currentSchool,$this->entityManager);
+        $school = $this->schoolRepo->find($session->get('school_id'));
+        if (!$school) {
+            return;
         }
-        // Vérification de la licence
-        $isLicenseExpired = false;
+
+        // ── Vérification de la licence ────────────────────────────────────────
+        $license = $this->appLicenseRepo->findOneBy(['school' => $school, 'enabled' => true]);
+
+        // Durée 0 = licence illimitée (mode développement / démo)
+        if ($license && $license->getLicenceDuration() === 0) {
+            $this->touchLastAccess($school);
+            return;
+        }
+
         try {
-            if ($this->currentSchool && $session->has('school_id')) {
-                $license = $this->appLicenseRepo->findOneBy(['school' => $this->currentSchool, 'enabled' => true]);
-                try {
-                    if ($license) {
-                        if ($license->getLicenceDuration() == 0) {
-                            $isLicenseExpired = false;
-                        } else {
-                            try {
-                                $this->licenseManager->checkLicense($this->currentSchool, $license);
-                            } catch (\Exception $e) {
-                                $isLicenseExpired = true;
-                                throw $e;
-                            }
-                        }
-                    } else {
-                        $isLicenseExpired = true;
-                        throw new \Exception("Licence invalide ou non initialisée.");
-                    }
-                } catch (\Exception $e) {
-                    $isLicenseExpired = true;
-                    throw new \Exception("Licence invalide ou expirée. Veuillez contacter l'administrateur.");
-                }
-            }
-        } catch (\Exception $e) {
-            $isLicenseExpired = true;
-            $user = $this->security->getUser();
-            $isSuperAdmin = $user && method_exists($user, 'getRoles') && in_array('ROLE_SUPER_ADMIN', $user->getRoles());
-
-            $licenceStartAt = new \DateTime();
-            $duration=540;
-
-            // Récupérer ou créer la licence
-            $license = $this->appLicenseRepo->findOneBy(['school' => $this->currentSchool, 'enabled' => true]);
             if (!$license) {
-                $license = new AppLicense();
-                $license->setSchool($this->currentSchool);
-                $license->setEnabled(true);
+                throw new \RuntimeException('Aucune licence active trouvée pour cet établissement.');
             }
 
-            // Sauvegarder l'ancien hash pour générer le token
-            $oldLicenseHash = $license->getLicenseHash();
+            $this->licenseManager->checkLicense($school, $license);
 
-            // Mettre à jour les données de la licence
-            $license->setLicenceStartAt($licenceStartAt);
-            $license->setLicenceDuration($duration);
-            $license->setLicenceAmount(0);
+            // Mise à jour du lastAccesAt (anti-retour arrière horloge)
+            $this->touchLastAccess($school);
 
-            $this->entityManager->persist($license);
-            $this->entityManager->flush();
-
-            // ⚠️ Utiliser la MÊME méthode que dans validateAndApplyToken
-            $token = $this->licenseManager->generateActivationToken($licenceStartAt, $duration, $oldLicenseHash);
-
-            $response = new Response(
-                $this->twig->render(
-                    $isSuperAdmin
-                        ? 'license/expired_superadmin.html.twig'
-                        : 'license/expired.html.twig',
-                    [
-                        'message' => $e->getMessage(),
-                        'school' => $this->currentSchool,
-                        'isLicenseExpired' => $isLicenseExpired,
-                        'token' => $isSuperAdmin ? $token : '',
-                        'licenceStartAt' => $licenceStartAt->format('Y-m-d H:i:s'),
-                    ]
-                )
-            );
-            $event->setController(function () use ($response) {
-                return $response;
-            });
+        } catch (\RuntimeException $e) {
+            $this->renderExpiredPage($event, $e->getMessage(), $school, $license);
         }
     }
 
-    public static function getSubscribedEvents()
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    /**
+     * Persiste la date du dernier accès pour détecter les retours arrière d'horloge.
+     */
+    private function touchLastAccess(School $school): void
+    {
+        $school->setLastAccesAt(new \DateTime());
+        $this->entityManager->persist($school);
+        $this->entityManager->flush();
+    }
+
+    /**
+     * Remplace le contrôleur courant par la page "licence expirée".
+     * Ne modifie PAS la licence en base — le superadmin doit utiliser
+     * le token fourni par l'administrateur système (bin/console license:generate-token).
+     */
+    private function renderExpiredPage(
+        ControllerEvent $event,
+        string          $message,
+        School          $school,
+        ?AppLicense     $license
+    ): void {
+        $user         = $this->security->getUser();
+        $isSuperAdmin = $user
+            && method_exists($user, 'getRoles')
+            && in_array('ROLE_SUPER_ADMIN', $user->getRoles());
+
+        $template = $isSuperAdmin
+            ? 'license/expired_superadmin.html.twig'
+            : 'license/expired.html.twig';
+
+        $response = new Response(
+            $this->twig->render($template, [
+                'message'        => $message,
+                'school'         => $school,
+                'licenceStartAt' => $license?->getLicenceStartAt() ?? new \DateTime(),
+            ]),
+            Response::HTTP_FORBIDDEN
+        );
+
+        $event->setController(static fn() => $response);
+    }
+
+    public static function getSubscribedEvents(): array
     {
         return [
             'kernel.controller' => 'onKernelController',

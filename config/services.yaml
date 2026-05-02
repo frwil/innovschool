@@ -44,7 +44,7 @@ services:
 
     App\Service\LicenseManager:
         arguments:
-            $licenseSecret: '%env(APP_LICENSE_SECRET)%'
+            $secret: '%env(APP_LICENSE_SECRET)%'
             $httpClient: '@?http_client'
 
     App\EventListener\SchoolSelectionListener:
