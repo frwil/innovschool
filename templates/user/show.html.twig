@@ -1,4 +1,4 @@
-{% extends 'base.up.html.twig' %}
+﻿{% extends 'base.up.html.twig' %}
 
 {% block title %}User
 {% endblock %}
@@ -136,65 +136,13 @@
 									<option value="{{ class.id }}" {% if currentClass and currentClass.id == class.id %} selected {% endif %}>{{ class.classOccurence.name }}</option>
 								{% endfor %}
 							</select>
-<<<<<<< HEAD
 							<input type="hidden" id="currentSchoolPeriod" name="currentSchoolPeriod" value="{{ currentClass.id}}">
-=======
->>>>>>> claude/naughty-rubin-200ad9
-						</div>
-						<div class="mb-3">
-							<label for="isRepeating" class="form-label">Redoublant</label>
-							<select id="isRepeating" name="isRepeating" class="form-select select2" required>
-								<option value="0" {% if user.repeated == 0 %} selected {% endif %}>Non</option>
-								<option value="1" {% if user.repeated == 1 %} selected {% endif %}>Oui</option>
-							</select>
-						</div>
-					</div>
-				{% endif %}
-				<div class="mb-3">
-					<button type="submit" class="btn btn-primary btn-lg">Enregistrer</button>
-				</div>
-			</form>
-		</div>
-		<div>
-			<a href="{{ path('app_' ~ role ~ '_index') }}" class="btn btn-secondary btn-lg">Retour à la liste</a>
-			<form class="delete-user-form d-inline" method="post" action="{{ path('app_user_delete', {'id': user.id}) }}" onsubmit="return confirm('Supprimer cet utilisateur ?');">
-				<input type="hidden" name="_token" value="{{ csrf_token('delete' ~ user.id) }}">
-				<button type="submit" class="btn btn-danger btn-lg">Supprimer</button>
-			</form>
-		</div>
-
-	{% else %}
-		<div class="alert alert-danger mt-4">Vous n'avez pas accès à cette page.</div>
-	{% endif %}
-
-<script>
-$(function() {
-    $('#userForm').on('submit', function(e) {
-        e.preventDefault();
-        var form = this;
-        var formData = new FormData(form);
-
-        $.ajax({
-            url: $(form).attr('action'),
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response) {
-<<<<<<< HEAD
-                $.notify(response.message || 'Modifications enregistrées avec succès !','success');
-                setTimeout(()=>{window.location.reload();}, 1200);
-=======
-                alert(response.message || 'Modifications enregistrées avec succès !');
-                window.location.reload();
->>>>>>> claude/naughty-rubin-200ad9
             },
             error: function(xhr) {
                 let msg = 'Erreur lors de l\'enregistrement.';
                 if (xhr.responseJSON && xhr.responseJSON.message) {
                     msg = xhr.responseJSON.message;
                 }
-<<<<<<< HEAD
                 $.notify(msg);
             },
 			fail: function(xhr) {
@@ -203,9 +151,6 @@ $(function() {
                     msg = xhr.responseJSON.message;
                 }
                 $.notify(msg);
-=======
-                alert(msg);
->>>>>>> claude/naughty-rubin-200ad9
             }
         });
     });

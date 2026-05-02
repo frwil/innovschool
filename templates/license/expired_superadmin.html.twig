@@ -1,30 +1,39 @@
-<<<<<<< HEAD
 {% extends 'base.html.twig' %}
+
+{% block title %}Licence expirée{% endblock %}
+
 {% block body %}
-<div class="alert alert-danger border-2 border-danger rounded mt-5 text-center">
-    <h2 class="text-danger">Licence expirée</h2>
-    <p>{{ message }}</p>
-    <form method="post" action="{{ path('app_renew_license') }}">
-        <div class="form-group">
-            <label for="license_token">Nouveau token de licence - {{ licenceStartAt|date('Y-m-d h:i:s') }}</label>
-            <input type="text" name="license_token" id="license_token" class="form-control" required value="{{ token }}">
+<div class="row justify-content-center mt-5">
+    <div class="col-md-6">
+        <div class="card border-danger">
+            <div class="card-header bg-danger text-white text-center">
+                <h4 class="mb-0"><i class="ti ti-alert-circle me-2"></i>Licence expirée</h4>
+            </div>
+            <div class="card-body">
+                <p class="text-center text-muted mb-4">{{ message }}</p>
+
+                <div class="alert alert-info small mb-4">
+                    <strong>Date de référence :</strong> {{ licenceStartAt|date('Y-m-d') }}<br>
+                    Communiquez cette date à votre administrateur système pour obtenir un token de renouvellement.
+                </div>
+
+                <form method="post" action="{{ path('app_renew_license') }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('renew_license') }}">
+                    <div class="mb-3">
+                        <label for="license_token" class="form-label fw-bold">Token de renouvellement</label>
+                        <input type="text" name="license_token" id="license_token"
+                               class="form-control font-monospace" required
+                               value="{{ token ?? '' }}"
+                               placeholder="Collez le token reçu ici">
+                    </div>
+                    <div class="d-grid">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="ti ti-player-play me-1"></i>Activer le renouvellement
+                        </button>
+                    </div>
+                </form>
+            </div>
         </div>
-        <button type="submit" class="btn btn-primary mt-3">Valider</button>
-    </form>
+    </div>
 </div>
-=======
-{% extends 'base.html.twig' %}
-{% block body %}
-<div class="alert alert-danger border-2 border-danger rounded mt-5 text-center">
-    <h2 class="text-danger">Licence expirée</h2>
-    <p>{{ message }}</p>
-    <form method="post" action="{{ path('app_renew_license') }}">
-        <div class="form-group">
-            <label for="license_token">Nouveau token de licence - {{ licenceStartAt|date('Y-m-d h:i:s') }}</label>
-            <input type="text" name="license_token" id="license_token" class="form-control" required value="{{ token }}">
-        </div>
-        <button type="submit" class="btn btn-primary mt-3">Valider</button>
-    </form>
-</div>
->>>>>>> claude/naughty-rubin-200ad9
 {% endblock %}

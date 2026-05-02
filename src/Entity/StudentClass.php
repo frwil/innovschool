@@ -26,8 +26,7 @@ class StudentClass
 
     #[ORM\OneToMany(mappedBy: 'studentClass', targetEntity: StudentClassAttendance::class)]
     private Collection $attendances;
-<<<<<<< HEAD
-    
+
     #[ORM\OneToMany(mappedBy: 'studentClass', targetEntity: StudentClassTimetablePresence::class, cascade: ['remove'])]
     private Collection $presences;
 
@@ -35,8 +34,6 @@ class StudentClass
     {
         return $this->presences ?? new ArrayCollection();
     }
-=======
->>>>>>> claude/naughty-rubin-200ad9
 
     public function __construct()
     {

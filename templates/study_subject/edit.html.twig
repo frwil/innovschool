@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-{% extends 'base.up.html.twig' %}
+﻿{% extends 'base.up.html.twig' %}
 
 {% block title %}Modifier la matière{% endblock %}
 
@@ -17,24 +16,4 @@
         <a href="{{ path('app_study_show',{'id':subject.id}) }}" class="btn btn-secondary btn-lg">Annuler</a>
         </div>
     </form>
-=======
-{% extends 'base.up.html.twig' %}
-
-{% block title %}Modifier la matière{% endblock %}
-
-{% block body %}
-    <div class="three">
-  <h1>Modifier la matière</h1>
-  </div>
-    <form method="post" class="row">
-        <div class="mb-3 col-md-4 border rounded p-3">
-        <div class="mb-3">
-            <label for="name" class="form-label">Nom</label>
-            <input type="text" id="name" name="name" class="form-control" value="{{ subject.name }}" required>
-        </div>
-        <button type="submit" class="btn btn-primary btn-lg">Enregistrer</button>
-        <a href="{{ path('app_study_show',{'id':subject.id}) }}" class="btn btn-secondary btn-lg">Annuler</a>
-        </div>
-    </form>
->>>>>>> claude/naughty-rubin-200ad9
 {% endblock %}

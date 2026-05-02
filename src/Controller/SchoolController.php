@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Controller;
 
@@ -24,23 +24,7 @@ use App\Service\ImageOptimizerService;
 use App\Service\LicenseManager;
 use Doctrine\ORM\EntityManager;
 use App\Service\OperationLogger;
-<<<<<<< HEAD
 use Symfony\Component\HttpFoundation\Session\Session;
-=======
->>>>>>> claude/naughty-rubin-200ad9
-use Symfony\Component\HttpFoundation\Session\SessionInterface;
-
-#[IsGranted("ROLE_SUPER_ADMIN")]
-final class SchoolController extends AbstractController
-{
-    private School $currentSchool;
-    private SchoolSection $currentSection;
-    private SessionInterface $session;
-    private EntityManagerInterface $entityManager;
-<<<<<<< HEAD
-    private SchoolPeriod $currentPeriod;
-=======
->>>>>>> claude/naughty-rubin-200ad9
 
     public function __construct(
         EntityManagerInterface $entityManager,
@@ -76,7 +60,6 @@ final class SchoolController extends AbstractController
         EmailGeneratorService $emailGenerator,
         ImageOptimizer $imageOptimizer,
         LicenseManager $licenseManager,
-<<<<<<< HEAD
         OperationLogger $operationLogger,
         SessionInterface $session
     ): Response {
@@ -85,12 +68,6 @@ final class SchoolController extends AbstractController
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
-=======
-        \App\Service\OperationLogger $operationLogger // <-- Ajoute ceci
-    ): Response {
-        $school = new School();
-
->>>>>>> claude/naughty-rubin-200ad9
         if ($request->isMethod('POST')) {
             $school->setName($request->request->get('name'));
             $school->setAcronym($request->request->get('acronym'));
@@ -140,11 +117,7 @@ final class SchoolController extends AbstractController
 
             // Log l'opération de création d'école
             $operationLogger->log(
-<<<<<<< HEAD
                 'CREATION LICENSE', // Type d'opération
-=======
-                'CREATION', // Type d'opération
->>>>>>> claude/naughty-rubin-200ad9
                 'SUCCESS',  // Statut
                 'School',   // Nom de l'entité
                 $school->getId(), // ID de l'entité
@@ -152,13 +125,9 @@ final class SchoolController extends AbstractController
                 [
                     'name' => $school->getName(),
                     'acronym' => $school->getAcronym(),
-<<<<<<< HEAD
                     'contactEmail' => $school->getContactEmail(),
                     'school' => $school->getName(),
                     'period' => $this->currentPeriod->getName()
-=======
-                    'contactEmail' => $school->getContactEmail()
->>>>>>> claude/naughty-rubin-200ad9
                 ]
             );
 
@@ -176,17 +145,12 @@ final class SchoolController extends AbstractController
 
    
     #[Route('/{id}/edit', name: 'app_school_edit', methods: ['GET', 'POST'])]
-<<<<<<< HEAD
     public function edit(Request $request, School $school, EntityManagerInterface $entityManager,ImageOptimizer $imageOptimizer, \App\Service\OperationLogger $operationLogger,SessionInterface $session): Response
     {
         $this->session=$session;
         $this->entityManager=$entityManager;
         $this->currentPeriod=$this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
         $this->currentSchool=$this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
-=======
-    public function edit(Request $request, School $school, EntityManagerInterface $entityManager,ImageOptimizer $imageOptimizer, \App\Service\OperationLogger $operationLogger): Response
-    {
->>>>>>> claude/naughty-rubin-200ad9
         if ($request->isMethod('POST')) {
             $school->setName($request->request->get('name'));
             $school->setAcronym($request->request->get('acronym'));
@@ -229,13 +193,9 @@ final class SchoolController extends AbstractController
                 [
                     'name' => $school->getName(),
                     'acronym' => $school->getAcronym(),
-<<<<<<< HEAD
                     'contactEmail' => $school->getContactEmail(),
                     'school' => $school->getName(),
                     'period' => $this->currentPeriod->getName()
-=======
-                    'contactEmail' => $school->getContactEmail()
->>>>>>> claude/naughty-rubin-200ad9
                 ]
             );
 
@@ -269,20 +229,12 @@ final class SchoolController extends AbstractController
 
             // Log l'opération de suppression d'école
             $operationLogger->log(
-<<<<<<< HEAD
                 'SUPPRESSION D\'ÉCOLE '.$schoolName,         // Type d'opération
-=======
-                'SUPPRESSION',         // Type d'opération
->>>>>>> claude/naughty-rubin-200ad9
                 'SUCCESS',             // Statut
                 'School',              // Nom de l'entité
                 $schoolId,             // ID de l'entité
                 null,                  // Pas d'erreur
-<<<<<<< HEAD
                 ['name' => $schoolName, 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
-=======
-                ['name' => $schoolName]
->>>>>>> claude/naughty-rubin-200ad9
             );
         }
 

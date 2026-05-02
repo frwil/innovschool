@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-<?php
+﻿<?php
 
 namespace App\Repository;
 
@@ -23,30 +22,4 @@ class  ClassOccurenceRepository extends ServiceEntityRepository
     }
 
     // Ajoute ici tes méthodes personnalisées si besoin
-=======
-<?php
-
-namespace App\Repository;
-
-use App\Entity\ClassOccurence;
-use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
-use Doctrine\Persistence\ManagerRegistry;
-
-/**
- * @extends ServiceEntityRepository<ClasseOccurence>
- *
- * @method ClasseOccurence|null find($id, $lockMode = null, $lockVersion = null)
- * @method ClasseOccurence|null findOneBy(array $criteria, array $orderBy = null)
- * @method ClasseOccurence[]    findAll()
- * @method ClasseOccurence[]    findBy(array $criteria, array $orderBy = null, $limit = null, $offset = null)
- */
-class  ClassOccurenceRepository extends ServiceEntityRepository
-{
-    public function __construct(ManagerRegistry $registry)
-    {
-        parent::__construct($registry, ClassOccurence::class);
-    }
-
-    // Ajoute ici tes méthodes personnalisées si besoin
->>>>>>> claude/naughty-rubin-200ad9
 }

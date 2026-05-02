@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-<?php
+﻿<?php
 
 namespace App\Repository;
 
@@ -23,30 +22,4 @@ class TimetableRepository extends ServiceEntityRepository
     }
 
     // Ajoute ici tes méthodes personnalisées si besoin
-=======
-<?php
-
-namespace App\Repository;
-
-use App\Entity\Timetable;
-use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
-use Doctrine\Persistence\ManagerRegistry;
-
-/**
- * @extends ServiceEntityRepository<Timetable>
- *
- * @method Timetable|null find($id, $lockMode = null, $lockVersion = null)
- * @method Timetable|null findOneBy(array $criteria, array $orderBy = null)
- * @method Timetable[]    findAll()
- * @method Timetable[]    findBy(array $criteria, array $orderBy = null, $limit = null, $offset = null)
- */
-class TimetableRepository extends ServiceEntityRepository
-{
-    public function __construct(ManagerRegistry $registry)
-    {
-        parent::__construct($registry, Timetable::class);
-    }
-
-    // Ajoute ici tes méthodes personnalisées si besoin
->>>>>>> claude/naughty-rubin-200ad9
 }

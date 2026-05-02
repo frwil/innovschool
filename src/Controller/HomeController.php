@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-<?php
+﻿<?php
 // filepath: src/Controller/HomeController.php
 namespace App\Controller;
 
@@ -129,62 +128,3 @@ class HomeController extends AbstractController
         ]);
     }
 }
-=======
-<?php
-// filepath: src/Controller/HomeController.php
-namespace App\Controller;
-
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Annotation\Route;
-
-use Symfony\Component\HttpFoundation\RequestStack;
-use App\Repository\SchoolRepository;
-use App\Repository\SchoolPeriodRepository;
-use App\Entity\School;
-use App\Entity\SchoolPeriod;
-use Symfony\Component\HttpFoundation\Session\SessionInterface;
-use Doctrine\ORM\EntityManagerInterface;
-
-class HomeController extends AbstractController
-{
-    private $schoolRepository;
-    private $schoolPeriodRepository;
-    private $requestStack;
-    private EntityManagerInterface $entityManager;
-    private School $currentSchool;
-    private SchoolPeriod $currentPeriod;
-    private SessionInterface $session;
-
-    public function __construct(EntityManagerInterface $entityManager,SchoolRepository $schoolRepository, SchoolPeriodRepository $schoolPeriodRepository, RequestStack $requestStack)
-    {
-        $this->schoolRepository = $schoolRepository;
-        $this->schoolPeriodRepository = $schoolPeriodRepository;
-        $this->requestStack = $requestStack;
-        $this->entityManager = $entityManager;
-    }
-
-    #[Route('/', name: 'app_home')]
-    public function index(SessionInterface $session): Response
-    {
-        $this->session = $session;
-        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
-        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
-        $request = $this->requestStack->getCurrentRequest();
-        $schoolId = $request->getSession()->get('school_id');
-        $periodId = $request->getSession()->get('period_id');
-
-        $school = $schoolId ? $this->schoolRepository->find($schoolId) : null;
-        $period = $periodId ? $this->schoolPeriodRepository->find($periodId) : null;
-        $schools = $this->schoolRepository->findAll();
-        $periods = $this->schoolPeriodRepository->findAll();
-
-        return $this->render('base.html.twig', [
-            'currentSchool' => $school,
-            'currentPeriod' => $period,
-            'schools' => $schools,
-            'periods' => $periods,
-        ]);
-    }
-}
->>>>>>> claude/naughty-rubin-200ad9

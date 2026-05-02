@@ -1,5 +1,4 @@
-<<<<<<< HEAD
-<?php
+﻿<?php
 
 namespace App\Form;
 
@@ -35,41 +34,3 @@ class SchoolNoteType extends AbstractType
         ]);
     }
 }
-=======
-<?php
-
-namespace App\Form;
-
-use App\Entity\School;
-use App\Entity\SchoolClassPeriod;
-use App\Entity\SchoolPeriod;
-use App\Entity\Classe;
-use Symfony\Bridge\Doctrine\Form\Type\EntityType;
-use Symfony\Component\Form\AbstractType;
-use Symfony\Component\Form\Extension\Core\Type\CollectionType;
-use Symfony\Component\Form\FormBuilderInterface;
-use Symfony\Component\OptionsResolver\OptionsResolver;
-
-class SchoolNoteType extends AbstractType
-{
-    public function buildForm(FormBuilderInterface $builder, array $options): void
-    {
-        $builder
-            ->add('studentNotes', CollectionType::class, [
-                'entry_type' => SchoolNotesType::class,
-                'entry_options' => ['label' => false],
-                'by_reference' => false,
-                'mapped' => false,
-                'data' => $options['studentNotes'],
-            ]);
-    }
-
-    public function configureOptions(OptionsResolver $resolver): void
-    {
-        $resolver->setDefaults([
-            'data_class' => SchoolClassPeriod::class,
-            'studentNotes' => [],
-        ]);
-    }
-}
->>>>>>> claude/naughty-rubin-200ad9

@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Controller;
 
@@ -23,31 +23,9 @@ use App\Entity\User;
 use App\Entity\Classe;
 use App\Entity\School;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
-<<<<<<< HEAD
 use Symfony\Component\HttpFoundation\JsonResponse;
 use App\Service\OperationLogger;
 use Symfony\Component\HttpFoundation\Session\Session;
-=======
->>>>>>> claude/naughty-rubin-200ad9
-
-#[Route('/school-class-subject')]
-final class SchoolClassSubjectController extends AbstractController
-{
-    private EntityManagerInterface $entityManager;
-    private School $currentSchool;
-    private SchoolPeriod $currentPeriod;
-    private SessionInterface $session;
-    public function __construct(
-        EntityManagerInterface $entityManager
-    ) {
-        $this->entityManager = $entityManager;
-<<<<<<< HEAD
-    }
-
-=======
-         }
-    
->>>>>>> claude/naughty-rubin-200ad9
     #[Route('/study', name: 'app_study_show', methods: ['GET', 'POST'])]
     public function showStudies(
         Request $request,
@@ -56,7 +34,6 @@ final class SchoolClassSubjectController extends AbstractController
         SluggerInterface $slugger,
         StringHelper $stringHelper,
         SessionInterface $session
-<<<<<<< HEAD
     ): Response {
         $this->session = $session;
         $this->entityManager = $entityManager;
@@ -69,18 +46,6 @@ final class SchoolClassSubjectController extends AbstractController
         $period = $this->currentPeriod;
         $schoolClassPeriods = $entityManager->getRepository(SchoolClassPeriod::class)->findBy(['school' => $this->currentSchool, 'period' => $period]);
         $classeIds = array_map(function ($class) {
-=======
-    ): Response
-    {
-        $this->session = $session;
-        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
-        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
-        $subjects = $entityManager->getRepository(\App\Entity\StudySubject::class)->findBy([], ['name' => 'ASC']);
-
-        $period = $this->currentPeriod;
-        $schoolClassPeriods = $entityManager->getRepository(SchoolClassPeriod::class)->findBy(['school' => $this->currentSchool, 'period' => $period]);
-        $classeIds=array_map(function($class) {
->>>>>>> claude/naughty-rubin-200ad9
             return $class->getClassOccurence()->getClasse()->getId();
         }, $schoolClassPeriods);
         // rendons les id de classe uniques
@@ -98,7 +63,6 @@ final class SchoolClassSubjectController extends AbstractController
                 $subject->setName($stringHelper->toUpperNoAccent($name));
                 $subject->setSlug($slug);
                 $entityManager->persist($subject);
-<<<<<<< HEAD
                 try {
                     $entityManager->flush();
 
@@ -126,22 +90,6 @@ final class SchoolClassSubjectController extends AbstractController
                     );
                     $this->addFlash('danger', 'Erreur lors de la création de la matière : ' . $e->getMessage());
                 }
-=======
-                $entityManager->flush();
-
-                // Log l'opération de création de matière
-                $operationLogger->log(
-                    'CREATION', // Type d'opération
-                    'SUCCESS',  // Statut
-                    'StudySubject', // Nom de l'entité
-                    $subject->getId(), // ID de l'entité
-                    null, // Pas d'erreur
-                    ['name' => $subject->getName()]
-                );
-
-                $this->addFlash('success', 'Matière créée avec succès.');
-                return $this->redirectToRoute('app_study_show',['page' => $page]);
->>>>>>> claude/naughty-rubin-200ad9
             }
         }
 
@@ -154,11 +102,7 @@ final class SchoolClassSubjectController extends AbstractController
     }
 
     #[Route('/study/{id}/manage', name: 'app_study_manage', methods: ['GET'])]
-<<<<<<< HEAD
     public function manageStudySubject(SessionInterface $session, StudySubject $subject, EntityManagerInterface $entityManager): Response
-=======
-    public function manageStudySubject(SessionInterface $session,StudySubject $subject, EntityManagerInterface $entityManager): Response
->>>>>>> claude/naughty-rubin-200ad9
     {
         $this->session = $session;
         $this->entityManager = $entityManager;
@@ -167,7 +111,6 @@ final class SchoolClassSubjectController extends AbstractController
         // Récupère les SchoolClassSubject liés à cette matière
         $classSubjects = $subject->getSchoolClassSubjects();
         $period = $this->currentPeriod;
-<<<<<<< HEAD
         $classes = $entityManager->getRepository(SchoolClassPeriod::class)->findBy(['school' => $this->currentSchool, 'period' => $period]);
         foreach ($classes as $class) {
             $classesIds[] = $class->getId();
@@ -176,16 +119,6 @@ final class SchoolClassSubjectController extends AbstractController
         if (!empty($classesIds) && $classesIds)
             $subjectGroups = $entityManager->getRepository(\App\Entity\SubjectGroup::class)->findBy(['school' => $this->currentSchool, 'period' => $period]);
         $all_teachers = $entityManager->getRepository(User::class)
-=======
-        $classes= $entityManager->getRepository(SchoolClassPeriod::class)->findBy(['school'=>$this->currentSchool,'period'=>$period]);
-        foreach($classes as $class){
-            $classesIds[]=$class->getId();
-        }
-        $subjectGroups=[];
-        if(!empty($classesIds) && $classesIds)
-        $subjectGroups = $entityManager->getRepository(\App\Entity\SubjectGroup::class)->findBy(['school' => $this->currentSchool,'period' => $period]);
-        $all_teachers= $entityManager->getRepository(User::class)
->>>>>>> claude/naughty-rubin-200ad9
             ->createQueryBuilder('u')
             ->where('u.roles LIKE :role')
             ->andWhere('u.school = :school')
@@ -208,7 +141,6 @@ final class SchoolClassSubjectController extends AbstractController
         StudySubject $subject,
         SluggerInterface $slugger,
         StringHelper $stringHelper,
-<<<<<<< HEAD
         \App\Service\OperationLogger $operationLogger,
         SessionInterface $session
     ): Response {
@@ -251,31 +183,6 @@ final class SchoolClassSubjectController extends AbstractController
                 }
             } else {
                 $this->addFlash('danger', 'Veuillez renseigner tous les champs obligatoires.');
-=======
-        \App\Service\OperationLogger $operationLogger // <-- Ajoute ceci
-    ): Response
-    {
-        if ($request->isMethod('POST')) {
-            $name = $request->request->get('name');
-            $slug = $slugger->slug(strtolower($name));
-            $page= $request->query->getInt('page', 1);
-            if ($name && $slug) {
-                $subject->setName($stringHelper->toUpperNoAccent($name));
-                $subject->setSlug($slug);
-                $entityManager->flush();
-
-                $operationLogger->log(
-                    'MODIFICATION', // Type d'opération
-                    'SUCCESS',      // Statut
-                    'StudySubject', // Nom de l'entité
-                    $subject->getId(), // ID de l'entité
-                    null,           // Pas d'erreur
-                    ['name' => $subject->getName()] // Données additionnelles
-                );
-
-                $this->addFlash('success', 'Matière modifiée avec succès.');
-                return $this->redirectToRoute('app_study_show', ['page' => $page]);
->>>>>>> claude/naughty-rubin-200ad9
             }
         }
 
@@ -285,7 +192,6 @@ final class SchoolClassSubjectController extends AbstractController
     }
 
     #[Route('/study/{id}/delete', name: 'app_study_delete', methods: ['POST'])]
-<<<<<<< HEAD
     public function deleteStudySubject(
         Request $request,
         EntityManagerInterface $entityManager,
@@ -323,19 +229,10 @@ final class SchoolClassSubjectController extends AbstractController
                 );
                 $this->addFlash('danger', 'Erreur lors de la suppression de la matière : ' . $e->getMessage());
             }
-=======
-    public function deleteStudySubject(Request $request, EntityManagerInterface $entityManager, StudySubject $subject): Response
-    {
-        if ($this->isCsrfTokenValid('delete' . $subject->getId(), $request->request->get('_token'))) {
-            $entityManager->remove($subject);
-            $entityManager->flush();
-            $this->addFlash('success', 'Matière supprimée avec succès.');
->>>>>>> claude/naughty-rubin-200ad9
         } else {
             $this->addFlash('danger', 'Jeton CSRF invalide.');
         }
 
-<<<<<<< HEAD
         return $this->redirectToRoute('app_study_show', ['id']);
     }
 
@@ -351,24 +248,12 @@ final class SchoolClassSubjectController extends AbstractController
         $this->currentSchool = $entityManager->getRepository(School::class)->find($session->get('school_id'));
         $this->currentPeriod = $entityManager->getRepository(SchoolPeriod::class)->find($session->get('period_id'));
 
-=======
-        return $this->redirectToRoute('app_study_show',['id']);
-    }
-
-    #[Route('/assign-subjects-to-classes', name: 'app_assign_subjects_to_classes', methods: ['POST'])]
-    public function assignSubjectsToClasses(SessionInterface $session,Request $request, EntityManagerInterface $entityManager): Response
-    {
-        $this->session = $session;
-        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
-        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
->>>>>>> claude/naughty-rubin-200ad9
         $subjectIds = $request->request->all('subjects');
         $classIds = $request->request->all('classes');
         $coefficient = $request->request->get('coefficient', 1);
         $groupId = $request->request->get('group');
         $awaitedSkills = $request->request->get('awaited-skills');
 
-<<<<<<< HEAD
         // Vérification des données
         if (!$subjectIds || !$classIds) {
             $message = 'Veuillez sélectionner au moins une matière et une classe.';
@@ -382,16 +267,11 @@ final class SchoolClassSubjectController extends AbstractController
                     'redirect' => $this->generateUrl('app_study_show')
                 ]);
             }
-=======
-        if (!$subjectIds || !$classIds) {
-            $this->addFlash('danger', 'Veuillez sélectionner au moins une matière et une classe.');
->>>>>>> claude/naughty-rubin-200ad9
             return $this->redirectToRoute('app_study_show');
         }
 
         $subjects = $entityManager->getRepository(StudySubject::class)->findBy(['id' => $subjectIds]);
         $classes = $entityManager->getRepository(Classe::class)->findBy(['id' => $classIds]);
-<<<<<<< HEAD
 
         // Correction de la logique pour récupérer les classOccurences
         $classOccurences = [];
@@ -414,21 +294,10 @@ final class SchoolClassSubjectController extends AbstractController
         foreach ($subjects as $subject) {
             foreach ($schoolClassPeriods as $class) {
                 $totalAffectations++;
-=======
-        $classOccurences=[];
-        foreach($classes as $class){
-            $classOccurences=$class->getClassOccurences()->toArray();
-        }
-        $schoolClassPeriods = $entityManager->getRepository(SchoolClassPeriod::class)->findBy(['classOccurence' => $classOccurences, 'school' => $this->currentSchool,'period' => $this->currentPeriod]);
-        $group = $groupId ? $entityManager->getRepository(\App\Entity\SubjectGroup::class)->find($groupId) : null;
-        foreach ($subjects as $subject) {
-            foreach ($schoolClassPeriods as $class) {
->>>>>>> claude/naughty-rubin-200ad9
                 $existingAffectation = $entityManager->getRepository(SchoolClassSubject::class)->findOneBy([
                     'studySubject' => $subject,
                     'schoolClassPeriod' => $class,
                 ]);
-<<<<<<< HEAD
 
                 if ($existingAffectation) {
                     $existingAffectations[] = $subject->getName() . ' - ' . $class->getClassOccurence()->getClasse()->getName();
@@ -441,21 +310,10 @@ final class SchoolClassSubjectController extends AbstractController
                     $scs->setGroup($group);
                     $scs->setAwaitedSkills($awaitedSkills ?? null);
                     $entityManager->persist($scs);
-=======
-                if (!$existingAffectation) {
-                $scs = new SchoolClassSubject();
-                $scs->setStudySubject($subject);
-                $scs->setSchoolClassPeriod($class);
-                $scs->setCoefficient($coefficient);
-                $scs->setGroup($group);
-                $scs->setAwaitedSkills($awaitedSkills ?? null);
-                $entityManager->persist($scs);
->>>>>>> claude/naughty-rubin-200ad9
                 }
             }
         }
 
-<<<<<<< HEAD
         // Gestion des différentes situations
         $isAjax = $request->isXmlHttpRequest();
 
@@ -562,25 +420,11 @@ final class SchoolClassSubjectController extends AbstractController
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
-=======
-        $entityManager->flush();
-        $this->addFlash('success', 'Affectation effectuée avec succès.');
-
-        return $this->redirectToRoute('app_study_show');
-    }
-
-    #[Route('/study/create', name: 'app_study_create', methods: ['POST'])]
-    public function createStudySubject(Request $request, EntityManagerInterface $entityManager, SluggerInterface $slugger,StringHelper $stringHelper): Response
-    {
-        $name = $request->request->get('name');
-        $slug = $slugger->slug($name);
->>>>>>> claude/naughty-rubin-200ad9
         if ($name && $slug) {
             $subject = new StudySubject();
             $subject->setName($stringHelper->toUpperNoAccent($name));
             $subject->setSlug($slug);
             $entityManager->persist($subject);
-<<<<<<< HEAD
             try {
                 $entityManager->flush();
                 // Log l'opération de création de matière
@@ -664,95 +508,12 @@ final class SchoolClassSubjectController extends AbstractController
         }
 
         try {
-=======
->>>>>>> claude/naughty-rubin-200ad9
-            $entityManager->flush();
-            // Log l'opération de modification de l'affectation
-            $operationLogger->log(
-                'MODIFICATION DE L\'AFFECTATION',
-                'SUCCESS',
-                'SchoolClassSubject',
-                $affectation->getId(),
-                null,
-                ['coefficient' => $affectation->getCoefficient(), 'group' => $groupId, 'teacher' => $teacher ? $teacher->getUsername() : null, 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
-            );
-            $this->addFlash('success', 'Affectation modifiée avec succès.');
-            // Retourne une réponse JSON pour une requête AJAX
-
-            return $this->json([
-                'status' => 'success',
-<<<<<<< HEAD
-                'message' => 'Affectation modifiée avec succès.',
-            ]);
-        } catch (\Exception $e) {
-            // Log de l'erreur
-            $operationLogger->log(
-                'MODIFICATION DE L\'AFFECTATION',
-                'ERROR',
-                'SchoolClassSubject',
-                $affectation->getId(),
-                $e->getMessage(),
-                ['coefficient' => $affectation->getCoefficient(), 'group' => $groupId, 'teacher' => $teacher ? $teacher->getUsername() : null, 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
-            );
-            $this->addFlash('danger', 'Erreur lors de la modification de l\'affectation : ' . $e->getMessage());
-            // Retourne une réponse JSON pour une requête AJAX
-            return $this->json([
-                'status' => 'error',
-                'message' => 'Erreur lors de la modification de l\'affectation : ' . $e->getMessage(),
-            ], 500);
-        }
-=======
-                'message' => 'Matière créée avec succès.',
-            ]);
-        }
-
-        return $this->json([
-            'status' => 'error',
-            'message' => 'Veuillez renseigner tous les champs obligatoires.',
-        ], 400);
-    }
-
-    #[Route('/affectation/{id}/update', name: 'app_update_affectation', methods: ['POST'])]
-    public function updateAffectation(
-        Request $request,
-        EntityManagerInterface $entityManager,
-        SchoolClassSubject $affectation
-    ): Response {
-        $coefficient = $request->request->get('coefficient', 1);
-        $groupId = $request->request->get('group_id');
-        $teacher_id = $request->request->get('class_teacher');
-        $teacher = null;
-        if($teacher_id)
-        $teacher = $entityManager->getRepository(\App\Entity\User::class)->find($teacher_id);
-    
-        $affectation->setCoefficient((int)$coefficient);
-
-        if ($groupId) {
-            $group = $entityManager->getRepository(\App\Entity\SubjectGroup::class)->find($groupId);
-            $affectation->setGroup($group);
-        } else {
-            $affectation->setGroup(null);
-        }
-        if ($teacher) {
-            $affectation->setTeacher($teacher);
-        } else {
-            $affectation->setTeacher(null);
-        }
-
-        $entityManager->flush();
-
-        return $this->json([
-            'status' => 'success',
-            'message' => 'Affectation modifiée avec succès.',
-        ]);
->>>>>>> claude/naughty-rubin-200ad9
     }
 
     #[Route('/affectation/{id}/delete', name: 'app_delete_affectation', methods: ['POST'])]
     public function deleteAffectation(
         Request $request,
         EntityManagerInterface $entityManager,
-<<<<<<< HEAD
         SchoolClassSubject $affectation,
         \App\Service\OperationLogger $operationLogger,
         SessionInterface $session
@@ -886,81 +647,10 @@ final class SchoolClassSubjectController extends AbstractController
     }
     #[Route('/study/manage-group', name: 'app_study_manage_group', methods: ['GET'])]
     public function manageStudySubjectGroup(SessionInterface $session, EntityManagerInterface $entityManager): Response
-=======
-        SchoolClassSubject $affectation
-    ): Response {
-        if ($this->isCsrfTokenValid('delete' . $affectation->getId(), $request->request->get('_token'))) {
-            $entityManager->remove($affectation);
-            $entityManager->flush();
-
-            return $this->json([
-                'status' => 'success',
-                'message' => 'Affectation supprimée avec succès.',
-            ]);
-        }
-
-        return $this->json([
-            'status' => 'error',
-            'message' => 'Jeton CSRF invalide.',
-        ], 400);
-    }
-
-    #[Route('/subject-groupe/new', name: 'app_school_class_subject_groupe_new', methods: ['POST'])]
-    public function newSubjectGroup(
-        SessionInterface $session,
-        Request $request,
-        EntityManagerInterface $entityManager,
-        \App\Service\OperationLogger $operationLogger,
-        StringHelper $stringHelper
-    ): Response {
-        $this->session=$session;
-        $this->entityManager=$entityManager;
-        $this->currentSchool=$this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
-        $this->currentPeriod=$this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
-        if ($request->isMethod('POST')) {
-            $description = $request->request->get('description');
-            $period=$this->currentPeriod;
-            $school = $this->currentSchool;
-            $numOrder=$request->request->get('numOrder', 0);
-
-            
-                if ($description && $period && $school) {
-                    $group = new SubjectGroup();
-                    $group->setDescription($stringHelper->toUpperNoAccent($description));
-                    $group->setPeriod($period);
-                    $group->setSchool($school);
-                    $group->setPosOrder((int)$numOrder);
-
-                    $entityManager->persist($group);
-
-                    // Log l'opération de création de groupe de matières
-                    $operationLogger->log(
-                        'CREATION',
-                        'SUCCESS',
-                        'SubjectGroup',
-                        $group->getId(),
-                        null,
-                        ['description' => $group->getDescription()]
-                    );
-
-                    $this->addFlash('success', 'Groupe de matières créé avec succès.');
-                } else {
-                    $this->addFlash('danger', 'Veuillez remplir tous les champs obligatoires.');
-                }
-
-            $entityManager->flush();
-        }
-
-        return $this->redirectToRoute('app_study_show');
-    }
-    #[Route('/study/manage-group', name: 'app_study_manage_group', methods: ['GET'])]
-    public function manageStudySubjectGroup(SessionInterface $session,EntityManagerInterface $entityManager): Response
->>>>>>> claude/naughty-rubin-200ad9
     {
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
-<<<<<<< HEAD
         $groups = $entityManager->getRepository(SubjectGroup::class)->findBy(['period' => $this->currentPeriod, 'school' => $this->currentSchool]);
         $groupIds = [];
         foreach ($groups as $group) {
@@ -970,17 +660,6 @@ final class SchoolClassSubjectController extends AbstractController
         return $this->render('study_subject/_subject_classes_groups.html.twig', [
             'groups' => $groups,
             'schoolClassSubjects' => $schoolClassSubjects
-=======
-        $groups=$entityManager->getRepository(SubjectGroup::class)->findBy(['period'=>$this->currentPeriod,'school'=>$this->currentSchool]);
-        $groupIds=[];
-        foreach($groups as $group){
-            $groupIds[]=$group->getId();
-        }
-        $schoolClassSubjects=$entityManager->getRepository(SchoolClassSubject::class)->findBy(['group'=>$groupIds]);
-        return $this->render('study_subject/_subject_classes_groups.html.twig', [
-            'groups'=>$groups,
-            'schoolClassSubjects'=>$schoolClassSubjects
->>>>>>> claude/naughty-rubin-200ad9
         ]);
     }
     #[Route('/subject-group/{id}/update', name: 'app_update_affectation_groupe', methods: ['POST'])]
@@ -988,7 +667,6 @@ final class SchoolClassSubjectController extends AbstractController
         Request $request,
         EntityManagerInterface $entityManager,
         SubjectGroup $subjectGroup,
-<<<<<<< HEAD
         \App\Service\OperationLogger $operationLogger,
         SessionInterface $session
     ): Response {
@@ -1056,27 +734,6 @@ final class SchoolClassSubjectController extends AbstractController
                 'period' => $this->currentPeriod->getName()
             ]
         );
-=======
-        \App\Service\OperationLogger $operationLogger
-    ): Response {
-        $posOrder = $request->request->get('posOrder');
-        if ($posOrder !== null) {
-            $subjectGroup->setPosOrder((int)$posOrder);
-            $entityManager->flush();
-
-            // Log l'opération
-            $operationLogger->log(
-                'MODIFICATION',
-                'SUCCESS',
-                'SubjectGroup',
-                $subjectGroup->getId(),
-                null,
-                ['posOrder' => $subjectGroup->getPosOrder()]
-            );
-
-            return $this->json(['status' => 'success', 'message' => 'Ordre modifié.']);
-        }
->>>>>>> claude/naughty-rubin-200ad9
         return $this->json(['status' => 'error', 'message' => 'Valeur manquante.'], 400);
     }
     #[Route('/subject-group/{id}/delete', name: 'app_delete_affectation_groupe', methods: ['POST'])]
@@ -1084,18 +741,13 @@ final class SchoolClassSubjectController extends AbstractController
         Request $request,
         EntityManagerInterface $entityManager,
         \App\Entity\SubjectGroup $subjectGroup,
-<<<<<<< HEAD
         \App\Service\OperationLogger $operationLogger,
         SessionInterface $session,
         \Doctrine\Persistence\ManagerRegistry $doctrine
-=======
-        \App\Service\OperationLogger $operationLogger
->>>>>>> claude/naughty-rubin-200ad9
     ): Response {
         if ($this->isCsrfTokenValid('delete' . $subjectGroup->getId(), $request->request->get('_token'))) {
             $id = $subjectGroup->getId();
             $desc = $subjectGroup->getDescription();
-<<<<<<< HEAD
             $this->session = $session;
             $this->entityManager = $entityManager;
             $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -1195,33 +847,10 @@ final class SchoolClassSubjectController extends AbstractController
             ]
         );
 
-=======
-
-            $entityManager->remove($subjectGroup);
-            $entityManager->flush();
-
-            // Log l'opération de suppression
-            $operationLogger->log(
-                'SUPPRESSION',
-                'SUCCESS',
-                'SubjectGroup',
-                $id,
-                null,
-                ['description' => $desc]
-            );
-
-            return $this->json([
-                'status' => 'success',
-                'message' => 'Groupe supprimé avec succès.',
-            ]);
-        }
-
->>>>>>> claude/naughty-rubin-200ad9
         return $this->json([
             'status' => 'error',
             'message' => 'Jeton CSRF invalide.',
         ], 400);
-<<<<<<< HEAD
     }
 
     #[Route('/remove-class-from-group', name: 'app_remove_class_from_group', methods: ['POST'])]
@@ -1238,7 +867,6 @@ final class SchoolClassSubjectController extends AbstractController
         $token = $request->request->get('_token');
         $this->session = $session;
         $this->entityManager = $entityManager;
-        // Récupère l'école et la période actuelles
         $this->currentSchool = $entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
 
@@ -1252,7 +880,6 @@ final class SchoolClassSubjectController extends AbstractController
 
         $class = $entityManager->getRepository(SchoolClassPeriod::class)->findBy(['classOccurence' => $classId, 'school' => $this->currentSchool, 'period' => $this->currentPeriod]);
 
-        // Récupère tous les SchoolClassSubject concernés
         $subjects = $schoolClassSubjectRepo->findBy([
             'schoolClassPeriod' => $class,
             'group' => $groupId,
@@ -1265,34 +892,19 @@ final class SchoolClassSubjectController extends AbstractController
 
         try {
             $entityManager->flush();
-            // Log l'opération de suppression de la matière
-            $operationLogger->log(
-                'SUPPRESSION DU GROUPE DE MATIÈRES DANS LA CLASSE',
-                'SUCCESS',
-                'SchoolClassSubject',
-                null,
-                null,
+            $operationLogger->log('SUPPRESSION DU GROUPE DE MATIÈRES DANS LA CLASSE', 'SUCCESS', 'SchoolClassSubject', null, null,
                 ['class' => $classId, 'group' => $groupId, 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
             );
         } catch (\Exception $e) {
             if (!$this->entityManager->isOpen()) {
                 $this->entityManager = $doctrine->resetManager();
             }
-            // Log de l'erreur
-            $operationLogger->log(
-                'SUPPRESSION DU GROUPE DE MATIÈRES DANS LA CLASSE',
-                'ERROR',
-                'SchoolClassSubject',
-                null,
-                $e->getMessage(),
+            $operationLogger->log('SUPPRESSION DU GROUPE DE MATIÈRES DANS LA CLASSE', 'ERROR', 'SchoolClassSubject', null, $e->getMessage(),
                 ['class' => $classId, 'group' => $groupId, 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
             );
-            // Retourne une réponse JSON avec l'erreur
-            return new JsonResponse(['error' => 'Erreur lors de la suppression de la matière.' . $e->getMessage()], 500);
+            return new JsonResponse(['error' => 'Erreur lors de la suppression : ' . $e->getMessage()], 500);
         }
 
         return new JsonResponse(['success' => true]);
-=======
->>>>>>> claude/naughty-rubin-200ad9
     }
 }

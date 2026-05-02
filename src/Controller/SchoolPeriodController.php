@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 
 namespace App\Controller;
 
@@ -12,29 +12,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use App\Entity\School;
-<<<<<<< HEAD
 use App\Service\OperationLogger;
-=======
->>>>>>> claude/naughty-rubin-200ad9
-
-#[Route('/school-period')]
-final class SchoolPeriodController extends AbstractController
-{
-    private SchoolPeriod $currentPeriod;
-    private EntityManagerInterface $entityManager;
-    private School $currentSchool;
-    private SessionInterface $session;
-
-    public function __construct(EntityManagerInterface $entityManager)
-    {
-        $this->entityManager = $entityManager;
-<<<<<<< HEAD
-    }
-
-=======
-         }
-    
->>>>>>> claude/naughty-rubin-200ad9
     #[Route(name: 'app_school_period_index', methods: ['GET', 'POST'])]
     public function index(SchoolPeriodRepository $schoolPeriodRepository, Request $request, EntityManagerInterface $entityManager): Response
     {
