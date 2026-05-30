@@ -60,18 +60,14 @@ docker --version
 echo.
 echo You can now use Docker commands
 
-
-timeout /t 10 /nobreak
-cd "C:\Users\GSBM\Desktop\innovschool\innovschool"
-
-rem docker compose exec -u www-data php php bin/console cache:clear 
-rem docker compose exec -u www-data php php bin/console cache:warmup --env=prod
-
-docker compose up -d
+echo Restarting all containers...
+for /f "tokens=*" %%i in ('docker ps -aq') do docker start %%i
 
 timeout /t 10 /nobreak
 
 start http://localhost:8000
 
 timeout /t 10 /nobreak
+
+docker exec -it innovschool-php-1 php bin/console cache:clear --no-debug
 exit /b 0

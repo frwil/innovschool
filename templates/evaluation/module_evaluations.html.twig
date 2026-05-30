@@ -54,7 +54,7 @@
 						{% if i == 0 %} <td rowspan="{{ classRowspan }}">{{ className }}</td>{% endif %}
 						
 							{% if j == 0 %}<td rowspan="{{ frameRowspan }}">{{ frameN }}</td>{% endif %}
-								<td>{{ t[j] }}</td>
+								{% if t[j] is defined %}<td>{{ t[j] }}</td>{% else %}{% endif %}
                     </tr>
 						{% set j = j + 1 %}
                         {% if j == t|length %}

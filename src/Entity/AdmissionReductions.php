@@ -5,6 +5,7 @@ use App\Repository\AdmissionReductionsRepository;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: AdmissionReductionsRepository::class)]
+#[ORM\HasLifecycleCallbacks]
 class AdmissionReductions
 {
     #[ORM\Id]
@@ -40,7 +41,6 @@ class AdmissionReductions
 
     #[ORM\Column(type: 'datetime')]
     private ?\DateTimeInterface $dateUpdated = null;
-    #[ORM\HasLifecycleCallbacks]
     #[ORM\PrePersist]
     public function onPrePersist(): void
     {

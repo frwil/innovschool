@@ -32,11 +32,18 @@ class Classe
     #[ORM\OneToMany(mappedBy: 'classe', targetEntity: ClassOccurence::class)]
     private Collection $classeOccurences;
 
-    
+    /**
+     * @var Collection<int, SectionCategorySubject>
+     */
+    #[ORM\OneToMany(mappedBy: 'sectionCategory', targetEntity: SectionCategorySubject::class)]
+    private Collection $sectionCategorySubjects;
+
+
     public function __construct()
     {
         $this->schoolClassNumberingTypes = new ArrayCollection();
         $this->classeOccurences = new ArrayCollection();
+        $this->sectionCategorySubjects = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -125,6 +132,33 @@ class Classe
         if ($this->schoolClassNumberingTypes->removeElement($numberingType)) {
             if ($numberingType->getClasse() === $this) {
                 $numberingType->setClasse(null);
+            }
+        }
+        return $this;
+    }
+
+    /**
+     * @return Collection<int, SectionCategorySubject>
+     */
+    public function getSectionCategorySubjects(): Collection
+    {
+        return $this->sectionCategorySubjects;
+    }
+
+    public function addSectionCategorySubject(SectionCategorySubject $sectionCategorySubject): self
+    {
+        if (!$this->sectionCategorySubjects->contains($sectionCategorySubject)) {
+            $this->sectionCategorySubjects[] = $sectionCategorySubject;
+            $sectionCategorySubject->setSectionCategory($this);
+        }
+        return $this;
+    }
+
+    public function removeSectionCategorySubject(SectionCategorySubject $sectionCategorySubject): self
+    {
+        if ($this->sectionCategorySubjects->removeElement($sectionCategorySubject)) {
+            if ($sectionCategorySubject->getSectionCategory() === $this) {
+                $sectionCategorySubject->setSectionCategory(null);
             }
         }
         return $this;

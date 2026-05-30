@@ -29,6 +29,7 @@
                             <option value="">Sélectionnez une classe</option>
                             <!-- Options dynamiques chargées via JavaScript -->
                         </select>
+                        <span id="sp-classId"></span><span id="sp-classId-text"></span>
                     </div>
                 </div>
             </div>
@@ -39,7 +40,8 @@
             <div class="card">
                 <div class="card-body">
                     <div class="three">
-                        <h1 class="card-title">Liste des Évaluations</h1>
+                        <h1 class="card-title">Liste des Évaluations <span id="sp-liste"></span><span
+                                id="sp-liste-text"></span></h1>
                     </div>
                     <table id="evaluations-table" class="table table-bordered">
                         <thead>
@@ -119,7 +121,7 @@
                         title: 'Actions',
                         orderable: false, // Désactiver le tri sur cette colonne
                         render: function (data, type, row) {
-                            console.log(row);
+                            //console.log(row);
                             return `
                                 <div class="d-flex align-items-center">
                                     <select class="form-select form-select-sm me-2 select-matiere select2" data-frame="${row.evaluationFrameName}" data-time="${row.evaluationTimeName}" data-id="${row.evaluationFrameId}${row.evaluationTimeId}">
@@ -140,34 +142,34 @@
         function ajaxWithRetry(options, maxRetries = 3, baseDelay = 1000) {
             return new Promise((resolve, reject) => {
                 let attempts = 0;
-                
+
                 function attempt() {
                     $.ajax({
                         ...options,
-                        success: function(response) {
+                        success: function (response) {
                             resolve(response);
                         },
-                        error: function(xhr, status, error) {
+                        error: function (xhr, status, error) {
                             attempts++;
-                            
+
                             // Vérifier si c'est une erreur 502 ou timeout
-                            const isRetryable = xhr.status === 502 || 
-                                                xhr.status === 503 || 
-                                                xhr.status === 504 ||
-                                                status === 'timeout' ||
-                                                error === 'Gateway Timeout';
-                            
+                            const isRetryable = xhr.status === 502 ||
+                                xhr.status === 503 ||
+                                xhr.status === 504 ||
+                                status === 'timeout' ||
+                                error === 'Gateway Timeout';
+
                             if (isRetryable && attempts <= maxRetries) {
                                 // Calcul du délai exponentiel avec jitter
                                 const delay = baseDelay * Math.pow(2, attempts - 1) + Math.random() * 1000;
-                                
-                                console.log(`Tentative ${attempts}/${maxRetries} échouée. Nouvelle tentative dans ${Math.round(delay)}ms`);
-                                
+
+                                //console.log(`Tentative ${attempts}/${maxRetries} échouée. Nouvelle tentative dans ${Math.round(delay)}ms`);
+
                                 // Afficher une notification d'attente
                                 if (attempts === 1) {
                                     $.notify('Connexion temporairement interrompue. Réessai...', 'warning');
                                 }
-                                
+
                                 setTimeout(attempt, delay);
                             } else {
                                 reject({ xhr, status, error, attempts });
@@ -175,7 +177,7 @@
                         }
                     });
                 }
-                
+
                 attempt();
             });
         }
@@ -185,14 +187,14 @@
             const pendingNotes = JSON.parse(localStorage.getItem('pending_notes') || '[]');
             if (pendingNotes.length === 0) return;
 
-            console.log(`Tentative de reprise pour ${pendingNotes.length} note(s) en attente`);
-            
+            //console.log(`Tentative de reprise pour ${pendingNotes.length} note(s) en attente`);
+
             // Trier par timestamp (les plus anciennes d'abord)
             pendingNotes.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-            
+
             // Prendre la première note en attente
             const note = pendingNotes[0];
-            
+
             ajaxWithRetry({
                 url: '{{ path("app_update_evaluation") }}',
                 method: 'POST',
@@ -203,24 +205,24 @@
                     timeId: note.timeId,
                     classId: note.classId
                 }
-            }, 2, 2000).then(function(response) {
+            }, 2, 2000).then(function (response) {
                 if (response.success) {
                     // Supprimer la note réussie de localStorage
-                    const updatedNotes = pendingNotes.filter(n => 
-                        !(n.studentId === note.studentId && 
-                          n.moduleId === note.moduleId && 
-                          n.timeId === note.timeId)
+                    const updatedNotes = pendingNotes.filter(n =>
+                        !(n.studentId === note.studentId &&
+                            n.moduleId === note.moduleId &&
+                            n.timeId === note.timeId)
                     );
                     localStorage.setItem('pending_notes', JSON.stringify(updatedNotes));
-                    
+
                     $.notify('Note réessayée avec succès.', 'success');
-                    
+
                     // Si il reste des notes, réessayer la suivante
                     if (updatedNotes.length > 0) {
                         setTimeout(retryPendingNotes, 2000);
                     }
                 }
-            }).catch(function(err) {
+            }).catch(function (err) {
                 console.error('Échec de la reprise:', err);
                 // Garder la note dans localStorage pour reprise ultérieure
             });
@@ -230,10 +232,12 @@
         $('#sectionId').on('change', function () {
             const sectionId = $(this).val();
             const classSelect = $('#classId');
+            $('#sp-classId').addClass("spinner-border");
+            $('#sp-classId-text').html('Chargement en cours...');
 
             // Effacer les options actuelles
             classSelect.empty();
-            classSelect.append(new Option('Sélectionnez une classe', ''));
+            classSelect.append(new Option('Chargement en cours...', ''));
 
             if (sectionId) {
                 // Charger les classes via AJAX
@@ -242,11 +246,17 @@
                     method: 'GET',
                     data: { sectionId: sectionId }
                 }).then(function (data) {
+                    classSelect.empty();
+                    classSelect.append(new Option('Sélectionner une classe', ''));
                     data.forEach(function (classItem) {
                         classSelect.append(new Option(classItem.name, classItem.id));
                     });
-                }).catch(function(err) {
+                    $('#sp-classId').removeClass("spinner-border");
+                    $('#sp-classId-text').html('');
+                }).catch(function (err) {
                     $.notify('Une erreur est survenue lors du chargement des classes.', 'error');
+                    $('#sp-classId').removeClass("spinner-border");
+                    $('#sp-classId-text').html('');
                 });
             }
         });
@@ -254,7 +264,10 @@
         // Gestion du changement de classe
         $('#classId').on('change', function () {
             const classId = $(this).val();
-            
+
+            $('#sp-classId').addClass("spinner-border");
+            $('#sp-classId-text').html('Chargement en cours...');
+
             if (classId) {
                 // Charger les évaluations via AJAX
                 ajaxWithRetry({
@@ -266,7 +279,10 @@
                     evaluationsTable.clear();
                     evaluationsTable.rows.add(data);
                     evaluationsTable.draw();
-
+                    $('#sp-classId').removeClass("spinner-border");
+                    $('#sp-classId-text').html('');
+                    $('#sp-liste').addClass("spinner-border");
+                    $('#sp-liste-text').html('Chargement en cours...');
                     // Charger les matières pour chaque ligne
                     $('.select-matiere').each(function () {
                         const select = $(this);
@@ -275,7 +291,8 @@
                             allowClear: true,
                             width: '100%'
                         });
-                        
+                        select.prop('disabled', true);
+
                         ajaxWithRetry({
                             url: '{{ path("app_subjects_by_class") }}',
                             method: 'GET',
@@ -286,12 +303,20 @@
                             });
                             evaluationsTable.columns.adjust().draw();
                             evaluationsTable.draw();
-                        }).catch(function(err) {
+                            $('#sp-liste').removeClass("spinner-border");
+                            $('#sp-liste-text').html('');
+                            select.prop('disabled', false);
+                        }).catch(function (err) {
                             $.notify('Une erreur est survenue lors du chargement des matières.', 'error');
+                            $('#sp-liste').removeClass("spinner-border");
+                            $('#sp-liste-text').html('');
+                            select.prop('disabled', false);
                         });
                     });
-                }).catch(function(err) {
+                }).catch(function (err) {
                     $.notify('Une erreur est survenue lors du chargement des évaluations.', 'error');
+                    $('#sp-classId').removeClass("spinner-border");
+                    $('#sp-classId-text').html('');
                 });
             } else {
                 // Vider le tableau si aucune classe n'est sélectionnée
@@ -304,6 +329,7 @@
             const frameId = $(this).data('frame');
             const timeId = $(this).data('time');
             const subjectId = $('.select-matiere[data-id="' + $(this).data('for') + '"]').val();
+            const saisirBtn = $(this)
 
             if (!subjectId) {
                 $.notify('Veuillez sélectionner une matière.', 'warning');
@@ -318,21 +344,48 @@
             ajaxWithRetry({
                 url: '{{ path("app_modules_and_students") }}',
                 method: 'GET',
-                data: { 
-                    frame: frameId, 
-                    time: timeId, 
-                    classId: $('#classId').val(), 
-                    subjectId: subjectId 
+                data: {
+                    frame: frameId,
+                    time: timeId,
+                    classId: $('#classId').val(),
+                    subjectId: subjectId
                 }
             }).then(function (data) {
                 // Afficher le bloc SheetJS
                 $('#sheetjs-container').show();
 
-                $('#saisie-notes-display').text(`(${data.subject} - ${data.className} - ${data.frameName} - ${data.timeName})`);
 
-                // Générer le tableau SheetJS
-                generateSheetJSTable(data.modules, data.students, data.timeId, subjectId, data.classId);
-            }).catch(function(err) {
+                $('#saisie-notes-display').text(`(${data.subject} - ${data.className} - ${data.frameName} - ${data.timeName})`);
+                if ($('#applicable-btn')) $('#applicable-btn').remove()
+
+                if (data.isNotApplicable) {
+                    const container = $('#sheetjs-table');
+                    container.empty();
+                    container.html('<div class="alert alert-info"><p>Cette matière a été définie comme non-applicable pour ' + data.timeName + ' pour tous les élèves.</p><p>Elle ne sera pas prise en compte lors du calcul des moyennes de la période</p></div>');
+                    $('#saisie-notes-display').after('<button class="btn btn-success m-3" id="applicable-btn">Définir comme Applicable</button>');
+                } else {
+                    $('#saisie-notes-display').after('<button class="btn btn-primary m-3" id="applicable-btn">Définir comme Non-Applicable</button>');
+                    // Générer le tableau SheetJS
+                    generateSheetJSTable(data.modules, data.students, data.timeId, subjectId, data.classId);
+                }
+                $('#applicable-btn').on('click', function (e) {
+                    $.ajax({
+                        url: "{{ path('app_toggle_not_applicable')}}",
+                        data: {
+                            applicableId: data.notApplicableId ? data.notApplicableId : 0,
+                            subjectId: data.schoolClassSubjectId,
+                            timeId: data.timeId
+                        }
+                    }).done((e) => {
+                        if (e.success) {
+                            $.notify(e.success, 'success');
+                            saisirBtn.click();
+                        } else {
+                            $.notify(e.error);
+                        }
+                    })
+                });
+            }).catch(function (err) {
                 $.notify('Une erreur est survenue lors du chargement des données.', 'error');
                 $('#sheetjs-container').hide();
             });
@@ -421,7 +474,7 @@
                     // Ajouter les colonnes de calcul
                     row.append(`<td class="number-cell highlight-cell">${totalModuleNotation}</td>`);
                     row.append(`<td class="total-notes-cell number-cell highlight-cell">${totalNotes}</td>`);
-                    
+
                     const weightedAverage = totalModuleNotation > 0 ? (totalNotes / totalModuleNotation * 20).toFixed(2) : '';
                     row.append(`<td class="weighted-average-cell number-cell highlight-cell">${weightedAverage}</td>`);
 
@@ -441,7 +494,7 @@
                 // Configurer les événements des cellules
                 setupCellEvents(table, modules, students, timeId, subjectId, classId, tbody);
 
-            }).catch(function(err) {
+            }).catch(function (err) {
                 $.notify('Une erreur est survenue lors du chargement des notes.', 'error');
             });
         }
@@ -460,7 +513,7 @@
                     const evaluation = notes.find(note =>
                         note.studentId === student.id && note.moduleId === module.id
                     );
-                    if (evaluation && evaluation.note !== null && evaluation.note !== '' && 
+                    if (evaluation && evaluation.note !== null && evaluation.note !== '' &&
                         evaluation.createdAt !== evaluation.updatedAt) {
                         moduleNotes.push(parseFloat(evaluation.note));
                     }
@@ -493,12 +546,12 @@
             // Navigation au clavier
             table.find('td[contenteditable="true"]').on('keydown', function (event) {
                 const cell = $(this);
-                
+
                 if (event.key === 'Enter' || event.key === 'Tab') {
                     event.preventDefault();
                     const $cells = cell.closest('tr').find('td[contenteditable="true"]');
                     const idx = $cells.index(cell);
-                    
+
                     if (event.shiftKey && event.key === 'Tab') {
                         if (idx > 0) {
                             $cells.eq(idx - 1).focus();
@@ -524,7 +577,7 @@
                 } else if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) {
                     event.preventDefault();
                     let targetCell;
-                    
+
                     if (event.key === 'ArrowUp') {
                         targetCell = cell.closest('tr').prev('tr').find(`td:eq(${cell.index()})`);
                     } else if (event.key === 'ArrowDown') {
@@ -534,7 +587,7 @@
                     } else if (event.key === 'ArrowRight') {
                         targetCell = cell.next('td[contenteditable="true"]');
                     }
-                    
+
                     if (targetCell && targetCell.length && targetCell.attr('contenteditable') === 'true') {
                         targetCell.focus();
                     }
@@ -559,7 +612,7 @@
                     recalculateStatistics(modules, students, tbody);
                     return;
                 }
-                
+
                 if (parseFloat(newValue) < 0 || parseFloat(newValue) > moduleNotation) {
                     $.notify(`La note doit être comprise entre 0 et ${moduleNotation}.`, 'error');
                     cell.text(cell.data('old-value') || '');
@@ -567,19 +620,19 @@
                     recalculateStatistics(modules, students, tbody);
                     return;
                 }
-                
+
                 cell.addClass('number-cell');
                 recalculateStatistics(modules, students, tbody);
-                
+
                 // Sauvegarde de l'ancienne valeur
                 const oldValue = cell.data('old-value') || '';
                 cell.data('old-value', newValue);
-                
+
                 // Désactiver temporairement la cellule
                 const originalContentEditable = cell.attr('contenteditable');
                 cell.attr('contenteditable', 'false');
                 cell.css('opacity', '0.7');
-                
+
                 // Sauvegarder avec retry
                 saveNoteWithRetry(studentId, moduleId, newValue, timeId, classId, cell, oldValue, originalContentEditable);
             });
@@ -588,12 +641,12 @@
             table.find('td[contenteditable="true"]').on('focus', function () {
                 const cell = $(this);
                 const value = cell.text().trim();
-                
+
                 // Sauvegarder l'ancienne valeur
                 if (!cell.data('old-value')) {
                     cell.data('old-value', value);
                 }
-                
+
                 // Sélectionner tout le contenu
                 setTimeout(() => {
                     const range = document.createRange();
@@ -617,30 +670,30 @@
                     timeId: timeId,
                     classId: classId
                 },
-                timeout: 15000
-            }, 3, 1000).then(function(response) {
+                timeout: 30000
+            }, 3, 1000).then(function (response) {
                 if (response.success) {
                     $.notify('Note mise à jour avec succès.', 'success');
                     // Supprimer la sauvegarde de l'ancienne valeur
                     cell.removeData('old-value');
-                    
+
                     // Retirer la note du localStorage si elle y était
                     const pendingNotes = JSON.parse(localStorage.getItem('pending_notes') || '[]');
-                    const updatedNotes = pendingNotes.filter(note => 
-                        !(note.studentId === studentId && 
-                          note.moduleId === moduleId && 
-                          note.timeId === timeId)
+                    const updatedNotes = pendingNotes.filter(note =>
+                        !(note.studentId === studentId &&
+                            note.moduleId === moduleId &&
+                            note.timeId === timeId)
                     );
                     localStorage.setItem('pending_notes', JSON.stringify(updatedNotes));
                 } else if (response.error) {
                     throw new Error(response.error);
                 }
-            }).catch(function(err) {
+            }).catch(function (err) {
                 console.error('Erreur après tentatives:', err);
-                
+
                 if (err.xhr && err.xhr.status === 502) {
-                    //$.notify('Erreur temporaire du serveur. La note est sauvegardée localement.', 'warning');
-                    
+                    $.notify('Erreur temporaire du serveur. La note est sauvegardée localement.', 'warning');
+
                     // Stocker dans localStorage
                     const pendingNotes = JSON.parse(localStorage.getItem('pending_notes') || '[]');
                     pendingNotes.push({
@@ -652,17 +705,17 @@
                         timestamp: new Date().toISOString()
                     });
                     localStorage.setItem('pending_notes', JSON.stringify(pendingNotes));
-                    
+
                     // Planifier une reprise
                     setTimeout(retryPendingNotes, 3000);
                 } else {
-                    //$.notify('Erreur lors de la sauvegarde. Valeur restaurée.', 'error');
-                    //cell.text(oldValue);
+                    $.notify('Erreur lors de la sauvegarde. Valeur restaurée.', 'error');
+                    cell.text(oldValue);
                     if (oldValue === '') {
                         cell.removeClass('number-cell');
                     }
                 }
-            }).finally(function() {
+            }).finally(function () {
                 // Réactiver la cellule
                 cell.attr('contenteditable', originalContentEditable);
                 cell.css('opacity', '');
@@ -677,7 +730,7 @@
             const statsRowAvg = $('<tr>').append('<td><strong>Moyenne générale</strong></td>');
 
             // Recalcul pour chaque élève
-            tbody.find('tr').each(function() {
+            tbody.find('tr').each(function () {
                 const row = $(this);
                 // Sauter les lignes de stats
                 const firstCellText = row.find('td').first().text();
@@ -686,10 +739,10 @@
                     firstCellText.includes('Moyenne générale')) {
                     return;
                 }
-                
+
                 let totalNotes = 0;
                 let totalModuleNotation = 0;
-                
+
                 modules.forEach(module => {
                     const cell = row.find(`td[data-module-id="${module.id}"]`);
                     const note = parseFloat(cell.text().trim());
@@ -698,7 +751,7 @@
                     }
                     totalModuleNotation += module.moduleNotation || 0;
                 });
-                
+
                 row.find('.total-notes-cell').text(totalNotes);
                 const weightedAverage = totalModuleNotation > 0 ? (totalNotes / totalModuleNotation * 20).toFixed(2) : '';
                 row.find('.weighted-average-cell').text(weightedAverage);
@@ -707,7 +760,7 @@
             // Recalcul des statistiques par module
             modules.forEach(module => {
                 const moduleNotes = [];
-                
+
                 students.forEach(student => {
                     const cell = tbody.find(`td[data-student-id="${student.id}"][data-module-id="${module.id}"]`);
                     const note = parseFloat(cell.text().trim());
@@ -715,23 +768,23 @@
                         moduleNotes.push(note);
                     }
                 });
-                
+
                 const maxNote = moduleNotes.length > 0 ? Math.max(...moduleNotes) : '';
                 const minNote = moduleNotes.length > 0 ? Math.min(...moduleNotes) : '';
                 const avgNote = moduleNotes.length > 0
                     ? (moduleNotes.reduce((sum, note) => sum + note, 0) / moduleNotes.length).toFixed(1)
                     : '';
-                    
+
                 statsRowMax.append(`<td class="number-cell highlight-cell"><strong>${maxNote}</strong></td>`);
                 statsRowMin.append(`<td class="number-cell highlight-cell"><strong>${minNote}</strong></td>`);
                 statsRowAvg.append(`<td class="number-cell highlight-cell"><strong>${avgNote}</strong></td>`);
             });
-            
+
             // Cellules vides pour les colonnes supplémentaires
             statsRowMax.append('<td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td>');
             statsRowMin.append('<td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td>');
             statsRowAvg.append('<td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td><td class="striped-cell highlight-cell"></td>');
-            
+
             // Supprimer et recréer les lignes de stats
             tbody.find('tr').slice(-3).remove();
             tbody.append(statsRowMax);

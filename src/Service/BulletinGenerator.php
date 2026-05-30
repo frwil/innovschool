@@ -25,6 +25,7 @@ use App\Entity\School;
 use App\Entity\SchoolPeriod;
 use App\Entity\SchoolClassSubject;
 use App\Repository\StudentClassAttendanceRepository;
+use App\Entity\SchoolClassSubjectEvaluationTimeNotApplicable;
 use Psr\Log\LoggerInterface;
 use App\Entity\ReportCardTemplate;
 
@@ -120,7 +121,7 @@ class BulletinGenerator
             $this->updateGenerationProgress($progressFile, $currentProgress, $totalStudents, "Génération du bulletin pour l'étudiant");
         }
 
-        $student = $this->studentRepo->findByStudent($studentId);
+        $student = $this->studentRepo->findBy(['student' => $studentId]);
         if (!$student) {
             throw new NotFoundHttpException('Élève non trouvé.');
         }
@@ -151,6 +152,18 @@ class BulletinGenerator
             }
             $periods = $this->timeRepo->findBy(['id' => $periodList]);
             $isAnnual = false;
+        }
+        // Sauvegarder les périodes originales (non filtrées par élève) pour les calculs de classe
+        $allPeriods = $periods;
+        // Trier les périodes par ordre alphabétique
+        usort($allPeriods, fn($a, $b) => strcmp($a->getShortName(), $b->getShortName()));
+        usort($periods, fn($a, $b) => strcmp($a->getShortName(), $b->getShortName()));
+        // Trier aussi les times dans les groupedFrames (mode annuel)
+        if ($groupedFrames !== null) {
+            foreach ($groupedFrames as &$frameData) {
+                usort($frameData['times'], fn($a, $b) => strcmp($a->getShortName(), $b->getShortName()));
+            }
+            unset($frameData);
         }
         //retrouver uniquement les périodes de la classe à partir des évaluations qui sont liés aux modules d'évaluations qui sont eux aussi liés à la période
         $periods = array_filter($periods, function ($period) use ($student) {
@@ -187,7 +200,7 @@ class BulletinGenerator
 
         // Précharge toutes les évaluations nécessaires en une seule requête
         $evaluations = $this->evaluationRepo->findBy([
-            'time' => $periods,
+            'time' => $allPeriods,
             'student' => $studentsIds,
         ], ['time' => 'ASC', 'student' => 'ASC', 'classSubjectModule' => 'ASC']);
 
@@ -274,11 +287,24 @@ class BulletinGenerator
             $modulesBySubject[$module->getSubject()->getId()][] = $module;
         }
 
+        // Charge les matières marquées comme non-applicables pour les périodes affichées
+        $nonApplicableIndex = [];
+        $schoolClassSubjectIds = array_map(fn($scs) => $scs->getId(), $class->getSchoolClassSubjects()->toArray());
+        if ($schoolClassSubjectIds) {
+            $nonApplicables = $this->entityManager->getRepository(SchoolClassSubjectEvaluationTimeNotApplicable::class)
+                ->findBy(['schoolClassSubject' => $schoolClassSubjectIds, 'schoolEvaluationTime' => $allPeriods, 'notApplicable' => true]);
+            foreach ($nonApplicables as $na) {
+                $scsId = $na->getSchoolClassSubject()->getId();
+                $timeId = $na->getSchoolEvaluationTime()->getId();
+                $nonApplicableIndex[$scsId][$timeId] = true;
+            }
+        }
+
         // Au début de la méthode generateBulletinA, après avoir chargé les évaluations
         $completionRates = [];
-        foreach ($students as $student) {
-            $studentId = $student->getStudent()->getId();
-            $completionRates[$studentId] = $this->calculateCompletionRate($evalIndex, $studentId, $periods, $modulesBySubject);
+        foreach ($students as $sc) {
+            $studentId = $sc->getStudent()->getId();
+            $completionRates[$studentId] = $this->calculateCompletionRate($evalIndex, $studentId, $allPeriods, $modulesBySubject);
         }
 
         // Puis utiliser $completionRates dans vos filtres
@@ -552,8 +578,8 @@ class BulletinGenerator
                 $sheet->setCellValue('J' . (196 + count($subjectGroups) * 3), round(($totalGroupes / ($totalModuleGroupes > 0 ? $totalModuleGroupes : 1) * 20), 2) ?? 0);
                 $sheet->setCellValue(chr(71 + $p) . (197 + count($subjectGroups) * 3), $this->appreciationService->getAppreciationByNote($template, $sheet->getCell(chr(71 + $p) . (196 + count($subjectGroups) * 3))->getValue()));
                 $sheet->setCellValue('J' . (197 + count($subjectGroups) * 3), $this->appreciationService->getAppreciationByNote($template, $sheet->getCell('J' . (196 + count($subjectGroups) * 3))->getValue()));
-                if (isset($moyennesPeriodes[$tid])) $sheet->setCellValue(chr(71 + $p) . (198 + count($subjectGroups) * 3), $this->getRank($sheet->getCell(chr(71 + $p) . (196 + count($subjectGroups) * 3))->getValue(), $moyennesPeriodes[$tid]) . 'e');
-                if (isset($moyennes)) $sheet->setCellValue('J' . (198 + count($subjectGroups) * 3), $this->getRank($sheet->getCell('J' . (196 + count($subjectGroups) * 3))->getValue(), $moyennes) . 'e');
+                if (isset($moyennesPeriodes[$tid])) $sheet->setCellValue(chr(71 + $p) . (198 + count($subjectGroups) * 3), $this->formatRank($this->getRank($sheet->getCell(chr(71 + $p) . (196 + count($subjectGroups) * 3))->getValue(), $moyennesPeriodes[$tid]), count($students), $bulLang ?? 'fr'));
+                if (isset($moyennes)) $sheet->setCellValue('J' . (198 + count($subjectGroups) * 3), $this->formatRank($this->getRank($sheet->getCell('J' . (196 + count($subjectGroups) * 3))->getValue(), $moyennes), count($students), $bulLang ?? 'fr'));
 
                 $p++;
             }
@@ -610,24 +636,38 @@ class BulletinGenerator
 
             $notesMatieres = [];
             foreach ($class->getSchoolClassSubjects() as $subject) {
+                // Ignorer les matières non-applicables pour toutes les périodes
+                $scsId = $subject->getId();
+                $allPeriodsNA = true;
+                foreach ($allPeriods as $pcheck) {
+                    if (!isset($nonApplicableIndex[$scsId][$pcheck->getId()])) {
+                        $allPeriodsNA = false;
+                        break;
+                    }
+                }
+                if ($allPeriodsNA) continue;
+
                 $subjectId = $subject->getStudySubject()->getId();
                 foreach ($class->getStudentClasses() as $studentClass) {
                     $studentId = $studentClass->getStudent()->getId();
                     $total = 0;
                     $count = 0;
-                    foreach ($periods as $periode) {
+                    foreach ($allPeriods as $periode) {
                         $tid = $periode->getId();
+                        // Ignorer les périodes NA pour cette matière
+                        if (isset($nonApplicableIndex[$scsId][$tid])) continue;
                         $modules = $subject->getStudySubject()->getClassSubjectModules()->toArray();
-                        $modules = array_filter($modules, function ($m) {
-                            return $m->getModule()->getModuleName() == 'Ecrit';
+                        $modules = array_filter($modules, function ($m) use ($class) {
+                            return $m->getModule()->getModuleName() == 'Ecrit' && $m->getClass()->getId() === $class->getId();
                         });
                         $modules = array_values($modules);
                         $mid = isset($modules[0]) ? $modules[0]->getId() : null;
                         $eval = $evalIndex[$studentId][$subjectId][$mid][$tid] ?? null;
                         if ($eval) {
                             $total += $eval->getEvaluationNote();
-                            $count++;
                         }
+                        // Note manquante non-NA = 0 (implicite)
+                        $count++;
                     }
                     $notesMatieres[$subjectId][$studentId] = $count > 0 ? $total / $count : null;
                 }
@@ -645,23 +685,37 @@ class BulletinGenerator
                 $totalPondere = 0;
                 $totalCoefficients = 0;
                 foreach ($class->getSchoolClassSubjects() as $subject) {
+                    // Ignorer les matières non-applicables pour toutes les périodes
+                    $scsId2 = $subject->getId();
+                    $allPeriodsNA2 = true;
+                    foreach ($allPeriods as $pcheck2) {
+                        if (!isset($nonApplicableIndex[$scsId2][$pcheck2->getId()])) {
+                            $allPeriodsNA2 = false;
+                            break;
+                        }
+                    }
+                    if ($allPeriodsNA2) continue;
+
                     $coef = $subject->getCoefficient();
                     $subjectId = $subject->getStudySubject()->getId();
                     $sommeNotes = 0;
                     $nbNotes = 0;
-                    foreach ($periods as $periode) {
+                    foreach ($allPeriods as $periode) {
                         $tid = $periode->getId();
+                        // Ignorer les périodes NA pour cette matière
+                        if (isset($nonApplicableIndex[$scsId2][$tid])) continue;
                         $modules = $subject->getStudySubject()->getClassSubjectModules()->toArray();
-                        $modules = array_filter($modules, function ($m) {
-                            return $m->getModule()->getModuleName() == 'Ecrit';
+                        $modules = array_filter($modules, function ($m) use ($class) {
+                            return $m->getModule()->getModuleName() == 'Ecrit' && $m->getClass()->getId() === $class->getId();
                         });
                         $modules = array_values($modules);
                         $mid = isset($modules[0]) ? $modules[0]->getId() : null;
                         $eval = $evalIndex[$studentId][$subjectId][$mid][$tid] ?? null;
                         if ($eval && $eval->getEvaluationNote() !== null) {
                             $sommeNotes += $eval->getEvaluationNote();
-                            $nbNotes++;
                         }
+                        // Note manquante non-NA = 0 (implicite), coefficient s'applique
+                        $nbNotes++;
                     }
                     if ($nbNotes > 0) {
                         $moyenneMatiere = $sommeNotes / $nbNotes;
@@ -706,9 +760,30 @@ class BulletinGenerator
             }
 
 
-            $html = '<div class="row">
-            <div class="col-md-4 text-center">Header Left</div><div class="col-md-4 text-center"><img src="/img/' . ($class->getSchool()->getLogo() ? $class->getSchool()->getLogo() : 'logo_test.png') . '" width="100px" height="100px"></div><div class="col-md-4 text-center">Header Right</div>
-            <div class="col-md-12 text-center" style="font-size:20pt;font-weight:bold">BULLETIN DE NOTES</div>
+            $reportCard = $class->getReportCardTemplate();
+            $html = '<div class="row bulletin-header">
+            <div class="col-md-5 text-center" style="font-size: 0.9em;">
+                <p>' . ($reportCard ? $reportCard->getHeaderLeft() : '') . '</p>
+                <p>' . ($reportCard ? $reportCard->getNationalMottoLeft() : '') . '</p>
+                ' . ($reportCard ? $reportCard->getAdditionalHeaderLeft() : '') . '
+                <p style="font-weight:bold">' . $currentSchool->getName() . '</p>
+                <p>' . ($reportCard ? $reportCard->getSchoolValuesLeft() : '') . '</p>
+                <p>PO BOX : ' . $currentSchool->getAddress() . '</p>
+                <p>Tel. : ' . $currentSchool->getContactPhone() . '</p>
+            </div>
+            <div class="col-md-2 text-center">
+                <img class="school-logo" src="' . ($class->getSchool()->getLogo() ? '/uploads/logos/' . $class->getSchool()->getLogo() : '/img/logo_test.png') . '" width="100px" height="100px">
+            </div>
+            <div class="col-md-5 text-center" style="font-size: 0.9em;">
+                <p>' . ($reportCard ? $reportCard->getHeaderRight() : '') . '</p>
+                <p>' . ($reportCard ? $reportCard->getNationalMottoRight() : '') . '</p>
+                ' . ($reportCard ? $reportCard->getAdditionalHeaderRight() : '') . '
+                <p style="font-weight:bold">' . $currentSchool->getName() . '</p>
+                <p>' . ($reportCard ? $reportCard->getSchoolValuesRight() : '') . '</p>
+                <p>BP : ' . $currentSchool->getAddress() . '</p>
+                <p>Tél. : ' . $currentSchool->getContactPhone() . '</p>
+            </div>'
+            . '<div class="col-md-12 text-center" style="font-size:20pt;font-weight:bold">BULLETIN DE NOTES</div>
             <div class="col-md-12 text-center">' . $currentPeriod->getName() . '</div>
             <div class="col-md-12 text-center">' . ($isAnnual ? 'Annuel' : strtoupper($periodicity[0]->getName())) . '</div>
             <div class="row">
@@ -718,24 +793,18 @@ class BulletinGenerator
                         <div class="col-md-5">Né(e) le : <strong>' . $student[0]->getStudent()->getDateOfBirth()->format('d M Y') . '</strong> à : <strong>' . $student[0]->getStudent()->getPlaceOfBirth() . '</strong></div><div class="col-md-4">Effectif : <strong>' . count($class->getStudentClasses()->toArray()) . '</strong></div><div class="col-md-3">Nb. de matières : <strong>' . count($class->getSchoolClassSubjects()->toArray()) . '</strong></div>
                         <div class="col-md-5">Sexe: <strong>' . ($student[0]->getStudent()->getGender()->value == 'male' ? 'Masculun' : 'Féminin') . '</strong> / Mattricule : <strong>' . $student[0]->getStudent()->getRegistrationNumber() . '</strong></div><div class="col-md-4">Enseignant Principal : <strong>' . ($class->getClassMaster() ? $class->getClassMaster()->getFullName() : '') . '</strong></div><div class="col-md-3"></div>
                         <div class="col-md-5">Nom du tuteur/parent : <strong>' . ($student[0]->getStudent()->getTutor() ? $student[0]->getStudent()->getTutor()->getFullName() : '') . '</strong></div><div class="col-md-4">Contact tuteur/parent : <strong>' . ($student[0]->getStudent()->getTutor() ? $student[0]->getStudent()->getTutor()->getPhone() : '') . '</strong></div><div class="col-md-3"></div>
+                        <div class="col-md-5">Matricule national : <strong>' . ($student[0]->getStudent()->getNationalRegistrationNumber() ?? '') . '</strong></div><div class="col-md-4"></div><div class="col-md-3"></div>
                     </div>
                 </div>
                 <div class="col-md-3 text-center">
-                    <img src="/uploads/' . $student[0]->getStudent()->getPhoto() . '" width="100px" height="100px">
+                    <img class="student-photo" src="' . ($student[0]->getStudent()->getPhoto() ? '/uploads/' . $student[0]->getStudent()->getPhoto() : '/img/default_student.png') . '" width="100px" height="100px">
                 </div>
             </div>';
             $studentSelId = $student[0]->getStudent()->getId();
-            $completionRateStudent = $completionRates[$studentSelId] ?? 0;
-            if ($completionRateStudent < 100) {
-                // Ajouter un message dans le HTML
-                $html .= '<div class="alert alert-warning" style="font-size:0.8em">
-                            <i class="fas fa-exclamation-triangle"></i> 
-                            Taux de complétion des notes : ' . round($completionRateStudent, 1) . '%. 
-                            Les statistiques de classe ne sont calculées qu\'avec les élèves ayant 100% de notes.
-                        </div>';
-            }
             $baremes = $class->getReportCardTemplate() ? $class->getReportCardTemplate()->getEvaluationAppreciationTemplate()->getBaremes()->toArray() : [];
             $total_moys = 0;
+            $globalRealEvalCount = 0;
+            $globalNonNaCount = 0;
             foreach ($subjectGroups as $sg) {
                 $html .= '<div class="row">
                     <div class="col-md-12" style="font-size:16pt;font-weight:bold">' . $sg->getDescription() . '</div>
@@ -745,7 +814,7 @@ class BulletinGenerator
                 if ($isAnnual && $groupedFrames) {
                     // Ligne des frames
                     $html .= '<tr class="bg-secondary">';
-                    $html .= '<th rowspan="2">Matière</th>';
+                    $html .= '<th rowspan="2" style="width:180px;min-width:180px;max-width:180px">Matière</th>';
                     foreach ($groupedFrames as $frameData) {
                         $colspan = count($frameData['times']);
                         $html .= '<th colspan="' . $colspan . '" style="text-align:center">' . $frameData['frame_name'] . '</th>';
@@ -762,8 +831,8 @@ class BulletinGenerator
                     $html .= '</tr>';
                 } else {
                     $html .= '<tr class="bg-secondary">
-        <th>Matière</th>';
-                    foreach ($periods as $periode) {
+        <th style="width:180px;min-width:180px;max-width:180px">Matière</th>';
+                    foreach ($allPeriods as $periode) {
                         $html .= '<th>' . $periode->getShortName() . '</th>';
                     }
                     $html .= '<th>Moy.</th><th>Coef.</th><th>Note x Coef.</th><th>Rang</th><th>Cotation</th><th>Grade</th><th>Min</th><th>Moy. Gen.</th><th>Max</th><th>% Réuss.</th><th>Signature enseignant</th></tr>';
@@ -778,20 +847,37 @@ class BulletinGenerator
                     return $scs->getSchoolClassPeriod()->getId() == $class->getId();
                 });
                 foreach ($scs as $subject) {
-                    $html .= '<tr><td style="font-weight:bold"><span style="display:block;margin:0;padding:0;line-height:0.7em">' . $subject->getStudySubject()->getName() . ($subject->getTeacher() ? '</span><span style="font-size:0.7em;font-weight:lighter !important;font-style:italic">' . $subject->getTeacher()->getFullName() . '</span>' : '') . '</td>';
-                    $total = 0;
-                    foreach ($periods as $periode) {
-                        $tid = $periode->getId();
-                        $module = $subject->getStudySubject()->getClassSubjectModules()->toArray();
-                        $module = array_filter($module, function ($m) {
-                            return $m->getModule()->getModuleName() == 'Ecrit';
-                        });
-                        //dd($module);
+                    // Ignorer les matières non-applicables pour toutes les périodes affichées
+                    $subjectId = $subject->getId();
+                    $allPeriodsNA = true;
+                    foreach ($allPeriods as $pcheck) {
+                        if (!isset($nonApplicableIndex[$subjectId][$pcheck->getId()])) {
+                            $allPeriodsNA = false;
+                            break;
+                        }
+                    }
+                    if ($allPeriodsNA) {
+                        continue;
+                    }
 
+                    $html .= '<tr><td style="font-weight:bold;width:180px;min-width:180px;max-width:180px;word-wrap:break-word"><span style="display:block;margin:0;padding:0;line-height:0.7em">' . $subject->getStudySubject()->getName() . ($subject->getTeacher() ? '</span><span style="font-size:0.7em;font-weight:lighter !important;font-style:italic">' . $subject->getTeacher()->getFullName() . '</span>' : '') . '</td>';
+                    $total = 0;
+                    $nonNaCount = 0;
+                    foreach ($allPeriods as $periode) {
+                        $tid = $periode->getId();
+                        // Ignorer les périodes NA pour cette matière (équité pour tous les élèves)
+                        $isNA = isset($nonApplicableIndex[$subjectId][$tid]);
+                        if ($isNA) {
+                            $html .= '<td class="text-end muted-text">N/A</td>';
+                            continue;
+                        }
+                        $nonNaCount++;
+                        $module = $subject->getStudySubject()->getClassSubjectModules()->toArray();
+                        $module = array_filter($module, function ($m) use ($class) {
+                            return $m->getModule()->getModuleName() == 'Ecrit' && $m->getClass()->getId() === $class->getId();
+                        });
                         $module = array_values($module);
                         $mid = isset($module[0]) ? $module[0]->getId() : null;
-                        //dd($student[0]->getStudent()->getId(),$subject->getStudySubject()->getId(),$mid,$tid, $evalIndex,$subject,$module);
-                        // Utilise l'indexation pour récupérer l'évaluation
                         $eval = $evalIndex[$student[0]->getStudent()->getId()][$subject->getStudySubject()->getId()][$mid][$tid] ?? null;
                         if ($eval) {
                             $html .= '<td class="text-end">' . $this->setNoteStyle(number_format($eval->getEvaluationNote(), 2), $passNote, true) . '</td>';
@@ -800,11 +886,20 @@ class BulletinGenerator
                             if (!isset($sum_coef[$tid])) $sum_coef[$tid] = 0;
                             $notes_coef[$tid] += $eval->getEvaluationNote() * $subject->getCoefficient();
                             $sum_coef[$tid] += $subject->getCoefficient();
+                            $globalRealEvalCount++;
                         } else {
-                            $html .= '<td></td>';
+                            // Pas de note mais période non-NA → note = 0, coefficient appliqué
+                            $html .= '<td class="text-end">' . $this->setNoteStyle('0.00', $passNote, true) . '</td>';
+                            // $total += 0 (inchangé)
+                            if (!isset($notes_coef[$tid])) $notes_coef[$tid] = 0;
+                            if (!isset($sum_coef[$tid])) $sum_coef[$tid] = 0;
+                            // Note=0 multipliée par coefficient = 0, mais le coefficient s'applique
+                            $notes_coef[$tid] += 0;
+                            $sum_coef[$tid] += $subject->getCoefficient();
                         }
+                        $globalNonNaCount++;
                     }
-                    $moy = count($periods) > 0 ? $total / count($periods) : 0;
+                    $moy = $nonNaCount > 0 ? $total / $nonNaCount : 0;
                     $nbMatieres10 += $moy >= $passNote ? 1 : 0;
                     $nbMat++;
                     $total_moy += $moy * $subject->getCoefficient();
@@ -819,14 +914,24 @@ class BulletinGenerator
                     $html .= '<td class="text-end">' . $this->setNoteStyle(number_format($moy, 2), $passNote, true) . '</td><td class="text-end">' . number_format($subject->getCoefficient(), 2) . '</td><td  class="text-end">' . number_format($moy * $subject->getCoefficient(), 2) . '</td><td class="text-end">' . (isset($notesMatieres[$subject->getStudySubject()->getId()]) ? $this->getRank($moy, $notesMatieres[$subject->getStudySubject()->getId()]) : '') . '</td><td class="text-center" style="font-size:0.8rem">' . ($this->getBareme($moy, $baremes) ? explode('(', $this->getBareme($moy, $baremes)->getEvaluationAppreciationFullValue())[0] : '') . '</td><td class="text-center">' . ($this->getBareme($moy, $baremes) ? $this->getBareme($moy, $baremes)->getEvaluationAppreciationValue() : '') . '</td><td class="text-end">' . (count($notesMatieresCleaned) > 0 ? round(min($notesMatieresCleaned), 2) : '') . '</td><td class="text-end">' . number_format($moyenne_generale, 2) . '</td><td class="text-end">' . (count($notesMatieresCleaned) > 0 ? round(max($notesMatieresCleaned), 2) : '') . '</td><td class="text-end">' . number_format($taux_reussite, 2) . '%</td><td></td></tr>'; // Appréciation à ajouter
                 }
                 $html .= '<tr class="bg-light" style="font-weight:bold;font-style:italic"><td>Récap</td>';
-                foreach ($periods as $periode) {
+                foreach ($allPeriods as $periode) {
                     $tid = $periode->getId();
                     $total = isset($notes_coef[$tid]) ? $notes_coef[$tid] : 0;
                     $moy = isset($notes_coef[$tid]) ? $total / ((isset($sum_coef[$tid]) && $sum_coef[$tid] > 0) ? $sum_coef[$tid] : 0) : 0;
                     $html .= '<td class="text-end">' . number_format($moy, 2) . '</td>';
                 }
-                $moy_groupe = isset($total_moy) ? $total_moy / ((isset($sum_coef[$tid]) && $sum_coef[$tid] > 0) ? $sum_coef[$tid] : 1) : 0;
-                $html .= '<td class="text-end">' . number_format($moy_groupe, 2) . '</td><td class="text-end">' . number_format(isset($sum_coef[$tid]) ? $sum_coef[$tid] : 0, 2) . '</td><td class="text-end">' . number_format($total_moy, 2) . '</td><td colspan="8" class="text-end"></td></tr>';
+                // Calculer le total des coefficients sur la dernière période non-NA pour l'affichage
+                $lastTid = null;
+                $totalCoefDisplay = 0;
+                foreach (array_reverse($allPeriods) as $p) {
+                    if (isset($sum_coef[$p->getId()]) && $sum_coef[$p->getId()] > 0) {
+                        $lastTid = $p->getId();
+                        $totalCoefDisplay = $sum_coef[$lastTid];
+                        break;
+                    }
+                }
+                $moy_groupe = isset($total_moy) ? $total_moy / ($totalCoefDisplay > 0 ? $totalCoefDisplay : 1) : 0;
+                $html .= '<td class="text-end">' . number_format($moy_groupe, 2) . '</td><td class="text-end">' . number_format($totalCoefDisplay, 2) . '</td><td class="text-end">' . number_format($total_moy, 2) . '</td><td colspan="8" class="text-end"></td></tr>';
                 $html .= '</tbody></table>';
                 $total_moys += $total_moy;
             }
@@ -844,14 +949,10 @@ class BulletinGenerator
                 $modulesBySubjectForB[$subjectId] = $modules;
             }
 
-            // Puis utiliser $modulesBySubjectForB au lieu de $modulesBySubject dans cette section
-            $validStudentsForStats = array_filter($moyennesEleves, function ($studentId) use ($evalIndex, $periods, $modulesBySubjectForB, $class) {
-                $completionRate = $this->calculateCompletionRate($evalIndex, $studentId, $periods, $modulesBySubjectForB, $class);
-                return $completionRate >= 100;
-            }, ARRAY_FILTER_USE_KEY);
+            // Tous les élèves sont classés car note manquante non-NA = 0
+            $validStudentsForStats = array_filter($moyennesEleves, fn($v) => $v !== null && $v !== '');
 
             $moyennesElevesForStats = array_intersect_key($moyennesEleves, $validStudentsForStats);
-
 
             $html .= '<div class="row">
             <div class="col-md-6 total-block">
@@ -864,10 +965,19 @@ class BulletinGenerator
                     <div class="col-md-9 text-start">Moyenne</div>
                     <div class="col-md-3 text-end">' . $moyennesEleves[$student[0]->getStudent()->getId()] . '</div>
                     <div class="col-md-9 text-start">Rang</div>
-                    <div class="col-md-3 text-end">' . $this->getRank($moyennesEleves[$student[0]->getStudent()->getId()], $moyennesEleves, true, array_keys($validStudentsForStats)) . '</div>
+                    <div class="col-md-3 text-end">' . $this->formatRank($this->getRank($moyennesEleves[$student[0]->getStudent()->getId()], $moyennesEleves, true, array_keys($validStudentsForStats)), count($validStudentsForStats), $bulLang ?? 'fr') . '</div>
                     <div class="col-md-9 text-start">Nombre de matières validées</div>
                     <div class="col-md-3 text-center">' . $nbMatieres10 . '/' . $nbMat . '</div>
-                </div>
+                    <div class="col-md-9 text-start">Notes réelles</div>
+                    <div class="col-md-3 text-end">' . $globalRealEvalCount . '/' . $globalNonNaCount . '</div>';
+
+            // Indicateur visuel élève non classé
+            $completionPercent = $globalNonNaCount > 0 ? ($globalRealEvalCount / $globalNonNaCount) * 100 : 0;
+            if ($completionPercent < 100) {
+                $html .= '<div class="col-md-12" style="margin:4px 0;padding:4px 8px;background-color:#dc3545;color:white;text-align:center;font-weight:bold;font-size:0.85em;border-radius:3px">⚠ ÉLÈVE NON CLASSÉ</div>';
+            }
+
+            $html .= '</div>
             </div>
             <div class="col-md-3" style="vertical-align:middle;padding-top:3rem;border:1px solid #000">Classe</div>
             <div class="col-md-9">
@@ -975,33 +1085,55 @@ class BulletinGenerator
             </div>
             </div>';
 
+            // Cadrans de signature
+            $html .= '<div class="row mt-4">';
+            $html .= '<div class="col-md-12 text-end mb-3">Yaoundé, ' . ($bulLang === 'fr' ? 'le' : 'on') . ' ' . date('d M Y') . '</div>';
+            $html .= '<div class="col-md-3"><div class="table-responsive"><table class="table table-bordered" width="100%"><thead><tr><th style="font-size:0.68em">' . ($bulLang === 'fr' ? 'Appréciation du travail de l\'élève (forces et points à améliorer)' : 'Appreciation of the student\'s work (strengths and areas for improvement)') . '</th></tr></thead><tbody><tr><td style="height:100px"></td></tr></tbody></table></div></div>';
+            $html .= '<div class="col-md-3"><div class="table-responsive"><table class="table table-bordered" width="100%"><thead><tr><th>' . ($bulLang === 'fr' ? 'Visa du parent' : 'Parent\'s approval') . '</th></tr></thead><tbody><tr><td style="height:100px"></td></tr></tbody></table></div></div>';
+            $html .= '<div class="col-md-3"><div class="table-responsive"><table class="table table-bordered" width="100%"><thead><tr><th>' . ($bulLang === 'fr' ? 'Enseignant(e) principal(e)' : 'Main teacher') . '</th></tr></thead><tbody><tr><td style="height:100px"></td></tr></tbody></table></div></div>';
+            $html .= '<div class="col-md-3"><div class="table-responsive"><table class="table table-bordered" width="100%"><thead><tr><th>' . ($bulLang === 'fr' ? 'Le Directeur' : 'The Director') . '</th></tr></thead><tbody><tr><td style="height:100px"></td></tr></tbody></table></div></div>';
             $html .= '</div>';
-            //dd($html);
-            return [$html];     // Retourne un tableau vide ou les données nécessaires pour le modèle B
+
+            $html .= '</div>';
+            return [$html, $moyennesEleves[$student[0]->getStudent()->getId()] ?? 0];     // Retourne le HTML et la moyenne pour le tri par mérite
         } elseif ($reportCardTemplate == 'C') {
 
             $subjects = [];
 
             $notesMatieres = [];
             foreach ($class->getSchoolClassSubjects() as $subject) {
+                // Ignorer les matières non-applicables pour toutes les périodes
+                $scsId = $subject->getId();
+                $allPeriodsNA = true;
+                foreach ($allPeriods as $pcheck) {
+                    if (!isset($nonApplicableIndex[$scsId][$pcheck->getId()])) {
+                        $allPeriodsNA = false;
+                        break;
+                    }
+                }
+                if ($allPeriodsNA) continue;
+
                 $subjectId = $subject->getStudySubject()->getId();
                 foreach ($class->getStudentClasses() as $studentClass) {
                     $studentId = $studentClass->getStudent()->getId();
                     $total = 0;
                     $count = 0;
-                    foreach ($periods as $periode) {
+                    foreach ($allPeriods as $periode) {
                         $tid = $periode->getId();
+                        // Ignorer les périodes NA pour cette matière
+                        if (isset($nonApplicableIndex[$scsId][$tid])) continue;
                         $modules = $subject->getStudySubject()->getClassSubjectModules()->toArray();
-                        $modules = array_filter($modules, function ($m) {
-                            return $m->getModule()->getModuleName() == 'Ecrit';
+                        $modules = array_filter($modules, function ($m) use ($class) {
+                            return $m->getModule()->getModuleName() == 'Ecrit' && $m->getClass()->getId() === $class->getId();
                         });
                         $modules = array_values($modules);
                         $mid = isset($modules[0]) ? $modules[0]->getId() : null;
                         $eval = $evalIndex[$studentId][$subjectId][$mid][$tid] ?? null;
                         if ($eval) {
                             $total += $eval->getEvaluationNote();
-                            $count++;
                         }
+                        // Note manquante non-NA = 0 (implicite)
+                        $count++;
                     }
                     $notesMatieres[$subjectId][$studentId] = $count > 0 ? $total / $count : null;
                 }
@@ -1017,23 +1149,37 @@ class BulletinGenerator
                 $totalPondere = 0;
                 $totalCoefficients = 0;
                 foreach ($class->getSchoolClassSubjects() as $subject) {
+                    // Ignorer les matières non-applicables pour toutes les périodes
+                    $scsId2 = $subject->getId();
+                    $allPeriodsNA2 = true;
+                    foreach ($allPeriods as $pcheck2) {
+                        if (!isset($nonApplicableIndex[$scsId2][$pcheck2->getId()])) {
+                            $allPeriodsNA2 = false;
+                            break;
+                        }
+                    }
+                    if ($allPeriodsNA2) continue;
+
                     $coef = $subject->getCoefficient();
                     $subjectId = $subject->getStudySubject()->getId();
                     $sommeNotes = 0;
                     $nbNotes = 0;
-                    foreach ($periods as $periode) {
+                    foreach ($allPeriods as $periode) {
                         $tid = $periode->getId();
+                        // Ignorer les périodes NA pour cette matière
+                        if (isset($nonApplicableIndex[$scsId2][$tid])) continue;
                         $modules = $subject->getStudySubject()->getClassSubjectModules()->toArray();
-                        $modules = array_filter($modules, function ($m) {
-                            return $m->getModule()->getModuleName() == 'Ecrit';
+                        $modules = array_filter($modules, function ($m) use ($class) {
+                            return $m->getModule()->getModuleName() == 'Ecrit' && $m->getClass()->getId() === $class->getId();
                         });
                         $modules = array_values($modules);
                         $mid = isset($modules[0]) ? $modules[0]->getId() : null;
                         $eval = $evalIndex[$studentId][$subjectId][$mid][$tid] ?? null;
                         if ($eval && $eval->getEvaluationNote() !== null) {
                             $sommeNotes += $eval->getEvaluationNote();
-                            $nbNotes++;
                         }
+                        // Note manquante non-NA = 0 (implicite), coefficient s'applique
+                        $nbNotes++;
                     }
                     if ($nbNotes > 0) {
                         $moyenneMatiere = $sommeNotes / $nbNotes;
@@ -1046,23 +1192,43 @@ class BulletinGenerator
             $baremes = $class->getReportCardTemplate() ? $class->getReportCardTemplate()->getEvaluationAppreciationTemplate()->getBaremes()->toArray() : [];
 
             $student = $student[0];
-            $evaluationsCount = count($periods);
+            $evaluationsCount = count($allPeriods);
             $evaluationsTitles = [];
-            foreach ($periods as $period) {
+            foreach ($allPeriods as $period) {
                 $evaluationsTitles[] = $period->getShortName();
             }
             $evaluationColumns = 4; // Note, Barème, Moyenne, Appréciation
 
-            $html = '<div class="row">
-                <div class="col-4"></div>
-                <div class="col-4"></div>
-                <div class="col-4"></div>
-                <div class="col-12 text-center mb-3" style="font-size:24pt"><span style="line-height:1px;display:block">BULLETIN DE NOTES</span><span style="line-height:1px;font-size:0.8em"><i>REPORT CARD</i></span></div>
+            $reportCard = $class->getReportCardTemplate();
+            $html = '<div class="row bulletin-header">
+            <div class="col-5 text-center" style="font-size: 0.9em;">
+                <p>' . ($reportCard ? $reportCard->getHeaderLeft() : '') . '</p>
+                <p>' . ($reportCard ? $reportCard->getNationalMottoLeft() : '') . '</p>
+                ' . ($reportCard ? $reportCard->getAdditionalHeaderLeft() : '') . '
+                <p style="font-weight:bold">' . $currentSchool->getName() . '</p>
+                <p>' . ($reportCard ? $reportCard->getSchoolValuesLeft() : '') . '</p>
+                <p>PO BOX : ' . $currentSchool->getAddress() . '</p>
+                <p>Tel. : ' . $currentSchool->getContactPhone() . '</p>
+            </div>
+            <div class="col-2 text-center">
+                <img class="school-logo" src="' . ($class->getSchool()->getLogo() ? '/uploads/logos/' . $class->getSchool()->getLogo() : '/img/logo_test.png') . '" width="100px" height="100px">
+            </div>
+            <div class="col-5 text-center" style="font-size: 0.9em;">
+                <p>' . ($reportCard ? $reportCard->getHeaderRight() : '') . '</p>
+                <p>' . ($reportCard ? $reportCard->getNationalMottoRight() : '') . '</p>
+                ' . ($reportCard ? $reportCard->getAdditionalHeaderRight() : '') . '
+                <p style="font-weight:bold">' . $currentSchool->getName() . '</p>
+                <p>' . ($reportCard ? $reportCard->getSchoolValuesRight() : '') . '</p>
+                <p>BP : ' . $currentSchool->getAddress() . '</p>
+                <p>Tél. : ' . $currentSchool->getContactPhone() . '</p>
+            </div>'
+            . '<div class="col-12 text-center mb-3" style="font-size:24pt"><span style="line-height:1px;display:block">BULLETIN DE NOTES</span><span style="line-height:1px;font-size:0.8em"><i>REPORT CARD</i></span></div>
                 <div class="12 text-center mb-3"  style="font-size:14pt"><span>Année scolaire/<i>Period : </i></span><strong>' . $currentPeriod->getName() . ' - ' . ($isAnnual ? 'Annuel' : strtoupper($periodicity[0]->getName())) . '</strong></div>
                 <div class="col-2 pb-3 pt-3"><span style="line-height:1px;display:block">Nom et prénoms : </span><span style="line-height:1px;font-size:0.8em"><i>Name and surname : </i></span></div><div class="col-5"><strong>' . strtoupper($student->getStudent()->getFullName()) . '</strong></div><div class="col-2 pb-3 pt-3"><span style="line-height:1px;display:block">Matricule : </span><span style="line-height:1px;font-size:0.8em"><i>Reg. Number : </i></span></div><div class="col-3"><strong>' . $student->getStudent()->getRegistrationNumber() . '</strong></div>
                 <div class="col-2 pb-3 pt-3"><span style="line-height:1px;display:block">Né(e) le : </span><span style="line-height:1px;font-size:0.8em"><i>Born on : </i></span></div><div class="col-5"><strong>' . $student->getStudent()->getDateOfBirth()->format('d M Y') . '</strong> à/at <strong>' . $student->getStudent()->getPlaceOfBirth() . '</strong></div><div class="col-2 pb-3 pt-3"><span style="line-height:1px;display:block">Statut : </span><span style="line-height:1px;font-size:0.8em"><i>Status : </i></span></div><div class="col-3"><strong>' . ($student->getStudent()->isRepeated() ? 'Redoublant' : 'Non redoublant') . '</strong></div>
                 <div class="col-2 pb-3 pt-3"><span style="line-height:1px;display:block">Sexe : </span><span style="line-height:1px;font-size:0.8em"><i>Gender : </i></span></div><div class="col-5"><strong>' . strtoupper($student->getStudent()->getGender()->value) . '</strong></div><div class="col-2 pb-3 pt-3"><span style="line-height:1px;display:block">Parent : </span><span style="line-height:1px;font-size:0.8em"><i>Tutor : </i></span></div><div class="col-3"><strong>' . ($student->getStudent()->getTutor() ? $student->getStudent()->getTutor()->getFullName() : '') . '</strong></div>
                 <div class="col-2 pb-3 pt-3"><span style="line-height:1px;display:block">Classe : </span><span style="line-height:1px;font-size:0.8em"><i>Class : </i></span></div><div class="col-5"><strong>' . $class->getClassOccurence()->getName() . '</strong></div><div class="col-2 pb-3 pt-3"><span style="line-height:1px;display:block">Contact parent : </span><span style="line-height:1px;font-size:0.8em"><i>Tutor phone : </i></span></div><div class="col-3"><strong>' . ($student->getStudent()->getTutor() ? $student->getStudent()->getTutor()->getPhone() : '') . '</strong></div>
+                <div class="col-2 pb-3 pt-3"><span style="line-height:1px;display:block">Matricule national : </span><span style="line-height:1px;font-size:0.8em"><i>National ID : </i></span></div><div class="col-5"><strong>' . ($student->getStudent()->getNationalRegistrationNumber() ?? '') . '</strong></div><div class="col-2 pb-3 pt-3"></div><div class="col-3"></div>
                 <div class="col-12 mb-4"></div>
                 <div class="col-12" id="block-bul-1">';
             $html .= '<table class="table table-bordered" style="font-size:0.9em">';
@@ -1095,7 +1261,7 @@ class BulletinGenerator
                 // Ligne des sous-colonnes
                 $html .= '<tr class="bg-secondary">';
                 $html .= '<th></th>';
-                foreach ($periods as $periode) {
+                foreach ($allPeriods as $periode) {
                     $html .= '<th>Note</th>';
                     $html .= '<th style="display: none;">Bar.</th>';
                     $html .= '<th>Moy.</th>';
@@ -1104,7 +1270,7 @@ class BulletinGenerator
                 $html .= '</tr>';
             } else {
                 $evaluationsTitles = [];
-                foreach ($periods as $period) {
+                foreach ($allPeriods as $period) {
                     $evaluationsTitles[] = $period->getShortName();
                 }
 
@@ -1183,16 +1349,22 @@ class BulletinGenerator
                             if (!isset($totalS[$sid])) $totalS[$sid] = [];
                             if (!isset($totalN[$sid])) $totalN[$sid] = [];
                             for ($i = 0; $i < $evaluationsCount; $i++) {
-                                $tid = $periods[$i]->getId();
-                                //dump($sid,$mid,$tid,$modules,$studentSelId,$evalIndex[1752][$sid]);
+                                $tid = $allPeriods[$i]->getId();
                                 if (!isset($totalGS[$tid])) $totalGS[$tid] = 0;
                                 if (!isset($totalGN[$tid])) $totalGN[$tid] = 0;
-                                $note = $evalIndex[$studentSelId][$sid][$mid][$tid]->getEvaluationNote();
+                                // Ignorer les périodes NA pour cette matière
+                                $scsId = $schoolClassSubject->getId();
+                                if (isset($nonApplicableIndex[$scsId][$tid])) {
+                                    $html .= '<td style="text-align:center" colspan="4">NA</td>';
+                                    continue;
+                                }
+                                $eval = $evalIndex[$studentSelId][$sid][$mid][$tid] ?? null;
+                                $note = $eval ? $eval->getEvaluationNote() : 0;
                                 if (!isset($totalS[$sid][$tid])) $totalS[$sid][$tid] = 0;
                                 $totalS[$sid][$tid] += $note;
                                 if (!isset($totalN[$sid][$tid])) $totalN[$sid][$tid] = 0;
                                 $totalN[$sid][$tid] += $module->getModuleNotation() && $module->getModuleNotation() > 0 ? $module->getModuleNotation() : 0;
-                                $moy = $note / ($module->getModuleNotation() && $module->getModuleNotation() > 0 ? $module->getModuleNotation() : 0) * 20;
+                                $moy = ($module->getModuleNotation() && $module->getModuleNotation() > 0) ? ($note / $module->getModuleNotation()) * 20 : 0;
                                 $html .= '<td style="text-align:right">' . $this->setNoteStyle(number_format($note, 2), $passNote, true) . '</td>';
                                 $html .= '<td style="text-align:right;display:none">' . $module->getModuleNotation() . '</td>';
                                 $html .= '<td style="text-align:right">' . $this->setNoteStyle(number_format($moy, 2), $passNote) . '</td>';
@@ -1207,7 +1379,11 @@ class BulletinGenerator
                         $html .= '<td colspan="3">TOTAL ' . $subjectName . '</td>';
                         //$html .= '<td></td>';
                         for ($i = 0; $i < $evaluationsCount; $i++) {
-                            $tid = $periods[$i]->getId();
+                            $tid = $allPeriods[$i]->getId();
+                            if (isset($nonApplicableIndex[$schoolClassSubject->getId()][$tid])) {
+                                $html .= '<td style="text-align:center" colspan="4">NA</td>';
+                                continue;
+                            }
                             $totalGS[$tid] += $totalS[$sid][$tid];
                             $totalGN[$tid] += $totalN[$sid][$tid];
                             $moy = ($totalN[$sid][$tid] > 0 ? $totalS[$sid][$tid] / $totalN[$sid][$tid] : 0) * 20;
@@ -1225,7 +1401,11 @@ class BulletinGenerator
                 $html .= '<td colspan="4">TOTAL ' . $groupName . '</td>';
                 //$html .= '<td></td>';
                 for ($i = 0; $i < $evaluationsCount; $i++) {
-                    $tid = $periods[$i]->getId();
+                    $tid = $allPeriods[$i]->getId();
+                    if ($totalGN[$tid] <= 0) {
+                        $html .= '<td style="text-align:center" colspan="4">NA</td>';
+                        continue;
+                    }
                     $moy = ($totalGN[$tid] > 0 ? $totalGS[$tid] / $totalGN[$tid] : 0) * 20;
                     $html .= '<td style="text-align:right">' . number_format($totalGS[$tid], 2) . '</td>';
                     $html .= '<td style="display: none;">-</td>';
@@ -1241,7 +1421,7 @@ class BulletinGenerator
             $html .= '</div>
             <div class="col-3"></div><div class="col-3"></div><div class="col-3"></div><div class="col-3"></div>
             </div>';
-            return [$html];
+            return [$html, $moyennesEleves[$studentSelId] ?? 0];
         } elseif ($reportCardTemplate == 'D') {
             $reportCard = $this->entityManager->getRepository(ReportCardTemplate::class)->findOneBy(['name' => $reportCardTemplate]);
             $student = $selStudent;
@@ -1267,6 +1447,10 @@ class BulletinGenerator
 
             $html .= '<div class="row" mb-3>
     <div class="col-6"><span style="font-weight:bold">' . ($bulLang === 'fr' ? 'Nom du tuteur : ' : 'Tutor Name: ') . '</span>' . ($student[0]->getStudent()->getTutor() !== null ? $student[0]->getStudent()->getTutor()->getFullName() . '/' . $student[0]->getStudent()->getTutor()->getPhone() : '') . '</div><div class="col-4"><span style="font-weight:bold">' . ($bulLang === 'fr' ? 'Enseignant principal : ' : 'Class Master: ') . '</span>' . ($student[0]->getSchoolClassPeriod()->getClassMaster() !== null ? $student[0]->getSchoolClassPeriod()->getClassMaster()->getFullName() : '') . '</div><div class="col-2"><img class="student-photo" src="' . $this->params->get('kernel.project_dir') .  '/public' . ($student[0]->getStudent()->getPhoto() ? '/uploads/' . $student[0]->getStudent()->getPhoto() : '/img/default_student.png') . '" width="60px" height="60px" style="position:relative"></div>
+    </div>';
+
+            $html .= '<div class="row">
+    <div class="col-6"><span style="font-weight:bold">' . ($bulLang === 'fr' ? 'Matricule national : ' : 'National ID: ') . '</span>' . ($student[0]->getStudent()->getNationalRegistrationNumber() ?? '') . '</div><div class="col-4"></div><div class="col-2"></div>
     </div>';
 
             $headerColspan = 9 + count($periods);
@@ -1508,7 +1692,7 @@ class BulletinGenerator
                             });
 
                             foreach ($modules as $module) {
-                                foreach ($periods as $period) {
+                                foreach ($allPeriods as $period) {
                                     $totalPossible++;
                                     if (isset($evalIndex[$studentId][$subject->getStudySubject()->getId()][$module->getId()][$period->getId()])) {
                                         $actualEvaluations++;
@@ -1780,7 +1964,7 @@ class BulletinGenerator
 
             $html .= '<tr>';
             $html .= '<td style="text-align:left"><strong>' . ($bulLang === 'fr' ? 'Rang' : 'Rank') . '</strong></td>';
-            $html .= '<td class="cell-number rang" style="font-size:8pt">' . ($globalAverage > 0 ? $globalRank . ($bulLang === 'fr' ? 'e' : ($globalRank === 1 ? 'st' : ($globalRank === 2 ? 'nd' : ($globalRank === 3 ? 'rd' : 'th')))) : '') . '</td>';
+            $html .= '<td class="cell-number rang" style="font-size:8pt">' . ($globalAverage > 0 ? $this->formatRank($globalRank, count($validStudentsForStats), $bulLang ?? 'fr') : '') . '</td>';
             $html .= '</tr>';
 
             $html .= '<tr>';
@@ -1863,9 +2047,8 @@ class BulletinGenerator
             $html .= '<div class="col-3"><div class="table-responsive"><table class="table table-bordered" width="100%"><thead><tr><th>' . ($bulLang === 'fr' ? 'Le Directeur' : 'The Director') . '</th></tr></thead><tbody><tr><td style="height:100px"></td></tr></tbody></table></div></div>';
             $html .= '</div>';
 
-            return [$html];
+            return [$html, $globalAverages[$studentSelId] ?? 0];
         }
-
         if ($progressFile && $totalStudents > 0) {
             $this->updateGenerationProgress($progressFile, $currentProgress, $totalStudents, "Bulletin généré avec succès");
         }
@@ -1926,6 +2109,21 @@ class BulletinGenerator
         return $ranks['' . $note] ?? null;
     }
 
+    function formatRank($rank, int $total, string $lang = 'fr'): string
+    {
+        if ($rank === null || $rank === 'N/A') {
+            return 'N/A';
+        }
+        if ($lang === 'fr') {
+            $suffix = $rank == 1 ? 'er' : 'e';
+        } else {
+            if ($rank == 1) $suffix = 'st';
+            elseif ($rank == 2) $suffix = 'nd';
+            elseif ($rank == 3) $suffix = 'rd';
+            else $suffix = 'th';
+        }
+        return $rank . $suffix . '/' . $total;
+    }
 
     function setNoteStyle($note, $passNote, $onlyBad = false)
     {

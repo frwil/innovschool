@@ -36,19 +36,23 @@ Bulletin de l'élève
   }
   
   .floating-print-btn, .floating-back-btn {
-    padding: 12px 20px;
+    padding: 16px 28px;
     border-radius: 50px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
     font-weight: 600;
-    font-size: 14px;
+    font-size: 18px;
     transition: all 0.3s ease;
     display: flex;
     align-items: center;
     gap: 8px;
-    min-width: 120px;
+    min-width: 140px;
     justify-content: center;
   }
   
+  .floating-print-btn i {
+    font-size: 20px;
+  }
+
   .floating-print-btn:hover {
     transform: translateY(-2px);
     box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
@@ -348,10 +352,14 @@ Bulletin de l'élève
 <script>
   $(document).ready(function() {
     // Correction des chemins des images
-    let logosrc=$('.school-logo').attr('src').replace('/var/www/public','');
-    $('.school-logo').attr('src', logosrc);
-    let studentPhotoSrc = $('.student-photo').attr('src').replace('/var/www/public','');
-    $('.student-photo').attr('src', studentPhotoSrc);
+    $('.school-logo').each(function() {
+        let src = $(this).attr('src');
+        if (src) { $(this).attr('src', src.replace('/var/www/public','')); }
+    });
+    $('.student-photo').each(function() {
+        let src = $(this).attr('src');
+        if (src) { $(this).attr('src', src.replace('/var/www/public','')); }
+    });
     
     {% if is_full is defined and is_full %}
     // Ajuster les numéros de page pour tous les bulletins
@@ -369,7 +377,8 @@ Bulletin de l'élève
       }
     });
 
-    window.print();
+    // Désactivé: window.print() auto-trigger empêche de voir le contenu à l'écran
+    // L'utilisateur peut imprimer via le bouton flottant
   });
   
   {% if is_full is defined and is_full %}

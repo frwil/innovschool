@@ -8,7 +8,7 @@ use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\Routing\Annotation\Route;
-use Symfony\Component\Security\Core\Security;
+use Symfony\Bundle\SecurityBundle\Security;
 use App\Repository\SchoolClassPaymentModalRepository;
 use App\Repository\SchoolClassPeriodRepository;
 use App\Repository\SchoolPeriodRepository;

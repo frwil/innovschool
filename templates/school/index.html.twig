@@ -71,12 +71,12 @@
 								{% endfor %}
 							{% endif %}
 						{% endfor %}
-						{{payments | format_currency('CFA')}}
+						{{payments}}
 						/
-						{{amount | format_currency('CFA')}}
+						{{amount}}
 					</td>
 					<td>
-						{{(amount - payments) | format_currency('CFA')}}
+						{{(amount - payments)}}
 					</td>
 					<td>{{ school.createdAt ? school.createdAt|date('d M Y') : '' }}</td>
 					{% if is_granted('ROLE_ADMIN') or is_granted('ROLE_SUPER_ADMIN') %}

@@ -175,7 +175,7 @@
 							<div class="item-content">
 								<div class="media">
 									<div class="item-img bg-skyblue author-online">
-										<img src="img/figure/student11.png" alt="img">
+										<img src="/img/figure/student11.png" alt="img">
 									</div>
 									<div class="media-body space-sm">
 										<div class="item-title">
@@ -190,7 +190,7 @@
 								</div>
 								<div class="media">
 									<div class="item-img bg-yellow author-online">
-										<img src="img/figure/student12.png" alt="img">
+										<img src="/img/figure/student12.png" alt="img">
 									</div>
 									<div class="media-body space-sm">
 										<div class="item-title">
@@ -205,7 +205,7 @@
 								</div>
 								<div class="media">
 									<div class="item-img bg-pink">
-										<img src="img/figure/student13.png" alt="img">
+										<img src="/img/figure/student13.png" alt="img">
 									</div>
 									<div class="media-body space-sm">
 										<div class="item-title">
@@ -220,7 +220,7 @@
 								</div>
 								<div class="media">
 									<div class="item-img bg-violet-blue">
-										<img src="img/figure/student11.png" alt="img">
+										<img src="/img/figure/student11.png" alt="img">
 									</div>
 									<div class="media-body space-sm">
 										<div class="item-title">
@@ -301,7 +301,7 @@
 			<div class="sidebar-main sidebar-menu-one sidebar-expand-md sidebar-color">
 				<div class="mobile-sidebar-header d-md-none">
 					<div class="header-logo">
-						<a href="{{path('app_home')}}"><img src="img/logo1.png" alt="logo"></a>
+						<a href="{{path('app_home')}}"><img src="/img/logo1.png" alt="logo"></a>
 					</div>
 				</div>
 				<div class="sidebar-menu-content">
@@ -533,12 +533,6 @@
 							</a>
 						</li>
 						<li class="nav-item">
-							<a data-turbo="false" href="{{path('app_licence_index')}}" class="nav-link">
-								<i class="fa fa-key"></i>
-								<span>Licence</span>
-							</a>
-						</li>
-						<li class="nav-item">
 							<a data-turbo="false" href="{{path('app_school_index')}}" class="nav-link">
 								<i class="fa fa-cogs"></i>
 								<span>Gérer les établissements</span>
@@ -689,9 +683,9 @@
 			);
 			$('#notif-details').mouseleave(function () { $(this).fadeOut(150); });
 			// Rafraîchissement toutes les 20 secondes
-			setInterval(updateFloatingReductionNotif, 2000000);
+			//setInterval(updateFloatingReductionNotif, 2000000);
 			// Premier chargement au démarrage
-			updateFloatingReductionNotif();
+			//updateFloatingReductionNotif();
 		});
 	</script>
 	<script>

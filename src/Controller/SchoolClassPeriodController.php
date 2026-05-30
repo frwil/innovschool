@@ -27,6 +27,7 @@ use App\Entity\ClassOccurence;
 use App\Entity\SubjectGroup;
 use App\Repository\ClasseRepository;
 use App\Entity\School;
+use Doctrine\Persistence\ManagerRegistry;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 
 #[Route('/school-class-period')]
@@ -98,6 +99,9 @@ final class SchoolClassPeriodController extends AbstractController
                             'message' => 'Classe créée avec succès.',
                         ]);
                     } catch (\Exception $e) {
+                        if (!$this->entityManager->isOpen()) {
+                            $this->entityManager = $doctrine->resetManager();
+                        }
                         // code erreur 1062 : Duplicate entry
                         if ($e->getCode() === 1062) {
                             return $this->json([
@@ -175,15 +179,20 @@ final class SchoolClassPeriodController extends AbstractController
                 } else { // alpha
                     $suffix = ' ' . chr(64 + $i + 1); // 65 = 'A'
                 }
-                $newClassOccurence = new ClassOccurence();
-                $newClassOccurence->setName($name . $suffix);
-                $newClassOccurence->setSlug($slugger->slug($name . $suffix));
-                $newClassOccurence->setClasse($classe);
-                $entityManager->persist($newClassOccurence);
+
+                $classOccurenceExist = $entityManager->getRepository(ClassOccurence::class)->findOneBy(['name' => $name . $suffix]);
+                if (!$classOccurenceExist) {
+                    $newClassOccurence = new ClassOccurence();
+                    $newClassOccurence->setName($name . $suffix);
+                    $newClassOccurence->setSlug($slugger->slug($name . $suffix));
+                    $newClassOccurence->setClasse($classe);
+                    $entityManager->persist($newClassOccurence);
+                    $classOccurenceExist = $newClassOccurence;
+                }
                 $newClass = new SchoolClassPeriod();
                 $newClass->setSchool($school);
                 $newClass->setPeriod($period);
-                $newClass->setClassOccurence($newClassOccurence);
+                $newClass->setClassOccurence($classOccurenceExist);
                 $newClass->setEvaluationAppreciationTemplate($school->getEvaluationAppreciationTemplate());
                 $entityManager->persist($newClass);
                 $createdClasses[] = $name . $suffix;
@@ -205,6 +214,10 @@ final class SchoolClassPeriodController extends AbstractController
                     'status' => 'error',
                     'message' => 'Erreur lors de la création des classes : ' . $e->getMessage(),
                 ], 500);
+
+                if (!$this->entityManager->isOpen()) {
+                    $this->entityManager = $doctrine->resetManager();
+                }
                 // Log l'erreur
                 $operationLogger->log(
                     'CREATION OCCURENCES CLASSES ' . $classe->getName(),
@@ -271,7 +284,7 @@ final class SchoolClassPeriodController extends AbstractController
         if (in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             $sections = $sectionRepo->findAll();
         } else {
-            $config = $this->getUser()->getBaseConfigurations()->toArray();
+            $config = $this->getConnectedUser()->getBaseConfigurations()->toArray();
             if (count($config) > 0) {
                 $sections = $sectionRepo->findBy(['id' => count($config[0]->getSectionList()) > 0 ? $config[0]->getSectionList() : array_map(fn($sl) => $sl->getId(), $sectionRepo->findAll())]);
             } else {
@@ -286,6 +299,11 @@ final class SchoolClassPeriodController extends AbstractController
             'sectionC' => $sectionC,
             'studyLevels' => $sections,
         ]);
+    }
+
+    public function getConnectedUser(): User
+    {
+        return $this->getUser();
     }
 
     #[Route('/classes/by-section', name: 'app_classes_by_section')]
@@ -305,7 +323,7 @@ final class SchoolClassPeriodController extends AbstractController
             // Récupérer les classes associées à la section
             $classes = $this->entityManager->getRepository(SchoolClassPeriod::class)->findBy(['classOccurence' => $classOccurences, 'period' => $period, 'school' => $this->currentSchool]);
         } else {
-            $config = $this->getUser()->getBaseConfigurations()->toArray();
+            $config = $this->getConnectedUser()->getBaseConfigurations()->toArray();
             if (count($config) > 0) {
                 if (count($config[0]->getClassList()) > 0) {
                     $classes = $this->entityManager->getRepository(SchoolClassPeriod::class)->findBy(['classOccurence' => $classOccurences, 'id' => $config[0]->getClassList(), 'period' => $period, 'school' => $this->currentSchool]);
@@ -317,6 +335,11 @@ final class SchoolClassPeriodController extends AbstractController
                 $classes = [];
             }
         }
+
+        // Exclure les classes sans élèves
+        $classes = array_filter($classes, function (SchoolClassPeriod $class) {
+            return $class->getStudentClasses()->count() > 0;
+        });
 
         $data = [];
         foreach ($classes as $class) {
@@ -330,13 +353,32 @@ final class SchoolClassPeriodController extends AbstractController
     }
 
     #[Route('/generic-classes/by-section', name: 'app_generic_classes_by_section')]
-    public function getGenericClassesBySection(Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager): JsonResponse
+    public function getGenericClassesBySection(Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager, SessionInterface $session): JsonResponse
     {
         $sectionId = $request->query->get('sectionId');
         $classes = $entityManager->getRepository(Classe::class)->findBy(['studyLevel' => $sectionId]);
+        $this->session = $session;
+        $this->entityManager = $entityManager;
+        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
+        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
         if (in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+            $schoolClassPeriod = $this->entityManager->getRepository(SchoolClassPeriod::class)->findBy(['period' => $this->currentPeriod, 'school' => $this->currentSchool]);
+            foreach ($schoolClassPeriod as $scp) {
+                $studentClasses[] = $scp->getStudentClasses()->toArray();
+            }
+
+            if ($studentClasses) {
+                $classes = [];
+                $c_id = [];
+                foreach ($studentClasses as $sc) {
+                    foreach ($sc as $co) {
+                        if ($co->getSchoolClassPeriod()->getClassOccurence()->getClasse()->getStudyLevel()->getId() == $sectionId && !in_array($co->getSchoolClassPeriod()->getClassOccurence()->getClasse()->getId(), $c_id)) $classes[] = $co->getSchoolClassPeriod()->getClassOccurence()->getClasse();
+                        $c_id[] = $co->getSchoolClassPeriod()->getClassOccurence()->getClasse()->getId();
+                    }
+                }
+            }
         } else {
-            $config = $this->getUser()->getBaseConfigurations()->toArray();
+            $config = $this->getConnectedUser()->getBaseConfigurations()->toArray();
             if (count($config) > 0) {
                 $ids = array_map(function ($c) {
                     return $c->getId();
@@ -391,7 +433,7 @@ final class SchoolClassPeriodController extends AbstractController
                 return $class->getStudentClasses()->count() > 0 && in_array($class->getClassOccurence()->getClasse()->getId(), $sectionCategories); // Filtrer les classes avec des étudiants
             });
         } else {
-            $config = $this->getUser()->getBaseConfigurations()->toArray();
+            $config = $this->getConnectedUser()->getBaseConfigurations()->toArray();
             if (count($config) > 0) {
                 $classes = $schoolClassRepository->findBy(['id' => count($config[0]->getClassList()) > 0 ? $config[0]->getClassList() : $classes]);
                 $classes = array_filter($classes, function (SchoolClassPeriod $class) use ($sectionCategories) {
@@ -456,7 +498,7 @@ final class SchoolClassPeriodController extends AbstractController
     }
 
     #[Route('/{id}/edit', name: 'app_school_class_edit', methods: ['GET', 'POST'])]
-    public function edit(SessionInterface $session, Request $request, SchoolClassPeriod $class, EntityManagerInterface $entityManager, SluggerInterface $slugger, OperationLogger $operationLogger): Response
+    public function edit(SessionInterface $session, Request $request, SchoolClassPeriod $class, EntityManagerInterface $entityManager, SluggerInterface $slugger, OperationLogger $operationLogger, \Doctrine\Persistence\ManagerRegistry $doctrine): Response
     {
         $this->session = $session;
         $this->entityManager = $entityManager;
@@ -465,10 +507,16 @@ final class SchoolClassPeriodController extends AbstractController
         if ($request->isMethod('POST')) {
             $name = $request->request->get('name');
             $classMaster = $entityManager->getRepository(User::class)->find($request->request->get('classMaster'));
-            $class->getClassOccurence()->setName($name);
+            $classOccurenceExist = $entityManager->getRepository(ClassOccurence::class)->findOneBy(['name' => $name]);
+            if ($classOccurenceExist) {
+                $class->setClassOccurence($classOccurenceExist);
+            } else {
+                $class->getClassOccurence()->setName($name);
+            }
             if ($classMaster) {
                 $class->setClassMaster($classMaster);
             }
+
 
             // Ajoute ici les autres champs à éditer si besoin
 
@@ -498,6 +546,9 @@ final class SchoolClassPeriodController extends AbstractController
             } catch (\Exception $e) {
                 // Log l'erreur
                 if ($classMaster) {
+                    if (!$this->entityManager->isOpen()) {
+                        $this->entityManager = $doctrine->resetManager();
+                    }
                     $operationLogger->log(
                         'MODIFICATION D\'ATTRIBUTION D\'UN ENSEIGNANT (' . $class->getClassMaster()->getFullName() . ') DANS LA CLASSE ' . $class->getClassOccurence()->getName(), // Type d'opération
                         'ERROR',        // Statut
@@ -509,6 +560,9 @@ final class SchoolClassPeriodController extends AbstractController
                     $this->addFlash('danger', 'Erreur lors de la modification de la classe : ' . $e->getMessage());
                     return $this->redirectToRoute('app_school_class_show', ['id' => $class->getClassOccurence()->getClasse()->getId()]);
                 } else {
+                    if (!$this->entityManager->isOpen()) {
+                        $this->entityManager = $doctrine->resetManager();
+                    }
                     $operationLogger->log(
                         'MODIFICATION D\'UNE OCCURENCE DE CLASSE ' . $class->getClassOccurence()->getName(), // Type d'opération
                         'ERROR',        // Statut
@@ -652,6 +706,9 @@ final class SchoolClassPeriodController extends AbstractController
                 $this->addFlash('success', 'Classe modifiée avec succès.');
                 return $this->redirectToRoute('app_school_class_show', ['id' => $classe->getId()]);
             } catch (\Exception $e) {
+                if (!$this->entityManager->isOpen()) {
+                    $this->entityManager = $doctrine->resetManager();
+                }
                 // Log l'erreur
                 $operationLogger->log(
                     'MODIFICATION CLASSE ' . $classe->getName(), // Type d'opération
@@ -721,6 +778,10 @@ final class SchoolClassPeriodController extends AbstractController
                         'message' => 'Cette classe existe déjà.'
                     ], 400);
                 }
+
+                if (!$this->entityManager->isOpen()) {
+                    $this->entityManager = $doctrine->resetManager();
+                }
                 // Log l'erreur
                 $operationLogger->log(
                     'CREATION CLASSE ' . $class->getName(),
@@ -744,7 +805,7 @@ final class SchoolClassPeriodController extends AbstractController
     }
 
     #[Route('/import/excel', name: 'app_class_import_excel', methods: ['POST'])]
-    public function importClassesExcel(SessionInterface $session, Request $request, EntityManagerInterface $entityManager, SluggerInterface $slugger, OperationLogger $operationLogger): Response
+    public function importClassesExcel(SessionInterface $session, Request $request, EntityManagerInterface $entityManager, SluggerInterface $slugger, OperationLogger $operationLogger, ManagerRegistry $doctrine): Response
     {
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -805,6 +866,9 @@ final class SchoolClassPeriodController extends AbstractController
                         );
                     } catch (\Exception $e) {
                         $this->addFlash('danger', 'Erreur lors de la création de la classe : ' . $e->getMessage());
+                        if (!$this->entityManager->isOpen()) {
+                            $this->entityManager = $doctrine->resetManager();
+                        }
                         // Log l'erreur
                         $operationLogger->log(
                             'IMPORTATION CLASSE EXCEL (' . $sectionCategoryName . ')',
@@ -836,6 +900,9 @@ final class SchoolClassPeriodController extends AbstractController
                         );
                     } catch (\Exception $e) {
                         $this->addFlash('danger', 'Erreur lors de la création de l\'occurrence de classe : ' . $e->getMessage());
+                        if (!$this->entityManager->isOpen()) {
+                            $this->entityManager = $doctrine->resetManager();
+                        }
                         // Log l'erreur
                         $operationLogger->log(
                             'IMPORTATION OCCURENCE DE CLASSE EXCEL (' . $name . ')',
@@ -877,6 +944,9 @@ final class SchoolClassPeriodController extends AbstractController
                 );
             } catch (\Exception $e) {
                 $this->addFlash('danger', 'Erreur lors de l\'importation : ' . $e->getMessage());
+                if (!$this->entityManager->isOpen()) {
+                    $this->entityManager = $doctrine->resetManager();
+                }
                 // Log l'erreur
                 $operationLogger->log(
                     'IMPORTATION CLASSES EXCEL',
@@ -895,7 +965,7 @@ final class SchoolClassPeriodController extends AbstractController
     }
 
     #[Route('/import/json', name: 'app_class_import_json', methods: ['POST'])]
-    public function importClassesJson(Request $request, EntityManagerInterface $entityManager, SluggerInterface $slugger, OperationLogger $operationLogger): Response
+    public function importClassesJson(Request $request, EntityManagerInterface $entityManager, SluggerInterface $slugger, OperationLogger $operationLogger, ManagerRegistry $doctrine): Response
     {
         /** @var UploadedFile $file */
         $file = $request->files->get('importFile');
@@ -944,6 +1014,9 @@ final class SchoolClassPeriodController extends AbstractController
             );
         } catch (\Exception $e) {
             $this->addFlash('danger', 'Erreur lors de l\'importation : ' . $e->getMessage());
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // Log l'erreur
             $operationLogger->log(
                 'IMPORTATION CLASSES JSON',
@@ -1025,7 +1098,9 @@ final class SchoolClassPeriodController extends AbstractController
             );
             return new JsonResponse(['success' => true, 'message' => 'Affectation de matière supprimée avec succès.']);
         } catch (\Exception $e) {
-            return new JsonResponse(['error' => 'Erreur lors de la suppression.'], 500);
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // Log l'erreur
             $operationLogger->log(
                 'SUPPRESSION AFFECTATION MATIERE ' . $subjectAssignment->getStudySubject()->getName(),
@@ -1035,6 +1110,7 @@ final class SchoolClassPeriodController extends AbstractController
                 'Erreur lors de la suppression de l\'affectation de matière.',
                 ['subject' => $subjectAssignment->getStudySubject()->getName(), 'class' => $subjectAssignment->getSchoolClassPeriod()->getClassOccurence()->getName(), 'period' => $this->currentPeriod->getName(), 'school' => $this->currentSchool->getName()]
             );
+            return new JsonResponse(['error' => 'Erreur lors de la suppression.'], 500);
         }
     }
 
@@ -1077,14 +1153,14 @@ final class SchoolClassPeriodController extends AbstractController
                 foreach ($subjectAssignments as $assignment) {
                     $assignment->setTeacher($entityManager->getRepository(User::class)->find($teacher)); // adapte si c'est une entité
                 }
-            } elseif ($assignTeacherMethod === 'all'){
+            } elseif ($assignTeacherMethod === 'all') {
                 $subjectAssignments = $entityManager->getRepository(\App\Entity\SchoolClassSubject::class)->findBy([
                     'schoolClassPeriod' => $subjectAssignment->getSchoolClassPeriod()
                 ]);
                 foreach ($subjectAssignments as $assignment) {
                     $assignment->setTeacher($entityManager->getRepository(User::class)->find($teacher)); // adapte si c'est une entité
                 }
-            }else{
+            } else {
                 $subjectAssignment->setTeacher($entityManager->getRepository(User::class)->find($teacher)); // adapte si c'est une entité
             }
         }
@@ -1107,7 +1183,9 @@ final class SchoolClassPeriodController extends AbstractController
                 'message' => 'Affectation de matière modifiée avec succès.',
             ]);
         } catch (\Exception $e) {
-            return new JsonResponse(['error' => 'Erreur lors de la modification.'], 500);
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // Log l'erreur
             $operationLogger->log(
                 'MODIFICATION AFFECTATION MATIERE ' . $subjectAssignment->getStudySubject()->getName(),
@@ -1117,6 +1195,7 @@ final class SchoolClassPeriodController extends AbstractController
                 'Erreur lors de la modification de l\'affectation de matière.',
                 ['subject' => $subjectAssignment->getStudySubject()->getName(), 'class' => $subjectAssignment->getSchoolClassPeriod()->getClassOccurence()->getName(), 'period' => $this->currentPeriod->getName(), 'school' => $this->currentSchool->getName()]
             );
+            return new JsonResponse(['error' => 'Erreur lors de la modification.'], 500);
         }
     }
 

@@ -8,7 +8,7 @@ class ProgressQueryDTO
 {
     public function __construct(
         public readonly ?int $classId = null,
-        public readonly int|string|null $periodicityId = null,
+        public readonly string|int|null $periodicityId = null,
         public readonly ?string $bulletinType = null,
         public readonly ?int $studentId = null
     ) {}
@@ -19,7 +19,7 @@ class ProgressQueryDTO
         if ($periodicityId !== null && $periodicityId !== 'all') {
             $periodicityId = (int)$periodicityId;
         }
-        
+
         return new self(
             $request->query->get('classId') ? (int)$request->query->get('classId') : null,
             $periodicityId,

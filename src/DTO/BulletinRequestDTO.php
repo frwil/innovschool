@@ -7,23 +7,24 @@ class BulletinRequestDTO
 {
     public function __construct(
         public readonly ?int $classId = null,
-        public readonly int|string|null $periodicityId = null,
+        public readonly string|int|null $periodicityId = null,
         public readonly ?string $bulletinType = null,
         public readonly ?int $templateId = null,
         public readonly ?int $studentId = null,
         public ?string $bulLang = null,
         public ?int $passNote = null,
         public readonly ?string $printType = null,
+        public readonly ?Array $studentIds=null
     ) {}
 
     public static function fromRequest(Request $request): self
     {
+        $studentIds = $request->get('studentIds');
         $periodicityId = $request->get('periodicityId');
-        // Si c'est 'all', on garde la string, sinon on cast en int
         if ($periodicityId !== null && $periodicityId !== 'all') {
             $periodicityId = (int)$periodicityId;
         }
-        
+
         return new self(
             $request->get('classId') ? (int)$request->get('classId') : null,
             $periodicityId,
@@ -32,7 +33,8 @@ class BulletinRequestDTO
             $request->get('studentId') ? (int)$request->get('studentId') : null,
             $request->get('bulLang') ? (string)$request->get('bulLang') : 'fr',
             $request->get('passNote') ? (int)$request->get('passNote') : 10,
-            $request->get('printType') ? $request->get('printType') : null
+            $request->get('printType') ? $request->get('printType') : null,
+            is_array($studentIds) ? $studentIds : null
         );
     }
 

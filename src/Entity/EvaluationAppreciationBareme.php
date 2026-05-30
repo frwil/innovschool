@@ -5,15 +5,11 @@ namespace App\Entity;
 use App\Repository\EvaluationAppreciationBaremeRepository;
 use Doctrine\ORM\Mapping as ORM;
 
-/**
- * @ORM\Table(
- *     uniqueConstraints={
- *         @ORM\UniqueConstraint(name="unique_value_maxnote", columns={"evaluation_appreciation_value", "evaluation_appreciation_max_note"}),
- *         @ORM\UniqueConstraint(name="unique_value_template", columns={"evaluation_appreciation_value", "evaluation_appreciation_template_id"})
- *     }
- * )
- */
 #[ORM\Entity(repositoryClass: EvaluationAppreciationBaremeRepository::class)]
+#[ORM\Table(uniqueConstraints: [
+    new ORM\UniqueConstraint(name: 'unique_value_maxnote', columns: ['evaluation_appreciation_value', 'evaluation_appreciation_max_note']),
+    new ORM\UniqueConstraint(name: 'unique_value_template', columns: ['evaluation_appreciation_value', 'evaluation_appreciation_template_id'])
+])]
 class EvaluationAppreciationBareme
 {
     #[ORM\Id]

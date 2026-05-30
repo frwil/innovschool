@@ -137,6 +137,54 @@
 								{% endfor %}
 							</select>
 							<input type="hidden" id="currentSchoolPeriod" name="currentSchoolPeriod" value="{{ currentClass.id}}">
+						</div>
+						<div class="mb-3">
+							<label for="isRepeating" class="form-label">Redoublant</label>
+							<select id="isRepeating" name="isRepeating" class="form-select select2" required>
+								<option value="0" {% if user.repeated == 0 %} selected {% endif %}>Non</option>
+								<option value="1" {% if user.repeated == 1 %} selected {% endif %}>Oui</option>
+							</select>
+						</div>
+					</div>
+				{% endif %}
+				<div class="mb-3">
+					<button type="submit" class="btn btn-primary btn-lg" id="user-manage-edit-submit">Enregistrer</button>
+				</div>
+			</form>
+		</div>
+		<div>
+			<a href="{{ path('app_' ~ role ~ '_index') }}" class="btn btn-secondary btn-lg">Retour à la liste</a>
+			<form class="delete-user-form d-inline" method="post" action="{{ path('app_user_delete', {'id': user.id}) }}" onsubmit="return confirm('Supprimer cet utilisateur ?');">
+				<input type="hidden" name="_token" value="{{ csrf_token('delete' ~ user.id) }}">
+				<button type="submit" class="btn btn-danger btn-lg">Supprimer</button>
+			</form>
+		</div>
+
+	{% else %}
+		<div class="alert alert-danger mt-4">Vous n'avez pas accès à cette page.</div>
+	{% endif %}
+
+<script>
+$(function() {
+    $('#userForm').on('submit', function(e) {
+        e.preventDefault();
+        var form = this;
+        var formData = new FormData(form);
+		$('#user-manage-edit-submit').prop('disabled',true);
+		var oldText = $('#user-manage-edit-submit').html();
+		$('#user-manage-edit-submit').html('Enregistrement en cours...');
+
+        $.ajax({
+            url: $(form).attr('action'),
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+                $.notify(response.message || 'Modifications enregistrées avec succès !','success');
+				$('#user-manage-edit-submit').prop('disabled',false);
+				$('#user-manage-edit-submit').html(oldText);
+                setTimeout(()=>{window.location.reload();}, 1200);
             },
             error: function(xhr) {
                 let msg = 'Erreur lors de l\'enregistrement.';
@@ -144,6 +192,8 @@
                     msg = xhr.responseJSON.message;
                 }
                 $.notify(msg);
+				$('#user-manage-edit-submit').prop('disabled',false);
+				$('#user-manage-edit-submit').html(oldText);
             },
 			fail: function(xhr) {
                 let msg = 'Erreur lors de l\'enregistrement.';
@@ -151,6 +201,8 @@
                     msg = xhr.responseJSON.message;
                 }
                 $.notify(msg);
+				$('#user-manage-edit-submit').prop('disabled',false);
+				$('#user-manage-edit-submit').html(oldText);
             }
         });
     });

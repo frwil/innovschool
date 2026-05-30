@@ -116,7 +116,7 @@
 						<label for="phone" class="form-label">Téléphone</label>
 						<input type="text" id="phone" name="phone" class="form-control" maxlength="10" pattern="\d{9,10}" title="9 à 10 chiffres">
 					</div>
-					<button type="submit" class="btn btn-success">Enregistrer</button>
+					<button type="submit" class="btn btn-success" id="teacher-new-form-submit">Enregistrer</button>
 				</form>
 			</div>
 		</div>
@@ -127,6 +127,9 @@
 					e.preventDefault();
 					var form = this;
 					var formData = new FormData(form);
+					$('#teacher-new-form-submit').prop('disabled',true);
+					var oldText=$('#teacher-new-form-submit').html();
+					$('#teacher-new-form-submit').html('Enregistrement en cours...');
 
 					$.ajax({
 						url: $(form).attr('action'),
@@ -144,6 +147,8 @@
 								msg = xhr.responseJSON.message;
 							}
 							alert(msg);
+							$('#teacher-new-form-submit').prop('disabled',false);
+							$('#teacher-new-form-submit').html(oldText);
 						}
 					});
 				});
@@ -151,7 +156,7 @@
 				$('#ens-table').DataTable({
 					responsive: true,
 					language: {
-						url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/fr-FR.json'
+						url: "{{asset('i18n/fr-FR.json')}}"
 					},
 					columnDefs: [
 						{ responsivePriority: 1, targets: 0 }, // #

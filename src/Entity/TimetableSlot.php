@@ -5,19 +5,14 @@ namespace App\Entity;
 use App\Repository\TimetableSlotRepository;
 use Doctrine\ORM\Mapping as ORM;
 
- /**
- * @ORM\Table(
- *     name="timetable_slot",
- *     uniqueConstraints={
- *         @ORM\UniqueConstraint(name="unique_timetableday_starttime_schoolclass", columns={"timetable_day_id", "start_time", "school_class_id"}),
- *         @ORM\UniqueConstraint(name="unique_timetableday_endtime_schoolclass", columns={"timetable_day_id", "end_time", "school_class_id"}),
- *         @ORM\UniqueConstraint(name="unique_timetableday_subject_schoolclass", columns={"timetable_day_id", "subject_id", "school_class_id"}),
- *         @ORM\UniqueConstraint(name="unique_timetableday_starttime_endtime", columns={"timetable_day_id", "start_time", "end_time", "school_class_id"}),
- *         @ORM\UniqueConstraint(name="unique_timetableday_subject_starttime_endtime", columns={"timetable_day_id", "subject_id", "start_time", "end_time", "school_class_id"})
- *     }
- * )
- */
 #[ORM\Entity(repositoryClass: TimetableSlotRepository::class)]
+#[ORM\Table(name: 'timetable_slot', uniqueConstraints: [
+    new ORM\UniqueConstraint(name: 'unique_timetableday_starttime_schoolclass', columns: ['timetable_day_id', 'start_time', 'school_class_period_id']),
+    new ORM\UniqueConstraint(name: 'unique_timetableday_endtime_schoolclass', columns: ['timetable_day_id', 'end_time', 'school_class_period_id']),
+    new ORM\UniqueConstraint(name: 'unique_timetableday_subject_schoolclass', columns: ['timetable_day_id', 'subject_id', 'school_class_period_id']),
+    new ORM\UniqueConstraint(name: 'unique_timetableday_starttime_endtime', columns: ['timetable_day_id', 'start_time', 'end_time', 'school_class_period_id']),
+    new ORM\UniqueConstraint(name: 'unique_timetableday_subject_starttime_endtime', columns: ['timetable_day_id', 'subject_id', 'start_time', 'end_time', 'school_class_period_id'])
+])]
 class TimetableSlot
 {
     #[ORM\Id]

@@ -48,13 +48,16 @@ class SchoolEvaluationTime
     #[ORM\OneToMany(mappedBy: 'schoolEvaluationTime', targetEntity: StudentClassTimetablePresence::class)]
     private Collection $presences;
 
+    #[ORM\OneToMany(mappedBy: 'schoolEvaluationTime', targetEntity: SchoolClassSubjectEvaluationTimeNotApplicable::class)]
+    private Collection $subjectNotApplicables;
+
     public function __construct()
     {
         $this->schoolEvaluations = new ArrayCollection();
         $this->evaluations = new ArrayCollection();
         $this->attendances = new ArrayCollection();
         $this->presences = new ArrayCollection();
-        $this->presences = new ArrayCollection();
+        $this->subjectNotApplicables = new ArrayCollection();
         
         if ($this->shortName === null && $this->name !== null) {
             $this->shortName = $this->generateInitials($this->name);
@@ -240,6 +243,116 @@ class SchoolEvaluationTime
             }
         }
         return $this;
+    }
+
+    public function getSubjectNotApplicables(): Collection
+    {
+        return $this->subjectNotApplicables;
+    }
+
+    public function addSubjectNotApplicable(SchoolClassSubjectEvaluationTimeNotApplicable $subjectNotApplicable): self
+    {
+        if (!$this->subjectNotApplicables->contains($subjectNotApplicable)) {
+            $this->subjectNotApplicables->add($subjectNotApplicable);
+            $subjectNotApplicable->setSchoolEvaluationTime($this);
+        }
+        return $this;
+    }
+
+    public function removeSubjectNotApplicable(SchoolClassSubjectEvaluationTimeNotApplicable $subjectNotApplicable): self
+    {
+        if ($this->subjectNotApplicables->removeElement($subjectNotApplicable)) {
+            if ($subjectNotApplicable->getSchoolEvaluationTime() === $this) {
+                $subjectNotApplicable->setSchoolEvaluationTime(null);
+            }
+        }
+        return $this;
+    }
+
+    public function getEvaluationTimeNotApplicablesByTime(int $timeId): Collection
+    {
+        return $this->subjectNotApplicables->filter(
+            function (SchoolClassSubjectEvaluationTimeNotApplicable $notApplicable) use ($timeId) {
+                return $notApplicable->getSchoolEvaluationTime() &&
+                    $notApplicable->getSchoolEvaluationTime()->getId() === $timeId;
+            }
+        );
+    }
+
+    public function isNotApplicableForTime(int $timeId): bool
+    {
+        $notApplicables = $this->getEvaluationTimeNotApplicablesByTime($timeId);
+        if ($notApplicables->isEmpty()) {
+            return false;
+        }
+        return $notApplicables->first()->isNotApplicable();
+    }
+
+    public function isApplicableForTime(int $timeId): bool
+    {
+        return !$this->isNotApplicableForTime($timeId);
+    }
+
+    public function getNotApplicableTimeIds(): array
+    {
+        $timeIds = [];
+        foreach ($this->subjectNotApplicables as $notApplicable) {
+            if ($notApplicable->isNotApplicable() && $notApplicable->getSchoolEvaluationTime()) {
+                $timeIds[] = $notApplicable->getSchoolEvaluationTime()->getId();
+            }
+        }
+        return $timeIds;
+    }
+
+    public function getSubjectNotApplicablesBySchoolClassSubject(int $schoolClassSubjectId): Collection
+    {
+        return $this->subjectNotApplicables->filter(
+            function (SchoolClassSubjectEvaluationTimeNotApplicable $notApplicable) use ($schoolClassSubjectId) {
+                return $notApplicable->getSchoolClassSubject() &&
+                    $notApplicable->getSchoolClassSubject()->getId() === $schoolClassSubjectId;
+            }
+        );
+    }
+
+    public function isSubjectNotApplicable(int $schoolClassSubjectId): bool
+    {
+        $notApplicables = $this->getSubjectNotApplicablesBySchoolClassSubject($schoolClassSubjectId);
+        if ($notApplicables->isEmpty()) {
+            return false;
+        }
+        return $notApplicables->first()->isNotApplicable();
+    }
+
+    public function isSubjectApplicable(int $schoolClassSubjectId): bool
+    {
+        return !$this->isSubjectNotApplicable($schoolClassSubjectId);
+    }
+
+    public function isSchoolClassSubjectNotApplicable(SchoolClassSubject $schoolClassSubject): bool
+    {
+        return $this->isSubjectNotApplicable($schoolClassSubject->getId());
+    }
+
+    public function getNotApplicableSchoolClassSubjectIds(): array
+    {
+        $subjectIds = [];
+        foreach ($this->subjectNotApplicables as $notApplicable) {
+            if ($notApplicable->isNotApplicable() && $notApplicable->getSchoolClassSubject()) {
+                $subjectIds[] = $notApplicable->getSchoolClassSubject()->getId();
+            }
+        }
+        return $subjectIds;
+    }
+
+    public function getNotApplicableSchoolClassSubjects(): array
+    {
+        $subjects = [];
+        foreach ($this->subjectNotApplicables as $notApplicable) {
+            if ($notApplicable->isNotApplicable() && $notApplicable->getSchoolClassSubject()) {
+                $subjects[] = $notApplicable->getSchoolClassSubject();
+            }
+        }
+        return $subjects;
     }
 
     public function __toString(): string

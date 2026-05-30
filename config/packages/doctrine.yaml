@@ -14,6 +14,18 @@ doctrine:
         report_fields_where_declared: true
         validate_xml_mapping: true
         naming_strategy: doctrine.orm.naming_strategy.underscore_number_aware
+        auto_mapping: true
+        controller_resolver:
+            auto_mapping: false
+        metadata_cache_driver:
+            type: pool
+            pool: doctrine.system_cache_pool
+        query_cache_driver:
+            type: pool
+            pool: doctrine.system_cache_pool
+        result_cache_driver:
+            type: pool
+            pool: doctrine.result_cache_pool
         mappings:
             App:
                 type: attribute
@@ -32,6 +44,9 @@ when@prod:
         orm:
             auto_generate_proxy_classes: true
             proxy_dir: '%kernel.build_dir%/doctrine/orm/Proxies'
+            metadata_cache_driver:
+                type: pool
+                pool: doctrine.system_cache_pool
             query_cache_driver:
                 type: pool
                 pool: doctrine.system_cache_pool

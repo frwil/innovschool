@@ -27,23 +27,26 @@
 			</thead>
 			<tbody>
 				{% set i = 0 %}
-				{% for subject in subjects %}
+				{% for subject in subjectsClasses %}
 				<tr>
-					<td>{{ subject.name }}</td>
-					<td>{{ subject.slug }}</td>
+					<td>{{ subject.studySubject.name }}</td>
+					<td>{{ subject.studySubject.slug }}</td>
 					<td>
 						<div>
 							{% set page = (i / 10) | round(0, 'floor') + 1 %}
-							<a href="{{ path('app_study_manage', {'id': subject.id}) }}"
-								class="btn btn-sm btn-info btn-manage-subject" data-id="{{ subject.id }}" title="Gérer"><i class="fa fa-cog"></i></a>
-							<a href="{{ path('app_study_edit', {'id': subject.id, 'page': page }) }}"
+							<a href="{{ path('app_study_manage', {'id': subject.studySubject.id}) }}"
+								class="btn btn-sm btn-info btn-manage-subject" data-id="{{ subject.studySubject.id }}"
+								title="Gérer"><i class="fa fa-cog"></i></a>
+							<a href="{{ path('app_study_edit', {'id': subject.studySubject.id, 'page': page }) }}"
 								class="btn btn-sm btn-secondary" title="Modifier"><i class="fa fa-pencil-alt"></i></a>
 							{% if is_granted('ROLE_SUPER_ADMIN') %}
-							<form method="post" action="{{ path('app_study_delete', {'id': subject.id}) }}"
+							<form method="post" action="{{ path('app_study_delete', {'id': subject.studySubject.id}) }}"
 								style="display:inline;"
 								onsubmit="return confirm('Supprimer cette matière ?\nCeci aura une implication sur les évaluations et notes, sur les affectations dans les différentes classes.\nCette action est irréversible.');">
-								<input type="hidden" name="_token" value="{{ csrf_token('delete' ~ subject.id) }}">
-								<button class="btn btn-sm btn-danger" title="Supprimer"><i class="fa fa-trash"></i></button>
+								<input type="hidden" name="_token"
+									value="{{ csrf_token('delete' ~ subject.studySubject.id) }}">
+								<button class="btn btn-sm btn-danger" title="Supprimer"><i
+										class="fa fa-trash"></i></button>
 							</form>
 							{% endif %}
 						</div>
@@ -81,7 +84,8 @@
 						<input type="text" id="description" name="description" class="form-control" required>
 					</div>
 					<button type="submit" class="btn btn-success">Créer</button>
-					<button type="button" class="btn btn-secondary" id="show-group-btn" title="Liste des groupes"><i class="fa fa-list"></i></button>
+					<button type="button" class="btn btn-secondary" id="show-group-btn" title="Liste des groupes"><i
+							class="fa fa-list"></i></button>
 				</form>
 			</div>
 		</div>
@@ -112,6 +116,9 @@
 							<option value="{{ class.id }}">{{ class.name }}</option>
 							{% endfor %}
 						</select>
+					</div>
+					<div class="mb-3" id="class-occurence-list">
+						
 					</div>
 					<div class="mb-3">
 						<label for="coefficient" class="form-label">Coefficient (optionnel)</label>
@@ -157,9 +164,9 @@
 		// DataTables attend un index à partir de 0
 		var pageIndex = page > 0 ? page - 1 : 0;
 		// Initialise DataTables avec la page courante
-		$('#subject-datatable').DataTable({
+		var subjectTable = $('#subject-datatable').DataTable({
 			"pageLength": 10,
-			"displayStart": pageIndex * 10 // 10 = nombre de lignes par page
+			"displayStart": pageIndex * 10,// 10 = nombre de lignes par page
 		});
 		$('#new-subject-form').on('submit', function (e) {
 			e.preventDefault();
@@ -178,7 +185,19 @@
 					// le bouton de soumission est réactivé
 					$('#new-subject-form button[type="submit"]').prop('disabled', false).text('Créer');
 					// Optionnel : recharger la page ou la liste des matières
-					location.reload();
+					//location.reload();
+					$('#name').val('');
+					$.ajax({
+						url: "{{ path('app_get_study_subjects')}}",
+					}).done((e) => {
+						$('#subjects').empty().val(null);
+						subjectoptions = "<option value=''></option>";
+						for (i = 0; i < e.length; i++) {
+							subjectoptions += "<option value='" + e[i].id + "'>" + e[i].name + "</option>";
+						}
+						$('#subjects').html(subjectoptions);
+						$('#subjects').select2();
+					})
 				},
 				error: function (xhr) {
 					$.notify('Erreur lors de la création de la matière : ' + (xhr.status == 0 ? 'Vérifiez votre connexion.' : (xhr.responseJSON && xhr.responseJSON.message ? xhr.responseJSON.message : 'Veuillez réessayer.')), { className: 'error' });
@@ -241,24 +260,45 @@
 				url: $form.attr('action'),
 				type: 'POST',
 				data: formData,
-				success: function(response) {
-					if(response.status=='success') {
+				success: function (response) {
+					if (response.status == 'success') {
 						$.notify(response.message || 'Matières affectées avec succès.', 'success');
-						location.reload();
-					}else{
+						//location.reload();
+						$('#subjects').val(null).select2();
+						$('#group').val(null).select2();
+						//$('#classes').val(null)
+						$.ajax({
+							url: "{{ path('app_get_study_subjects_classes')}}"
+						}).done((e) => {
+							subjectTable.destroy();
+							tbody="";
+							for (i = 0; i < e.length; i++) {
+								tbody += "<tr><td>" + e[i].name + "</td><td>" + e[i].slug + "</td><td>" + '<a href="{{ path('app_study_manage', {'id': '__studyId__'}) }}"	class="btn btn-sm btn-info btn-manage-subject" data-id="__studyId__" title="Gérer"><i class="fa fa-cog"></i></a><a href="{{ path('app_study_edit', {'id': '__studyId__', 'page': page }) }}" class="btn btn-sm btn-secondary" title="Modifier"><i class="fa fa-pencil-alt"></i></a>'.replace(/__studyId__/g,e[i].id);
+								{% if is_granted('ROLE_SUPER_ADMIN') %}
+									tbody += '<form method="post" action="{{ path('app_study_delete', {'id': '__studyId__'}) }}" style="display:inline;" onsubmit="return confirm("Supprimer cette matière ?\nCeci aura une implication sur les évaluations et notes, sur les affectations dans les différentes classes.\nCette action est irréversible.");"><input type="hidden" name="_token"	value="{{ csrf_token('delete ' ~ '__studyId__') }}"><button class="btn btn-sm btn-danger" title="Supprimer"><i	class="fa fa-trash"></i></button></form>'.replace(/__studyId__/g,e[i].id);
+								{% endif %}
+							}
+							$('#subject-datatable tbody').html(tbody);
+							subjectTable = $('#subject-datatable').DataTable({
+								"pageLength": 10,
+								"displayStart": pageIndex * 10,// 10 = nombre de lignes par page
+							});
+						})
+
+					} else {
 						$.notify(response.message);
 						$('#assign-subjects-form button[type="submit"]').prop('disabled', false).text('Affecter');
 					}
-					
+
 				},
-				error: function(xhr) {
+				error: function (xhr) {
 					$.notify('Erreur lors de l\'affectation.' + (xhr.status == 0 ? '\nVérifiez votre connexion internet.' : (xhr.responseJSON && xhr.responseJSON.message ? '\n' + xhr.responseJSON.message : '')), 'error');
 					$('#assign-subjects-form button[type="submit"]').prop('disabled', false).text('Affecter');
 				},
-				complete: function() {
+				complete: function () {
 					$('#assign-subjects-form button[type="submit"]').prop('disabled', false).text('Affecter');
 				},
-				fail: function(xhr) {
+				fail: function (xhr) {
 					$.notify('Erreur lors de l\'affectation (fail).' + (xhr.status == 0 ? '\nVérifiez votre connexion internet.' : (xhr.responseJSON && xhr.responseJSON.message ? '\n' + xhr.responseJSON.message : '')), 'error');
 					$('#assign-subjects-form button[type="submit"]').prop('disabled', false).text('Affecter');
 				}
@@ -294,8 +334,8 @@
 			e.preventDefault();
 			var $form = $(this);
 			// on désactive le bouton de soumission
-			$('#new-subject-group-form button[type="submit"]').prop('disabled',true).text('En cours...');
-			
+			$('#new-subject-group-form button[type="submit"]').prop('disabled', true).text('En cours...');
+
 			// Validation côté client
 			var description = $('#description').val().trim();
 			var errors = [];
@@ -315,19 +355,30 @@
 				type: 'POST',
 				data: formData,
 				success: function (response) {
-					$.notify(response.message || 'Groupe de matières créé avec succès.',{className:'success'});
-					setTimeout(()=>{location.reload();},1200);
+					$.notify(response.message || 'Groupe de matières créé avec succès.', { className: 'success' });
+					$('#description').val('');
+					$.ajax({
+						url: "{{ path('app_get_study_subjects_groups')}}"
+					}).done((e) => {
+						$('#group').empty().val(null);
+						groupOptions = "<option value=''>Aucun</option>";
+						for (i = 0; i < e.length; i++) {
+							groupOptions += "<option value='" + e[i].id + "'>" + e[i].name + "</option>";
+						}
+						$('#group').html(groupOptions);
+						$('#group').select2();
+					});
 				},
 				error: function (xhr) {
-					$.notify('Erreur lors de la création du groupe de matières.'+(xhr.status==0 ? '\nérifiez votre connexion internet' : '\n'+(xhr.responseJSON.message || xhr.message)),{className:'error'});
-					$('#new-subject-group-form button[type="submit"]').prop('disabled',false).text('Créer');
+					$.notify('Erreur lors de la création du groupe de matières.' + (xhr.status == 0 ? '\nérifiez votre connexion internet' : '\n' + (xhr.responseJSON.message || xhr.message)), { className: 'error' });
+					$('#new-subject-group-form button[type="submit"]').prop('disabled', false).text('Créer');
 				},
-				complete : function(){
-					$('#new-subject-group-form button[type="submit"]').prop('disabled',false).text('Créer');
+				complete: function () {
+					$('#new-subject-group-form button[type="submit"]').prop('disabled', false).text('Créer');
 				},
-				fail:function (xhr) {
-					$.notify('Erreur lors de la création du groupe de matières.'+(xhr.status==0 ? '\nérifiez votre connexion internet' : '\n'+(xhr.responseJSON.message || xhr.message)),{className:'error'});
-					$('#new-subject-group-form button[type="submit"]').prop('disabled',false).text('Créer');
+				fail: function (xhr) {
+					$.notify('Erreur lors de la création du groupe de matières.' + (xhr.status == 0 ? '\nérifiez votre connexion internet' : '\n' + (xhr.responseJSON.message || xhr.message)), { className: 'error' });
+					$('#new-subject-group-form button[type="submit"]').prop('disabled', false).text('Créer');
 				}
 			});
 		});
@@ -342,6 +393,20 @@
 				fail: function () {
 					$('#subject-classes-details').html('<div class="alert alert-danger">Erreur lors du chargement.</div>');
 				}
+			})
+		})
+
+		$('#classes').on('change',function(){
+			var value = $(this).val();
+			$.ajax({
+				url:"{{ path('app_get_class_occurence_from_list',{'class':'__ID'})}}".replace('__ID',value)
+			}).done((e)=>{
+				liste="";
+				for(i=0;i<e.length;i++){
+					liste+="<div class='mb-3'><div class='input-group'><span class='input-group-text' style='min-width:100px'>"+e[i].name+"</span><div class='form-floating'><input class='form-control' value='1' type='number' min='1' id='coef"+e[i].id+"' style='height:65px'><label for='coef"+e[i].id+"'>Coefficient</label></div></div></div>"
+				}
+				console.log(liste);
+				$('#class-occurence-list').html(liste)
 			})
 		})
 	});

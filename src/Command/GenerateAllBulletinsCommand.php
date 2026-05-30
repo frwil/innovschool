@@ -7,14 +7,15 @@ use App\Repository\SchoolClassPeriodRepository;
 use App\Repository\SchoolPeriodRepository;
 use App\Repository\StudentClassRepository;
 use App\Repository\UserRepository;
+use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
 
+#[AsCommand(name: 'app:generate-all-bulletins')]
 class GenerateAllBulletinsCommand extends Command
 {
-    protected static $defaultName = 'app:generate-all-bulletins';
 
     private BulletinGenerator $bulletinGenerator;
     private SchoolClassPeriodRepository $classRepo;

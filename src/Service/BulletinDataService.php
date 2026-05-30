@@ -91,6 +91,7 @@ class BulletinDataService
                 'id' => $student->getStudent()->getId(),
                 'name' => $student->getStudent()->getFullName(),
                 'registrationNumber' => $student->getStudent()->getRegistrationNumber(),
+                'photo' => $student->getStudent()->getPhoto(),
             ];
         }, $students);
 
@@ -231,7 +232,7 @@ class BulletinDataService
         }
 
         if ($dto->studentId) {
-            $student = $this->studentRepo->findByStudent($dto->studentId);
+            $student = $this->studentRepo->findBy(['student' => $dto->studentId]);
             if (empty($student)) {
                 return [
                     'total_subjects' => 0,

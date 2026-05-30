@@ -3,6 +3,8 @@
 namespace App\Entity;
 
 use App\Repository\SchoolClassSubjectRepository;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 
 #[ORM\Entity(repositoryClass: SchoolClassSubjectRepository::class)]
@@ -34,6 +36,17 @@ class SchoolClassSubject
 
     #[ORM\Column(type: 'text', nullable: true)]
     private ?string $awaitedSkills = null;
+
+    #[ORM\ManyToOne(targetEntity: SectionCategorySubject::class, inversedBy: 'schoolClassSubjects')]
+    private ?SectionCategorySubject $sectionCategorySubject = null;
+
+    #[ORM\OneToMany(mappedBy: 'schoolClassSubject', targetEntity: SchoolClassSubjectEvaluationTimeNotApplicable::class)]
+    private Collection $evaluationTimeNotApplicables;
+
+    public function __construct()
+    {
+        $this->evaluationTimeNotApplicables = new ArrayCollection();
+    }
 
     public function getId(): ?int
     {
@@ -103,6 +116,41 @@ class SchoolClassSubject
     public function setAwaitedSkills(?string $awaitedSkills): self
     {
         $this->awaitedSkills = $awaitedSkills;
+        return $this;
+    }
+
+    public function getSectionCategorySubject(): ?SectionCategorySubject
+    {
+        return $this->sectionCategorySubject;
+    }
+
+    public function setSectionCategorySubject(?SectionCategorySubject $sectionCategorySubject): self
+    {
+        $this->sectionCategorySubject = $sectionCategorySubject;
+        return $this;
+    }
+
+    public function getEvaluationTimeNotApplicables(): Collection
+    {
+        return $this->evaluationTimeNotApplicables;
+    }
+
+    public function addEvaluationTimeNotApplicable(SchoolClassSubjectEvaluationTimeNotApplicable $evaluationTimeNotApplicable): self
+    {
+        if (!$this->evaluationTimeNotApplicables->contains($evaluationTimeNotApplicable)) {
+            $this->evaluationTimeNotApplicables->add($evaluationTimeNotApplicable);
+            $evaluationTimeNotApplicable->setSchoolClassSubject($this);
+        }
+        return $this;
+    }
+
+    public function removeEvaluationTimeNotApplicable(SchoolClassSubjectEvaluationTimeNotApplicable $evaluationTimeNotApplicable): self
+    {
+        if ($this->evaluationTimeNotApplicables->removeElement($evaluationTimeNotApplicable)) {
+            if ($evaluationTimeNotApplicable->getSchoolClassSubject() === $this) {
+                $evaluationTimeNotApplicable->setSchoolClassSubject(null);
+            }
+        }
         return $this;
     }
 }

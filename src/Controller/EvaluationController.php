@@ -2,52 +2,56 @@
 
 namespace App\Controller;
 
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use App\Entity\StudentClassTimetablePresence;
-use App\Entity\TimeTableSlot;
-use App\Repository\StudentClassTimetablePresenceRepository;
-use App\Repository\TimetableSlotRepository;
-use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Routing\Annotation\Route;
-use App\Repository\SchoolEvaluationFrameRepository;
-use App\Repository\SchoolEvaluationTimeRepository;
-use App\Repository\SchoolEvaluationTimeTypeRepository;
-use App\Repository\SchoolClassSubjectRepository;
-use App\Repository\ClassSubjectModuleRepository;
-use App\Entity\ClassSubjectModule;
-use App\Entity\SchoolClassSubject;
-use App\Entity\StudySubject;
-use App\Repository\SchoolPeriodRepository;
-use App\Repository\StudentClassRepository;
-use Symfony\Component\HttpFoundation\Request;
-use Symfony\Component\HttpFoundation\JsonResponse;
-use App\Repository\SubjectsModulesRepository;
-use App\Repository\EvaluationRepository;
-use Doctrine\ORM\EntityManagerInterface;
-use App\Entity\SubjectsModules;
-use App\Entity\Evaluation;
-use App\Service\OperationLogger;
-use App\Repository\UserRepository;
-use App\Entity\EvaluationAppreciationTemplate;
-use App\Entity\EvaluationAppreciationBareme;
-use App\Repository\StudySubjectRepository;
-use App\Entity\ReportCardTemplate;
-use App\Repository\SchoolClassPeriodRepository;
-use App\Repository\StudyLevelRepository;
-use App\Entity\SchoolClassPeriod;
-use App\Entity\SchoolPeriod;
-use App\Entity\SubjectGroup;
 use App\Entity\User;
 use App\Entity\School;
-use App\Entity\StudentClass;
+use App\Entity\Evaluation;
 use App\Entity\StudyLevel;
-use App\Entity\SchoolEvaluationFrame;
+use App\Entity\SchoolPeriod;
+use App\Entity\StudentClass;
+use App\Entity\StudySubject;
+use App\Entity\SubjectGroup;
+use App\Entity\TimeTableSlot;
+use App\Entity\SubjectsModules;
 use Doctrine\ORM\EntityManager;
+use App\Service\OperationLogger;
+use App\Entity\SchoolClassPeriod;
+use App\Entity\ClassSubjectModule;
+use App\Entity\ReportCardTemplate;
+use App\Entity\SchoolClassSubject;
+use App\Repository\UserRepository;
+use App\Entity\SchoolEvaluationFrame;
+use App\Repository\EvaluationRepository;
+use App\Repository\StudyLevelRepository;
+use Doctrine\ORM\EntityManagerInterface;
+use Doctrine\Persistence\ManagerRegistry;
+use App\Repository\SchoolPeriodRepository;
+use App\Repository\StudentClassRepository;
+use App\Repository\StudySubjectRepository;
+use App\Repository\TimetableSlotRepository;
+use App\Entity\EvaluationAppreciationBareme;
+use App\Entity\StudentClassTimetablePresence;
+use App\Repository\SubjectsModulesRepository;
+use Symfony\Component\HttpFoundation\Request;
+use App\Entity\EvaluationAppreciationTemplate;
+use Symfony\Component\HttpFoundation\Response;
+use App\Repository\SchoolClassPeriodRepository;
+use Symfony\Component\Routing\Annotation\Route;
+use App\Repository\ClassSubjectModuleRepository;
+use App\Repository\SchoolClassSubjectRepository;
+use App\Repository\SchoolEvaluationTimeRepository;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use App\Repository\SchoolEvaluationFrameRepository;
 use Symfony\Component\HttpFoundation\Session\Session;
-use Symfony\Component\HttpFoundation\Session\SessionInterface;
+use App\Repository\SchoolEvaluationTimeTypeRepository;
 use Symfony\Component\String\Slugger\SluggerInterface;
+use App\Repository\StudentClassTimetablePresenceRepository;
+use App\Entity\SchoolClassSubjectEvaluationTimeNotApplicable;
+use App\Entity\SchoolEvaluationTime;
 use App\Service\BulletinDataService;
 use App\Service\BulletinContextService;
+use Exception;
+use Symfony\Component\HttpFoundation\Session\SessionInterface;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 
 class EvaluationController extends AbstractController
 {
@@ -905,7 +909,7 @@ class EvaluationController extends AbstractController
         EvaluationRepository $evaluationRepo,
         SchoolEvaluationFrameRepository $frameRepo,
         EntityManagerInterface $entityManager,
-        SessionInterface $session,
+        SessionInterface $session
     ): Response {
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -921,13 +925,15 @@ class EvaluationController extends AbstractController
         $period = $this->currentPeriod;
         $class = $classRepo->findOneBy(['id' => $classId, 'period' => $period, 'school' => $this->currentSchool]);
 
-        // Récupérer les élèves
+        // Récupérer les élèves de la classe
         $students = $studentClassRepo->findBy(['schoolClassPeriod' => $class]);
+
+        // Trier les élèves par ordre alphabétique initialement
         usort($students, function ($a, $b) {
             return strcmp($a->getStudent()->getFullName(), $b->getStudent()->getFullName());
         });
 
-        // Récupérer les modules
+        // Récupérer les modules associés à toutes les matières de la classe
         $classSubjectModules = [];
         $modules = $classSubjectModuleRepo->findBy(['class' => $class, 'period' => $period, 'school' => $this->currentSchool]);
         foreach ($modules as $module) {
@@ -936,9 +942,21 @@ class EvaluationController extends AbstractController
                 $classSubjectModules[$subject->getId()] = [
                     'name' => $subject->getName(),
                     'modules' => [],
+                    'coef' => 0, // Initialiser le coefficient
                 ];
             }
             $classSubjectModules[$subject->getId()]['modules'][] = $module;
+
+            // Récupérer le coefficient de la matière
+            if ($classSubjectModules[$subject->getId()]['coef'] == 0) {
+                $schoolClassSubject = $this->entityManager->getRepository(SchoolClassSubject::class)->findOneBy([
+                    'schoolClassPeriod' => $class,
+                    'studySubject' => $subject
+                ]);
+                if ($schoolClassSubject) {
+                    $classSubjectModules[$subject->getId()]['coef'] = $schoolClassSubject->getCoefficient() ?? 1;
+                }
+            }
         }
 
         if ($isAnnual) {
@@ -986,12 +1004,18 @@ class EvaluationController extends AbstractController
         $periodData = [];
         $cumulativeData = [
             'studentAveragesByPeriod' => [],
-            'periodAverages' => [],
-            'finalAverages' => [],
+            'periodAverages' => [], // Moyennes par frame (ici toutes du même frame)
+            'finalAverages' => [], // Moyennes finales par élève
+            'studentSubjectAverages' => [], // Moyennes par matière par élève (pour plusieurs périodes)
+            'rankedStudents' => [], // Classements des élèves
+            'finalClassAverage' => 0,
         ];
 
         // Taux de complétion par élève pour chaque période
         $completionRatesByPeriod = [];
+
+        $bType = $class->getReportCardTemplate() ? $class->getReportCardTemplate()->getName() : 'D';
+        $coefUsed = $bType == 'D' ? false : true;
 
         // Récupérer les évaluations pour chaque sous-période
         foreach ($evaluationTimes as $evaluationTime) {
@@ -1003,8 +1027,10 @@ class EvaluationController extends AbstractController
             // Calculer le taux de complétion par matière pour cette période
             $completionRatesByPeriod[$evaluationTime->getId()] = $this->calculateCompletionRateBySubject($students, $classSubjectModules, $evaluations);
 
-            // Calculer les données pour cette sous-période
-            $calculatedData = $this->calculateBordereauData($students, $classSubjectModules, $evaluations);
+            // Calculer les données pour cette sous-période (moyenne par période)
+            $calculatedData = $this->calculateBordereauData($students, $classSubjectModules, $evaluations, $coefUsed);
+
+
 
             $periodData[$evaluationTime->getId()] = [
                 'time' => $evaluationTime,
@@ -1020,15 +1046,22 @@ class EvaluationController extends AbstractController
             foreach ($calculatedData['studentAverages'] as $studentId => $average) {
                 $cumulativeData['studentAveragesByPeriod'][$studentId][$evaluationTime->getId()] = $average;
             }
+
+            // Stocker la moyenne de classe pour cette période
+            $cumulativeData['periodAverages'][$evaluationTime->getId()] = $calculatedData['classStats']['average'];
         }
 
-        // Pour les cumulatifs, un élève est classé s'il est complet pour TOUTES les périodes
+        //dd($calculatedData, $cumulativeData, $periodData);
+
+        // Pour les cumulatifs (multiples périodes), un élève est classé s'il est complet pour TOUTES les périodes
+        // Pour une seule période, on utilise simplement la complétion de cette période
         $classifiedStudents = [];
         $unclassifiedStudents = [];
 
         foreach ($students as $student) {
             $isCompleteForAllPeriods = true;
 
+            // Vérifier la complétion pour chaque période
             foreach ($evaluationTimes as $time) {
                 $timeId = $time->getId();
                 if (isset($completionRatesByPeriod[$timeId][$student->getId()])) {
@@ -1049,124 +1082,247 @@ class EvaluationController extends AbstractController
             }
         }
 
-        // Trier les élèves classés par moyenne (si includeNotes)
-        if ($includeNotes && !empty($classifiedStudents)) {
-            if (count($evaluationTimes) > 1 && !empty($cumulativeData['finalAverages'])) {
-                usort($classifiedStudents, function ($a, $b) use ($cumulativeData) {
+        // Tous les élèves (classés + non classés)
+        $allStudents = array_merge($classifiedStudents, $unclassifiedStudents);
+
+        // Si on a plusieurs périodes, calculer les moyennes cumulatives
+        if (count($evaluationTimes) > 1) {
+            // Calculer les moyennes par matière par élève sur toutes les périodes
+            foreach ($allStudents as $student) {
+                $studentId = $student->getId();
+                $studentWeightedSum = 0;
+                $studentTotalCoef = 0;
+
+                // Initialiser les moyennes par matière pour cet élève
+                $cumulativeData['studentSubjectAverages'][$studentId] = [];
+
+                // Pour chaque matière
+                foreach ($classSubjectModules as $subjectId => $subjectData) {
+                    $subjectTotalForAllPeriods = 0;
+                    $periodsWithGrades = 0;
+
+                    // Récupérer le coefficient de la matière
+                    $subjectCoef = $subjectData['coef'] ?? 1;
+
+                    // Calculer la moyenne de la matière sur toutes les périodes
+                    foreach ($evaluationTimes as $time) {
+                        $timeId = $time->getId();
+
+                        // Calculer la moyenne matière pour cette période spécifique
+                        $subjectAverageForPeriod = $this->calculateSubjectAverageForPeriod(
+                            $studentId,
+                            $subjectId,
+                            $periodData[$timeId]['evaluations'] ?? [],
+                            $classSubjectModules
+                        );
+
+                        if ($subjectAverageForPeriod >= 0) {
+                            $subjectTotalForAllPeriods += $subjectAverageForPeriod;
+                            $periodsWithGrades++;
+                        }
+                    }
+
+                    // Moyenne de la matière sur toutes les périodes (seulement si on a des notes)
+                    $subjectAverage = $periodsWithGrades > 0 ? ($subjectTotalForAllPeriods / $periodsWithGrades) : 0;
+
+                    // Stocker la moyenne matière pour l'affichage
+                    $cumulativeData['studentSubjectAverages'][$studentId][$subjectId] = $subjectAverage;
+
+                    // Calculer la moyenne pondérée (uniquement si la matière a une moyenne > 0)
+                    if ($subjectAverage >= 0) {
+                        if ($coefUsed) {
+                            $studentWeightedSum += ($subjectAverage * $subjectCoef);
+                            $studentTotalCoef += $subjectCoef;
+                        } else {
+                            $studentWeightedSum += $subjectAverage;
+                            $studentTotalCoef += 1;
+                        }
+                    }
+                }
+
+                // Calculer la moyenne finale de l'élève (uniquement si on a des matières avec notes)
+                $studentAverage = $studentTotalCoef > 0 ? $studentWeightedSum / $studentTotalCoef : 0;
+                $cumulativeData['finalAverages'][$studentId] = $studentAverage;
+            }
+
+            // Calculer les rangs finaux pour TOUS les élèves ayant une moyenne > 0
+            $averagesWithIds = [];
+            foreach ($allStudents as $student) {
+                $studentId = $student->getId();
+                if (isset($cumulativeData['finalAverages'][$studentId]) && $cumulativeData['finalAverages'][$studentId] > 0) {
+                    $averagesWithIds[] = ['studentId' => $studentId, 'average' => $cumulativeData['finalAverages'][$studentId]];
+                }
+            }
+
+            // Trier par moyenne décroissante
+            usort($averagesWithIds, function ($a, $b) {
+                return $b['average'] <=> $a['average'];
+            });
+
+            $currentRank = 1;
+            $previousAverage = null;
+            $sameRankCount = 0;
+
+            foreach ($averagesWithIds as $index => $data) {
+                if ($previousAverage !== null && abs($data['average'] - $previousAverage) > 0.001) {
+                    $currentRank += $sameRankCount;
+                    $sameRankCount = 1;
+                } else {
+                    $sameRankCount++;
+                }
+
+                $cumulativeData['rankedStudents'][$data['studentId']] = $currentRank;
+                $previousAverage = $data['average'];
+            }
+
+            // Pour les élèves sans moyenne, pas de rang
+            foreach ($allStudents as $student) {
+                $studentId = $student->getId();
+                if (!isset($cumulativeData['rankedStudents'][$studentId])) {
+                    $cumulativeData['rankedStudents'][$studentId] = null;
+                }
+            }
+
+            // Trier les élèves par moyenne finale (si includeNotes)
+            if ($includeNotes) {
+                usort($allStudents, function ($a, $b) use ($cumulativeData) {
                     $avgA = $cumulativeData['finalAverages'][$a->getId()] ?? 0;
                     $avgB = $cumulativeData['finalAverages'][$b->getId()] ?? 0;
                     return $avgB <=> $avgA;
                 });
-            } elseif (count($evaluationTimes) == 1 && isset($periodData[$evaluationTimes[0]->getId()])) {
-                $currentData = $periodData[$evaluationTimes[0]->getId()];
-                usort($classifiedStudents, function ($a, $b) use ($currentData) {
-                    $avgA = $currentData['studentAverages'][$a->getId()] ?? 0;
-                    $avgB = $currentData['studentAverages'][$b->getId()] ?? 0;
-                    return $avgB <=> $avgA;
-                });
-            }
-        }
-
-        // Calculer les moyennes cumulatives seulement pour les élèves classés
-        if (count($evaluationTimes) > 1 && !empty($classifiedStudents)) {
-            foreach ($classifiedStudents as $student) {
-                $studentId = $student->getId();
-
-                $frameTotal = 0;
-                $frameCount = 0;
-
-                foreach ($evaluationTimes as $time) {
-                    if (isset($cumulativeData['studentAveragesByPeriod'][$studentId][$time->getId()])) {
-                        $frameTotal += $cumulativeData['studentAveragesByPeriod'][$studentId][$time->getId()];
-                        $frameCount++;
-                    }
-                }
-
-                $frameId = $evaluationTimes[0]->getEvaluationFrame()->getId();
-                if ($frameCount > 0) {
-                    $cumulativeData['periodAverages'][$studentId][$frameId] = $frameTotal / $frameCount;
-                } else {
-                    $cumulativeData['periodAverages'][$studentId][$frameId] = 0;
-                }
-
-                $cumulativeData['finalAverages'][$studentId] = $cumulativeData['periodAverages'][$studentId][$frameId] ?? 0;
             }
 
-            if (!empty($classifiedStudents)) {
-                $averagesWithIds = [];
-                foreach ($classifiedStudents as $student) {
-                    $studentId = $student->getId();
-                    if (isset($cumulativeData['finalAverages'][$studentId])) {
-                        $averagesWithIds[] = ['studentId' => $studentId, 'average' => $cumulativeData['finalAverages'][$studentId]];
-                    }
-                }
-
-                usort($averagesWithIds, function ($a, $b) {
-                    return $b['average'] <=> $a['average'];
-                });
-
-                $currentRank = 1;
-                $previousAverage = null;
-                $sameRankCount = 0;
-
-                foreach ($averagesWithIds as $index => $data) {
-                    if ($previousAverage !== null && $data['average'] < $previousAverage) {
-                        $currentRank += $sameRankCount;
-                        $sameRankCount = 1;
-                    } else {
-                        $sameRankCount++;
-                    }
-
-                    $cumulativeData['rankedStudents'][$data['studentId']] = $currentRank;
-                    $previousAverage = $data['average'];
-                }
-            }
-
-            $periodClassAverages = [];
-            foreach ($evaluationTimes as $time) {
-                if (isset($periodData[$time->getId()]['classStats'])) {
-                    $periodClassAverages[] = $periodData[$time->getId()]['classStats']['average'];
-                }
-            }
-
-            $frameClassAverage = !empty($periodClassAverages) ? array_sum($periodClassAverages) / count($periodClassAverages) : 0;
-
+            // Calculer la moyenne finale de classe (tous les élèves avec moyenne > 0)
             $finalClassAverages = [];
-            foreach ($classifiedStudents as $student) {
-                if (isset($cumulativeData['finalAverages'][$student->getId()])) {
+            foreach ($allStudents as $student) {
+                if (isset($cumulativeData['finalAverages'][$student->getId()]) && $cumulativeData['finalAverages'][$student->getId()] > 0) {
                     $finalClassAverages[] = $cumulativeData['finalAverages'][$student->getId()];
                 }
             }
-            $finalClassAverage = !empty($finalClassAverages) ? array_sum($finalClassAverages) / count($finalClassAverages) : 0;
+            $cumulativeData['finalClassAverage'] = !empty($finalClassAverages) ? array_sum($finalClassAverages) / count($finalClassAverages) : 0;
+        } else {
+            // Pour une seule période
+            $timeId = $evaluationTimes[0]->getId();
+            if (isset($periodData[$timeId])) {
+                // Initialiser les données pour tous les élèves
+                foreach ($allStudents as $student) {
+                    $studentId = $student->getId();
 
-            $cumulativeData['frameClassAverage'] = $frameClassAverage;
-            $cumulativeData['finalClassAverage'] = $finalClassAverage;
+                    // Moyenne finale de l'élève
+                    $cumulativeData['finalAverages'][$studentId] = $periodData[$timeId]['studentAverages'][$studentId] ?? 0;
+
+                    // Rang de l'élève
+                    $cumulativeData['rankedStudents'][$studentId] = $periodData[$timeId]['rankedStudents'][$studentId] ?? null;
+
+                    // Moyennes par matière pour cet élève
+                    $cumulativeData['studentSubjectAverages'][$studentId] = [];
+                    foreach ($classSubjectModules as $subjectId => $subjectData) {
+                        $subjectAverage = $this->calculateSubjectAverageForPeriod(
+                            $studentId,
+                            $subjectId,
+                            $periodData[$timeId]['evaluations'] ?? [],
+                            $classSubjectModules
+                        );
+                        $cumulativeData['studentSubjectAverages'][$studentId][$subjectId] = $subjectAverage;
+                    }
+                }
+
+                // Moyenne de classe
+                $cumulativeData['finalClassAverage'] = $periodData[$timeId]['classStats']['average'];
+
+                // Trier les élèves par moyenne (si includeNotes)
+                if ($includeNotes) {
+                    usort($allStudents, function ($a, $b) use ($periodData, $timeId) {
+                        $avgA = $periodData[$timeId]['studentAverages'][$a->getId()] ?? 0;
+                        $avgB = $periodData[$timeId]['studentAverages'][$b->getId()] ?? 0;
+                        return $avgB <=> $avgA;
+                    });
+                }
+            }
         }
+
+        // Mettre à jour la liste des étudiants pour utiliser allStudents
+        $students = $allStudents;
+
+        // Récupérer le frame d'évaluation
+        $evaluationFrame = $frameRepo->find($evaluationFrameId);
 
         $baremes = $class->getReportCardTemplate() ? $class->getReportCardTemplate()->getEvaluationAppreciationTemplate()->getBaremes()->toArray() : [];
 
+        // Rendre la vue du bordereau général
         return $this->render('evaluation/bordereau.general.html.twig', [
             'class' => $class,
-            'evaluationTimes' => $evaluationTimes,
+            'evaluationTimes' => $evaluationTimes, // Tableau de périodes
             'evaluationFrame' => $evaluationFrame,
             'evaluationTimeType' => $evaluationTimeType,
-            'classifiedStudents' => $classifiedStudents,
-            'unclassifiedStudents' => $unclassifiedStudents,
+            'classifiedStudents' => $classifiedStudents, // Nouveau: élèves classés (100%)
+            'unclassifiedStudents' => $unclassifiedStudents, // Nouveau: élèves non classés (<100%)
             'classSubjectModules' => $classSubjectModules,
             'includeNotes' => $includeNotes,
             'school' => $this->currentSchool,
             'periodData' => $periodData,
             'cumulativeData' => $cumulativeData,
             'docType' => $docType,
-            'multiplePeriods' => $multiplePeriods || $isAnnual,
+            'multiplePeriods' => count($evaluationTimes) > 1 || $isAnnual,
             'baremes' => $baremes,
-            'completionRatesByPeriod' => $completionRatesByPeriod,
+            'completionRatesByPeriod' => $completionRatesByPeriod, // Nouveau: taux de complétion par période
             'isAnnual' => $isAnnual,
             'groupedFrames' => $isAnnual ? $groupedFrames : null,
+            'coefUsed' => $coefUsed, // Ajouter cette variable pour la vue
+            'students' => $students, // Liste complète des élèves avec leurs données
         ]);
     }
 
-    private function calculateBordereauData($students, $classSubjectModules, $evaluations): array
+    private function calculateSubjectAverageForPeriod($studentId, $subjectId, $evaluations, $classSubjectModules): float
+    {
+        $subjectTotal = 0;
+        $moduleCount = 0;
+        $modulesWithGrades = 0;
+
+        // Vérifier si la matière existe dans les modules
+        if (!isset($classSubjectModules[$subjectId])) {
+            return 0;
+        }
+
+        $subjectData = $classSubjectModules[$subjectId];
+
+        foreach ($subjectData['modules'] as $module) {
+            $moduleId = $module->getId();
+            $found = false;
+            $moduleNote = 0;
+
+            // Chercher l'évaluation pour ce module et cet élève
+            foreach ($evaluations as $evaluation) {
+                if (
+                    $evaluation->getStudent()->getId() == $studentId &&
+                    $evaluation->getClassSubjectModule()->getId() == $moduleId
+                ) {
+                    $moduleNote = $evaluation->getEvaluationNote();
+                    $found = true;
+                    break;
+                }
+            }
+
+            // Ajouter la note au total
+            $subjectTotal += $moduleNote;
+            $moduleCount++;
+
+            // Compter les modules avec des notes > 0
+            if ($moduleNote > 0) {
+                $modulesWithGrades++;
+            }
+        }
+
+        // Si aucun module n'a de note > 0, retourner 0
+        if ($modulesWithGrades == 0) {
+            return 0;
+        }
+
+        // Calculer la moyenne (la note est déjà sur 20)
+        return $subjectTotal / $moduleCount;
+    }
+
+    private function calculateBordereauData($students, $classSubjectModules, $evaluations, bool $coefUsed = false): array
     {
         $studentNotes = [];
         $studentAverages = [];
@@ -1204,28 +1360,72 @@ class EvaluationController extends AbstractController
         // Calcul pour chaque élève
         foreach ($students as $student) {
             $studentId = $student->getId();
-            $studentTotal = 0;
-            $studentCoefficient = 0;
             $studentNotes[$studentId] = [];
 
+            // Variables pour le calcul de la moyenne de l'élève
+            $studentWeightedSum = 0; // Somme des (moyenne matière * coefficient matière)
+            $studentTotalCoef = 0;   // Somme des coefficients matière
+
+            // Pour chaque matière
             foreach ($classSubjectModules as $subjectId => $subjectData) {
                 $subjectTotal = 0;
-                $subjectCoefficient = 0;
+                $subjectModuleCount = 0;
 
+                // Pour chaque module de la matière
                 foreach ($subjectData['modules'] as $module) {
                     $moduleId = $module->getId();
                     $moduleNote = $evaluationIndex[$studentId][$moduleId] ?? 0;
 
+                    // Stocker la note du module
                     $studentNotes[$studentId][$moduleId] = $moduleNote;
-                    $studentTotal += $moduleNote;
-                    $studentCoefficient += $module->getModuleNotation();
-                    $subjectTotal += $moduleNote;
-                    $subjectCoefficient += $module->getModuleNotation();
+
+                    // Pour la moyenne de la matière : on somme les notes des modules
+                    $subjectTotal += $moduleNote; // Note déjà sur 20
+                    if ($coefUsed) {
+                        $subjectModuleCount++;
+                    } else {
+                        $subjectModuleCount += $module->getModuleNotation();
+                        $studentTotalCoef += $module->getModuleNotation();
+                    }
+                }
+
+                //dd($subjectModuleCount);
+
+                if ($coefUsed) {
+                    // Calculer la moyenne de la matière (déjà sur 20)
+                    $subjectAverage = $subjectModuleCount > 0 ? ($subjectTotal / $subjectModuleCount) : 0;
+                } else {
+                    $subjectAverage = $subjectModuleCount > 0 ? ($subjectTotal / $subjectModuleCount) : 0;
+                }
+
+                // Récupérer le coefficient de la matière depuis SchoolClassSubject
+                $subjectCoef = 0;
+                if (!empty($subjectData['modules'])) {
+                    $firstModule = $subjectData['modules'][0];
+                    $schoolClassSubject = $this->entityManager->getRepository(SchoolClassSubject::class)->findBy([
+                        'schoolClassPeriod' => $firstModule->getClass(),
+                        'studySubject' => $firstModule->getSubject()
+                    ]);
+
+                    if (!empty($schoolClassSubject)) {
+                        $subjectCoef = $schoolClassSubject[0]->getCoefficient() ?? 1;
+                        $subjectData[$subjectId]['coef'] = $subjectCoef;
+                    }
+                }
+
+                if ($coefUsed) {
+                    // Mode coefficient : on utilise la moyenne de la matière * coefficient matière
+                    $studentWeightedSum += ($subjectAverage * $subjectCoef);
+                    $studentTotalCoef += $subjectCoef;
+                } else {
+                    // Mode par défaut : on somme simplement les moyennes des matières
+                    $studentWeightedSum += $subjectTotal;
+                    //foreach($subjectData['modules'] as $module)
+                    //$studentTotalCoef /=20; // Chaque matière compte pour 1 dans ce mode
                 }
 
                 // Mise à jour stats matière
-                if ($subjectCoefficient > 0) {
-                    $subjectAverage = $subjectTotal / $subjectCoefficient * 20;
+                if ($subjectModuleCount > 0) {
                     $subjectStats[$subjectId]['total'] += $subjectAverage;
                     $subjectStats[$subjectId]['count']++;
                     $subjectStats[$subjectId]['max'] = max($subjectStats[$subjectId]['max'], $subjectAverage);
@@ -1233,9 +1433,12 @@ class EvaluationController extends AbstractController
                 }
             }
 
-            // Moyenne élève
-            $studentAverage = $studentCoefficient > 0 ? $studentTotal / $studentCoefficient * 20 : 0;
+            //dd($studentTotalCoef,$studentWeightedSum);
+
+            // Calcul de la moyenne de l'élève
+            $studentAverage = $studentTotalCoef > 0 ? $studentWeightedSum / $studentTotalCoef * ($coefUsed ? 1 : 20) : 0;
             $studentAverages[$studentId] = $studentAverage;
+            //dd($subjectStats,$subjectData,$studentAverages,$student,$studentWeightedSum,$studentTotalCoef);
         }
 
         // Calcul des rangs
@@ -1317,7 +1520,8 @@ class EvaluationController extends AbstractController
     public function deleteEvaluation(
         int $id,
         EvaluationRepository $evaluationRepo,
-        EntityManagerInterface $entityManager
+        EntityManagerInterface $entityManager,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -1349,6 +1553,9 @@ class EvaluationController extends AbstractController
                 ]
             );
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             $this->operationLog->log(
                 'Erreur lors de la suppression d\'une évaluation',
                 'Échec',
@@ -1374,7 +1581,8 @@ class EvaluationController extends AbstractController
         int $id,
         Request $request,
         EvaluationRepository $evaluationRepo,
-        EntityManagerInterface $entityManager
+        EntityManagerInterface $entityManager,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -1428,6 +1636,9 @@ class EvaluationController extends AbstractController
                     ]
                 );
             } catch (\Exception $e) {
+                if (!$this->entityManager->isOpen()) {
+                    $this->entityManager = $doctrine->resetManager();
+                }
                 $this->operationLog->log(
                     'Erreur lors de la modification d\'une évaluation',
                     'Échec',
@@ -1457,7 +1668,8 @@ class EvaluationController extends AbstractController
         ClassSubjectModuleRepository $moduleRepo,
         EvaluationRepository $evaluationRepo,
         EntityManagerInterface $entityManager,
-        SessionInterface $session
+        SessionInterface $session,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -1511,6 +1723,9 @@ class EvaluationController extends AbstractController
 
             return new JsonResponse(['message' => 'Module supprimé avec succès.']);
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // Rollback en cas d'erreur
             if ($entityManager->getConnection()->isTransactionActive()) {
                 $entityManager->getConnection()->rollBack();
@@ -1541,7 +1756,8 @@ class EvaluationController extends AbstractController
         Request $request,
         ClassSubjectModuleRepository $moduleRepo,
         EntityManagerInterface $entityManager,
-        SessionInterface $session
+        SessionInterface $session,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -1592,6 +1808,9 @@ class EvaluationController extends AbstractController
                     ]
                 );
             } catch (\Exception $e) {
+                if (!$this->entityManager->isOpen()) {
+                    $this->entityManager = $doctrine->resetManager();
+                }
                 $this->operationLog->log(
                     'Erreur lors de la modification d\'un module',
                     'Échec',
@@ -1653,6 +1872,11 @@ class EvaluationController extends AbstractController
         return new JsonResponse($data);
     }
 
+    public function getConnectedUser(): User
+    {
+        return $this->getUser();
+    }
+
     #[Route('/evaluation/saisie-notes', name: 'app_saisie_notes', methods: ['GET'])]
     public function saisieNotes(
         StudyLevelRepository $sectionRepo,
@@ -1665,7 +1889,7 @@ class EvaluationController extends AbstractController
         // Récupérer les sections (niveaux d'étude)
         $sections = $sectionRepo->findAll();
         $this->entityManager = $entityManager;
-        $user = $this->getUser();
+        $user = $this->getConnectedUser();
         $config = $user ? $user->getBaseConfigurations()->toArray() : [];
         if (count($config) > 0) {
             $sections = $sectionRepo->findBy(['id' => count($config[0]->getSectionList()) > 0 ? $this->entityManager->getRepository(StudyLevel::class)->findBy(['id' => $config[0]->getSectionList()]) : array_map(fn($sl) => $sl->getId(), $sectionRepo->findAll())]);
@@ -1756,6 +1980,9 @@ class EvaluationController extends AbstractController
             return strcmp($a->getStudent()->getFullName(), $b->getStudent()->getFullName());
         });
 
+        $schoolClassSubject = $this->entityManager->getRepository(SchoolClassSubject::class)->findOneBy(['schoolClassPeriod' => $class, 'studySubject' => $subjectId]);
+        $isNotApplicable = $this->entityManager->getRepository(SchoolClassSubjectEvaluationTimeNotApplicable::class)->isNotApplicable($schoolClassSubject->getId(), $timeId);
+
         return new JsonResponse([
             'modules' => array_map(fn($module) => ['id' => $module->getId(), 'name' => $module->getModule()->getModuleName(), 'moduleNotation' => $module->getModuleNotation()], $modules),
             'students' => array_map(fn($student) => ['id' => $student->getStudent()->getId(), 'name' => $student->getStudent()->getFullName()], $students),
@@ -1767,7 +1994,53 @@ class EvaluationController extends AbstractController
             'className' => $class->getClassOccurence()->getName(),
             'frameName' => $frameName,
             'timeName' => $timeName,
+            'isNotApplicable' => $isNotApplicable,
+            'notApplicableId' => $this->entityManager->getRepository(SchoolClassSubjectEvaluationTimeNotApplicable::class)->findBySchoolClassSubjectAndEvaluationTime($schoolClassSubject->getId(), $timeId)?->getId() ?? null,
+            'schoolClassSubjectId' => $schoolClassSubject->getId()
         ]);
+    }
+
+    #[Route('/evaluation/toggle-applicable', name: 'app_toggle_not_applicable', methods: ['GET'])]
+    public function toggleApplicable(
+        Request $request,
+        EntityManagerInterface $em
+    ): JsonResponse {
+        $schoolClassSubjectId = (int)$request->query->get('subjectId');
+        $schoolClassSubject = $em->getRepository(SchoolClassSubject::class)->find($schoolClassSubjectId);
+        $evaluationTimeId = (int)$request->query->get('timeId');
+        $evaluationTime = $em->getRepository(SchoolEvaluationTime::class)->find($evaluationTimeId);
+
+        $notApplicableRepo = $em->getRepository(SchoolClassSubjectEvaluationTimeNotApplicable::class);
+        $existing = $notApplicableRepo->findBySchoolClassSubjectAndEvaluationTime($schoolClassSubjectId, $evaluationTimeId);
+
+        if ($existing && $existing->isNotApplicable()) {
+            // Actuellement "Non Applicable" → on repasse en "Applicable" : suppression pure
+            $em->remove($existing);
+            $message = 'Matière définie comme Applicable';
+        } else {
+            // Actuellement "Applicable" → on passe en "Non Applicable" : suppression des éventuels résidus puis création
+            if ($existing) {
+                $em->remove($existing);
+            }
+            $na = new SchoolClassSubjectEvaluationTimeNotApplicable();
+            $na->setSchoolClassSubject($schoolClassSubject);
+            $na->setSchoolEvaluationTime($evaluationTime);
+            $na->setNotApplicable(true);
+            $em->persist($na);
+            $message = 'Matière définie comme Non-Applicable';
+        }
+
+        try {
+            $em->flush();
+        } catch (Exception $e) {
+            return new JsonResponse([
+                'error' => "Une erreur s'est produite. " . $e->getMessage()
+            ], 500);
+        }
+
+        return new JsonResponse([
+            'success' => $message
+        ], 200);
     }
 
     #[Route('/evaluation/notes/update', name: 'app_update_evaluation', methods: ['POST'])]
@@ -1780,7 +2053,8 @@ class EvaluationController extends AbstractController
         SchoolPeriodRepository $periodRepo,
         ClassSubjectModuleRepository $classSubjectModuleRepo,
         UserRepository $userRepo,
-        SessionInterface $session
+        SessionInterface $session,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -1846,11 +2120,10 @@ class EvaluationController extends AbstractController
                 // Démarrer une transaction pour s'assurer de la cohérence des données
                 $this->entityManager->getConnection()->beginTransaction();
 
-                $entityManager->persist($evaluation);
-                $entityManager->flush();
-                $this->entityManager->getConnection()->commit();
+                $this->entityManager->persist($evaluation);
+                $this->entityManager->flush();
 
-                // Log de succès
+                // Log de succès (dans la transaction pour atomicité)
                 $this->operationLog->log(
                     'Mise à jour d\'une évaluation',
                     'Succès',
@@ -1867,8 +2140,13 @@ class EvaluationController extends AbstractController
                     ]
                 );
 
+                $this->entityManager->getConnection()->commit();
+
                 return new JsonResponse(['success' => 'Note mise à jour avec succès.']);
             } catch (\Exception $e) {
+                if (!$this->entityManager->isOpen()) {
+                    $this->entityManager = $doctrine->resetManager();
+                }
                 // Rollback en cas d'erreur
                 if ($this->entityManager->getConnection()->isTransactionActive()) {
                     $this->entityManager->getConnection()->rollBack();
@@ -1905,8 +2183,8 @@ class EvaluationController extends AbstractController
                     return new JsonResponse(['error' => 'Une erreur est survenue lors de la mise à jour de la note.'], 500);
                 }
 
-                // Attente avant de réessayer (backoff exponentiel)
-                usleep($retryDelay * 1000 * $attempt);
+                // Attente avant de réessayer
+                usleep($retryDelay * 1000);
             }
         }
 
@@ -1985,6 +2263,7 @@ class EvaluationController extends AbstractController
                 }
             }
         }
+        $entityManager->flush();
 
         $data = [];
         foreach ($evaluations as $evaluation) {
@@ -2008,6 +2287,7 @@ class EvaluationController extends AbstractController
         Request $request,
         EntityManagerInterface $entityManager,
         SessionInterface $session,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -2064,6 +2344,9 @@ class EvaluationController extends AbstractController
                 ['name' => $template->getName(), 'default' => $template->isEnabled(), 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
             );
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // log l'erreur
             $this->operationLog->log(
                 'Erreur lors de la création d\'un template d\'appréciation',
@@ -2095,6 +2378,9 @@ class EvaluationController extends AbstractController
                     ['template' => $template->getName(), 'school' => $school->getName(), 'period' => $this->currentPeriod->getName()]
                 );
             } catch (\Exception $e) {
+                if (!$this->entityManager->isOpen()) {
+                    $this->entityManager = $doctrine->resetManager();
+                }
                 $this->operationLog->log(
                     'Erreur lors de la mise à jour du template d\'appréciation par défaut de l\'école',
                     'Échec',
@@ -2292,7 +2578,8 @@ class EvaluationController extends AbstractController
         int $id,
         EvaluationRepository $evaluationRepo,
         EntityManagerInterface $entityManager,
-        SessionInterface $session
+        SessionInterface $session,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -2330,6 +2617,9 @@ class EvaluationController extends AbstractController
                 ]
             );
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // logger l'erreur
             $this->operationLog->log(
                 'Suppression de l\'évaluation',
@@ -2352,7 +2642,8 @@ class EvaluationController extends AbstractController
     #[Route('/evaluation/appreciation-bareme/{id}/delete', name: 'app_delete_evaluation_appreciation_bareme', methods: ['DELETE'])]
     public function deleteEvaluationAppreciationBareme(
         int $id,
-        EntityManagerInterface $entityManager
+        EntityManagerInterface $entityManager,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -2382,6 +2673,9 @@ class EvaluationController extends AbstractController
                 ]
             );
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // logger l'erreur
             $this->operationLog->log(
                 'Suppression du barème d\'appréciation ' . $br->getEvaluationAppreciationValue(),
@@ -2432,7 +2726,8 @@ class EvaluationController extends AbstractController
         Request $request,
         SchoolClassPeriodRepository $classRepo,
         EntityManagerInterface $entityManager,
-        SessionInterface $session
+        SessionInterface $session,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -2479,6 +2774,9 @@ class EvaluationController extends AbstractController
                 ]
             );
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // logger l'erreur
             $this->operationLog->log(
                 'Affectation du modèle de bulletin ' . $template->getName() . ' à la classe ' . $class->getClassOccurence()->getName(),
@@ -2509,7 +2807,8 @@ class EvaluationController extends AbstractController
         int $id,
         SchoolClassPeriodRepository $classRepo,
         EntityManagerInterface $entityManager,
-        SessionInterface $session
+        SessionInterface $session,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         $this->session = $session;
         $this->entityManager = $entityManager;
@@ -2539,6 +2838,9 @@ class EvaluationController extends AbstractController
                 ]
             );
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // logger l'erreur
             $this->operationLog->log(
                 'Suppression du modèle de bulletin de la classe ' . $class->getClassOccurence()->getName(),
@@ -2590,7 +2892,8 @@ class EvaluationController extends AbstractController
         int $id,
         Request $request,
         EntityManagerInterface $entityManager,
-        SessionInterface $session
+        SessionInterface $session,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
@@ -2636,6 +2939,9 @@ class EvaluationController extends AbstractController
                 ]
             );
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // logger l'erreur
             $this->operationLog->log(
                 'Modification du modèle de bulletin',
@@ -2726,7 +3032,8 @@ class EvaluationController extends AbstractController
         StudentClassRepository $studentClassRepo,
         SchoolEvaluationTimeRepository $timeRepo,
         SchoolClassPeriodRepository $classRepo,
-        SessionInterface $session
+        SessionInterface $session,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(\App\Entity\School::class)->find($this->session->get('school_id'));
@@ -2797,6 +3104,9 @@ class EvaluationController extends AbstractController
                 ]
             );
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // logger l'erreur
             $this->operationLog->log(
                 'Enregistrement des données de discipline',
@@ -2875,7 +3185,8 @@ class EvaluationController extends AbstractController
     public function cancelSubjectGroup(
         Request $request,
         EntityManagerInterface $entityManager,
-        SchoolClassSubjectRepository $schoolClassSubjectRepo
+        SchoolClassSubjectRepository $schoolClassSubjectRepo,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         $id = $request->request->get('id');
         $token = $request->request->get('_token');
@@ -2912,6 +3223,9 @@ class EvaluationController extends AbstractController
                 ]
             );
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // logger l'erreur
             $this->operationLog->log(
                 'Annulation de l\'affectation à un groupe',
@@ -2936,7 +3250,8 @@ class EvaluationController extends AbstractController
     public function cancelSubjectTeacher(
         Request $request,
         EntityManagerInterface $entityManager,
-        SchoolClassSubjectRepository $schoolClassSubjectRepo
+        SchoolClassSubjectRepository $schoolClassSubjectRepo,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         $id = $request->request->get('id');
         $token = $request->request->get('_token');
@@ -2973,6 +3288,9 @@ class EvaluationController extends AbstractController
                 ]
             );
         } catch (\Exception $e) {
+            if (!$this->entityManager->isOpen()) {
+                $this->entityManager = $doctrine->resetManager();
+            }
             // logger l'erreur
             $this->operationLog->log(
                 'Annulation de l\'affectation à un enseignant',

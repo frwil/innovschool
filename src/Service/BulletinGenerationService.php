@@ -81,9 +81,8 @@ class BulletinGenerationService
             throw new \InvalidArgumentException('Aucun étudiant trouvé dans cette classe');
         }
 
-        $allBulletinsHtml = '';
-        $bulletinsMetadata = [];
-
+        // Générer tous les bulletins et collecter les moyennes pour le tri par mérite
+        $bulletinsData = [];
         foreach ($students as $index => $student) {
             $htmlResult = $this->bulletinGenerator->generateBulletinA(
                 $student->getStudent()->getId(),
@@ -105,19 +104,14 @@ class BulletinGenerationService
             );
 
             $htmlContent = $template->getName() === 'A' ? file_get_contents($htmlResult[0]) : $htmlResult[0];
-            
-            $allBulletinsHtml .= '<div class="bulletin-container" style="page-break-after: always;">';
-            $allBulletinsHtml .= $htmlContent;
-            $allBulletinsHtml .= '</div>';
-            
-            if ($index < count($students) - 1) {
-                $allBulletinsHtml .= '<div style="page-break-before: always;"></div>';
-            }
+            $average = $htmlResult[1] ?? 0;
 
-            $bulletinsMetadata[] = [
+            $bulletinsData[] = [
+                'html' => $htmlContent,
+                'average' => $average,
                 'student_id' => $student->getStudent()->getId(),
                 'student_name' => $student->getStudent()->getFullName(),
-                'metadata' => array_slice($htmlResult, 1)
+                'metadata' => array_slice($htmlResult, 1),
             ];
 
             unset($htmlResult, $htmlContent);
@@ -126,12 +120,35 @@ class BulletinGenerationService
             }
         }
 
+        // Trier par ordre de mérite (moyenne décroissante)
+        usort($bulletinsData, function ($a, $b) {
+            return $b['average'] <=> $a['average'];
+        });
+
+        // Assembler les bulletins dans l'ordre trié
+        $allBulletinsHtml = '';
+        $bulletinsMetadata = [];
+        $total = count($bulletinsData);
+        foreach ($bulletinsData as $index => $data) {
+            $allBulletinsHtml .= '<div class="bulletin-container" style="page-break-after: always;">';
+            $allBulletinsHtml .= $data['html'];
+            $allBulletinsHtml .= '</div>';
+            if ($index < $total - 1) {
+                $allBulletinsHtml .= '<div style="page-break-before: always;"></div>';
+            }
+            $bulletinsMetadata[] = [
+                'student_id' => $data['student_id'],
+                'student_name' => $data['student_name'],
+                'metadata' => $data['metadata'],
+            ];
+        }
+
         return [
             'html' => $allBulletinsHtml,
             'template' => $template,
             'metadata' => $bulletinsMetadata,
             'is_full' => true,
-            'student_count' => count($students)
+            'student_count' => $total
         ];
     }
 
@@ -197,7 +214,7 @@ class BulletinGenerationService
 
     public function getStudentForFilename(int $studentId): array
     {
-        $student = $this->studentRepo->findByStudent($studentId);
+        $student = $this->studentRepo->findBy(['student' => $studentId]);
         if (!$student) {
             throw new \InvalidArgumentException('Étudiant non trouvé');
         }
