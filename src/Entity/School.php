@@ -202,7 +202,7 @@ class School
         return $this;
     }
 
-    public function getContactPhone(): ?int
+    public function getContactPhone(): ?string
     {
         return $this->contactPhone;
     }

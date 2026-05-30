@@ -2,24 +2,25 @@
 
 namespace App\Controller;
 
-use App\DTO\BulletinRequestDTO;
+use App\Entity\User;
 use App\DTO\ProgressQueryDTO;
-use App\Service\BulletinContextService;
-use App\Service\BulletinDataService;
-use App\Service\BulletinGenerationService;
-use App\Service\BulletinProgressService;
-use App\Service\BulletinRenderService;
 use App\Service\PdfGenerator;
-use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\HttpFoundation\JsonResponse;
+use App\DTO\BulletinRequestDTO;
+use Symfony\Component\Uid\Uuid;
+use App\Service\BulletinDataService;
+use App\Service\BulletinRenderService;
+use App\Service\BulletinContextService;
+use App\Service\BulletinProgressService;
+use App\Service\BulletinGenerationService;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
-use Symfony\Component\Messenger\MessageBusInterface;
-use Symfony\Component\Routing\Annotation\Route;
 use App\Message\GenerateAllBulletinsPdfMessage;
-use Symfony\Component\Uid\Uuid;
-use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Component\Routing\Annotation\Route;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\HttpFoundation\ResponseHeaderBag;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 
 class BulletinController extends AbstractController
 {
@@ -103,14 +104,23 @@ class BulletinController extends AbstractController
                 throw new \InvalidArgumentException('ID étudiant manquant pour afficher le bulletin individuel');
             }
 
+            
             $renderData = $this->renderService->renderIndividualBulletin($dto, $this->contextService);
 
             return $this->render($renderData['template'], $renderData['data']);
         } catch (\InvalidArgumentException $e) {
             $this->addFlash('error', $e->getMessage());
+            // En mode dev, on relance l'exception pour voir l'erreur dans le profiler
+            if ($this->getParameter('kernel.debug')) {
+                throw $e;
+            }
             return $this->redirectToRoute('app_bulletins');
         } catch (\Exception $e) {
             $this->addFlash('error', 'Erreur lors de la génération du bulletin: ' . $e->getMessage());
+            // En mode dev, on relance l'exception pour voir l'erreur dans le profiler
+            if ($this->getParameter('kernel.debug')) {
+                throw $e;
+            }
             return $this->redirectToRoute('app_bulletins');
         }
     }
@@ -167,7 +177,7 @@ class BulletinController extends AbstractController
                 $dto->periodicityId,
                 $dto->bulletinType,
                 $dto->templateId,
-                $this->getUser()->getId(),
+                $this->getConnectedUser()->getId(),
                 $this->contextService->getCurrentSchool()->getId(),
                 $this->contextService->getCurrentPeriod()->getId(),
                 $dto->bulLang ?? 'fr',
@@ -183,6 +193,11 @@ class BulletinController extends AbstractController
         } catch (\Exception $e) {
             return new JsonResponse(['error' => 'Erreur interne du serveur'], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
+    }
+
+    public function getConnectedUser(): User
+    {
+        return $this->getUser();
     }
 
     #[Route('/get-evaluation-progress', name: 'app_get_evaluation_progress', methods: ['GET'])]
