@@ -109,6 +109,21 @@ final class SchoolYearMigrationController extends AbstractController
             return $this->redirectToRoute('app_year_migration_index');
         }
 
+        // Avertissement si une migration a déjà été exécutée pour ces périodes :
+        // le service ne créera que les éléments manquants (aucun doublon).
+        $previousLog = $this->em->getRepository(MigrationLog::class)->createQueryBuilder('m')
+            ->andWhere('m.school = :school')->setParameter('school', $school)
+            ->andWhere('m.sourcePeriod = :source')->setParameter('source', $sourcePeriod)
+            ->andWhere('m.targetPeriod = :target')->setParameter('target', $targetPeriod)
+            ->andWhere('m.status IN (:statuses)')->setParameter('statuses', ['executed', 'corrected'])
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if ($previousLog) {
+            $this->addFlash('warning', 'Une migration a déjà été exécutée pour ces périodes : seuls les éléments manquants seront créés.');
+        }
+
         try {
             $user = $this->getUser();
             $log  = $this->migrationService->executeMigration(

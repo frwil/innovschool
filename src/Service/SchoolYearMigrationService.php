@@ -97,13 +97,13 @@ class SchoolYearMigrationService
             $groupMap = [];
             if ($options['subject_groups'] ?? true) {
                 [$groupMap, $groupEntities] = $this->cloneSubjectGroups($school, $sourcePeriod, $targetPeriod);
-                $configSummary['subject_groups'] = count($groupMap);
+                $configSummary['subject_groups'] = count($groupEntities);
             }
 
             $classMap = [];
             if ($options['classes'] ?? true) {
-                [$classMap, $classEntities] = $this->cloneClasses($school, $sourcePeriod, $targetPeriod);
-                $configSummary['classes'] = count($classMap);
+                [$classMap, $classEntities] = $this->cloneClasses($school, $sourcePeriod, $targetPeriod, $classMapping);
+                $configSummary['classes'] = count($classEntities);
             }
 
             $subjectEntities = [];
@@ -156,12 +156,10 @@ class SchoolYearMigrationService
 
                     if ($isEligible && $promotedTarget) {
                         $sc = $this->enrollStudent($studentClass->getStudent(), $promotedTarget);
-                        if ($sc) { $studentEntities[] = $sc; }
-                        $studentStats['promoted']++;
+                        if ($sc) { $studentEntities[] = $sc; $studentStats['promoted']++; }
                     } elseif (!$isEligible && $repeaterTarget) {
                         $sc = $this->enrollStudent($studentClass->getStudent(), $repeaterTarget);
-                        if ($sc) { $studentEntities[] = $sc; }
-                        $studentStats['repeated']++;
+                        if ($sc) { $studentEntities[] = $sc; $studentStats['repeated']++; }
                     } else {
                         $studentStats['skipped']++;
                     }
@@ -498,11 +496,42 @@ class SchoolYearMigrationService
     {
         $map      = [];
         $entities = [];
+
+        // Groupes déjà présents dans la période cible, indexés par description :
+        // on ne migre que ce qui n'existe pas encore.
+        $existingByDescription = [];
+        foreach ($this->em->getRepository(SubjectGroup::class)->findBy(['school' => $school, 'period' => $target]) as $existing) {
+            $desc = $existing->getDescription();
+            if ($desc !== null) { $existingByDescription[$desc] = $existing; }
+        }
+        $reusedNullDesc = [];
+
         foreach ($this->em->getRepository(SubjectGroup::class)->findBy(['school' => $school, 'period' => $source]) as $group) {
+            $sourceDesc = $group->getDescription();
+            $clonedDesc = $sourceDesc !== null ? $sourceDesc . ' (' . $target->getName() . ')' : null;
+
+            if ($clonedDesc !== null && isset($existingByDescription[$clonedDesc])) {
+                $map[$group->getId()] = $existingByDescription[$clonedDesc];
+                unset($existingByDescription[$clonedDesc]); // un groupe cible ne sert qu'une fois
+                continue;
+            }
+
+            if ($clonedDesc === null) {
+                // Description vide : réutiliser un groupe cible sans description au même posOrder
+                foreach ($this->em->getRepository(SubjectGroup::class)->findBy(['school' => $school, 'period' => $target, 'posOrder' => $group->getPosOrder()]) as $candidate) {
+                    if ($candidate->getDescription() === null && !isset($reusedNullDesc[spl_object_id($candidate)])) {
+                        $map[$group->getId()] = $candidate;
+                        $reusedNullDesc[spl_object_id($candidate)] = true;
+                        break;
+                    }
+                }
+                if (isset($map[$group->getId()])) { continue; }
+            }
+
             $new = new SubjectGroup();
             $new->setSchool($school)->setPeriod($target)->setPosOrder($group->getPosOrder());
-            if ($group->getDescription() !== null) {
-                $new->setDescription($group->getDescription() . ' (' . $target->getName() . ')');
+            if ($sourceDesc !== null) {
+                $new->setDescription($clonedDesc);
             }
             $this->em->persist($new);
             $map[$group->getId()] = $new;
@@ -512,11 +541,37 @@ class SchoolYearMigrationService
     }
 
     /** @return array{0: array<int,SchoolClassPeriod>, 1: SchoolClassPeriod[]} */
-    private function cloneClasses(School $school, SchoolPeriod $source, SchoolPeriod $target): array
+    private function cloneClasses(School $school, SchoolPeriod $source, SchoolPeriod $target, array $classMapping): array
     {
         $map      = [];
         $entities = [];
+
+        // Classes déjà présentes dans la période cible, indexées par occurrence :
+        // on les réutilise au lieu de les dupliquer.
+        $targetByOccurence = [];
+        foreach ($this->em->getRepository(SchoolClassPeriod::class)->findBy(['school' => $school, 'period' => $target]) as $existing) {
+            $occId = $existing->getClassOccurence()?->getId();
+            if ($occId !== null && !isset($targetByOccurence[$occId])) { $targetByOccurence[$occId] = $existing; }
+        }
+
         foreach ($this->em->getRepository(SchoolClassPeriod::class)->findBy(['school' => $school, 'period' => $source]) as $scp) {
+            $existing = null;
+
+            // 1. Mapping explicite choisi par l'utilisateur (classe cible existante)
+            if (isset($classMapping[$scp->getId()])) {
+                $existing = $this->em->getRepository(SchoolClassPeriod::class)->find($classMapping[$scp->getId()]);
+            }
+
+            // 2. Classe cible existante avec la même occurrence
+            $occId = $scp->getClassOccurence()?->getId();
+            if (!$existing && $occId !== null) { $existing = $targetByOccurence[$occId] ?? null; }
+
+            if ($existing) {
+                $map[$scp->getId()] = $existing;
+                continue;
+            }
+
+            // 3. Sinon, création
             $new = new SchoolClassPeriod();
             $new->setSchool($school)->setPeriod($target)
                 ->setClassOccurence($scp->getClassOccurence())
@@ -524,6 +579,7 @@ class SchoolYearMigrationService
                 ->setEvaluationAppreciationTemplate($scp->getEvaluationAppreciationTemplate())
                 ->setReportCardTemplate($scp->getReportCardTemplate());
             $this->em->persist($new);
+            if ($occId !== null) { $targetByOccurence[$occId] = $new; }
             $map[$scp->getId()] = $new;
             $entities[]         = $new;
         }
@@ -534,10 +590,22 @@ class SchoolYearMigrationService
     private function cloneSubjects(array $classMap, array $groupMap): array
     {
         $entities = [];
+        $seen     = [];
         foreach ($classMap as $oldSCPId => $newSCP) {
             $oldSCP = $this->em->getRepository(SchoolClassPeriod::class)->find($oldSCPId);
             if (!$oldSCP) { continue; }
+
+            // Matières déjà présentes sur la classe cible : ne pas les dupliquer
+            $existingSubjects = [];
+            foreach ($newSCP->getSchoolClassSubjects() as $existing) {
+                $existingSubjects[$existing->getStudySubject()?->getId()] = true;
+            }
+
             foreach ($oldSCP->getSchoolClassSubjects() as $scs) {
+                $subjectId = $scs->getStudySubject()?->getId();
+                if ($subjectId !== null && isset($existingSubjects[$subjectId])) { continue; }
+                if (isset($seen[spl_object_id($newSCP)][$subjectId])) { continue; }
+
                 $new = new SchoolClassSubject();
                 $new->setSchoolClassPeriod($newSCP)
                     ->setStudySubject($scs->getStudySubject())
@@ -549,6 +617,7 @@ class SchoolYearMigrationService
                 }
                 $this->em->persist($new);
                 $entities[] = $new;
+                $seen[spl_object_id($newSCP)][$subjectId] = true;
             }
         }
         return [count($entities), $entities];
@@ -558,16 +627,29 @@ class SchoolYearMigrationService
     private function cloneModules(School $school, SchoolPeriod $source, SchoolPeriod $target, array $classMap): array
     {
         $entities = [];
+        $seen     = [];
         foreach ($classMap as $oldSCPId => $newSCP) {
             $oldSCP = $this->em->getRepository(SchoolClassPeriod::class)->find($oldSCPId);
             if (!$oldSCP) { continue; }
+
+            // Modules déjà présents sur la classe cible : ne pas les dupliquer
+            $existingModules = [];
+            foreach ($newSCP->getClassSubjectModules() as $existing) {
+                $existingModules[$existing->getSubject()?->getId() . ':' . $existing->getModule()?->getId()] = true;
+            }
+
             foreach ($oldSCP->getClassSubjectModules() as $csm) {
+                $key = $csm->getSubject()?->getId() . ':' . $csm->getModule()?->getId();
+                if (isset($existingModules[$key])) { continue; }
+                if (isset($seen[spl_object_id($newSCP)][$key])) { continue; }
+
                 $new = new ClassSubjectModule();
                 $new->setSchool($school)->setPeriod($target)->setClass($newSCP)
                     ->setSubject($csm->getSubject())->setModule($csm->getModule())
                     ->setModuleNotation($csm->getModuleNotation());
                 $this->em->persist($new);
                 $entities[] = $new;
+                $seen[spl_object_id($newSCP)][$key] = true;
             }
         }
         return [count($entities), $entities];
@@ -577,10 +659,22 @@ class SchoolYearMigrationService
     private function clonePaymentModals(School $school, SchoolPeriod $source, SchoolPeriod $target, array $classMap): array
     {
         $entities = [];
+        $seen     = [];
         foreach ($classMap as $oldSCPId => $newSCP) {
             $oldSCP = $this->em->getRepository(SchoolClassPeriod::class)->find($oldSCPId);
             if (!$oldSCP) { continue; }
+
+            // Modalités déjà présentes sur la classe cible : ne pas les dupliquer
+            $existingModals = [];
+            foreach ($newSCP->getPaymentModals() as $existing) {
+                $existingModals[$existing->getModalType() . ':' . $existing->getLabel()] = true;
+            }
+
             foreach ($oldSCP->getPaymentModals() as $modal) {
+                $key = $modal->getModalType() . ':' . $modal->getLabel();
+                if (isset($existingModals[$key])) { continue; }
+                if (isset($seen[spl_object_id($newSCP)][$key])) { continue; }
+
                 $new = new SchoolClassPaymentModal();
                 $new->setSchool($school)->setSchoolPeriod($target)->setSchoolClassPeriod($newSCP)
                     ->setLabel($modal->getLabel())->setAmount($modal->getAmount())
@@ -588,6 +682,7 @@ class SchoolYearMigrationService
                     ->setModalPriority($modal->getModalPriority());
                 $this->em->persist($new);
                 $entities[] = $new;
+                $seen[spl_object_id($newSCP)][$key] = true;
             }
         }
         return [count($entities), $entities];

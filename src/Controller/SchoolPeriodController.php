@@ -17,14 +17,21 @@ use App\Service\OperationLogger;
 #[Route('/school-period')]
 final class SchoolPeriodController extends AbstractController
 {
-    private SchoolPeriod $currentPeriod;
+    private ?SchoolPeriod $currentPeriod = null;
     private EntityManagerInterface $entityManager;
-    private School $currentSchool;
+    private ?School $currentSchool = null;
     private SessionInterface $session;
 
     public function __construct(EntityManagerInterface $entityManager)
     {
         $this->entityManager = $entityManager;
+    }
+
+    private function initContext(Request $request): void
+    {
+        $this->session = $request->getSession();
+        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
+        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
     }
 
     #[Route(name: 'app_school_period_index', methods: ['GET', 'POST'])]
@@ -45,6 +52,7 @@ final class SchoolPeriodController extends AbstractController
     #[Route('/new', name: 'app_school_period_new', methods: ['GET', 'POST'])]
     public function new(Request $request, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
     {
+        $this->initContext($request);
         $schoolPeriod = new SchoolPeriod();
         $form = $this->createForm(SchoolPeriodType::class, $schoolPeriod);
         $form->handleRequest($request);
@@ -61,7 +69,7 @@ final class SchoolPeriodController extends AbstractController
                     'SchoolPeriod',
                     $schoolPeriod->getId(),
                     null,
-                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
+                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
                 );
                 return $this->redirectToRoute('app_school_period_index', [], Response::HTTP_SEE_OTHER);
             } catch (\Exception $e) {
@@ -74,7 +82,7 @@ final class SchoolPeriodController extends AbstractController
                     'SchoolPeriod',
                     null,
                     $e->getMessage(),
-                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
+                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
                 );
             }
         }
@@ -94,8 +102,9 @@ final class SchoolPeriodController extends AbstractController
     }
 
     #[Route('/{id}/as-default', name: 'app_school_period_default', methods: ['GET'])]
-    public function asDefault(SchoolPeriod $schoolPeriod, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
+    public function asDefault(Request $request, SchoolPeriod $schoolPeriod, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
     {
+        $this->initContext($request);
         $schoolPeriods = $entityManager->getRepository(SchoolPeriod::class)->findAll();
         foreach ($schoolPeriods as $period) {
             $period->setEnabled(false);
@@ -116,7 +125,7 @@ final class SchoolPeriodController extends AbstractController
                 'SchoolPeriod',
                 null,
                 $e->getMessage(),
-                ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
+                ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
             );
         }
         return $this->redirectToRoute('app_school_period_index', [], Response::HTTP_SEE_OTHER);
@@ -125,6 +134,7 @@ final class SchoolPeriodController extends AbstractController
     #[Route('/{id}/edit', name: 'app_school_period_edit', methods: ['GET', 'POST'])]
     public function edit(Request $request, SchoolPeriod $schoolPeriod, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
     {
+        $this->initContext($request);
         $form = $this->createForm(SchoolPeriodType::class, $schoolPeriod);
         $form->handleRequest($request);
 
@@ -142,7 +152,7 @@ final class SchoolPeriodController extends AbstractController
                     'SchoolPeriod',
                     null,
                     $e->getMessage(),
-                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
+                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
                 );
             }
             $this->addFlash('success', 'Période scolaire mise à jour avec succès.');
@@ -153,7 +163,7 @@ final class SchoolPeriodController extends AbstractController
                 'SchoolPeriod',
                 $schoolPeriod->getId(),
                 null,
-                ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
+                ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
             );
             return $this->redirectToRoute('app_school_period_index', [], Response::HTTP_SEE_OTHER);
         }
@@ -167,6 +177,7 @@ final class SchoolPeriodController extends AbstractController
     #[Route('/{id}', name: 'app_school_period_delete', methods: ['POST'])]
     public function delete(Request $request, SchoolPeriod $schoolPeriod, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
     {
+        $this->initContext($request);
         if ($this->isCsrfTokenValid('delete' . $schoolPeriod->getId(), $request->getPayload()->getString('_token'))) {
             $entityManager->remove($schoolPeriod);
             try{
@@ -179,7 +190,7 @@ final class SchoolPeriodController extends AbstractController
                     'SchoolPeriod',
                     $schoolPeriod->getId(),
                     null,
-                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
+                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
                 );
             } catch (\Exception $e) {
                 $this->addFlash('error', 'Une erreur est survenue lors de la suppression de la période scolaire : ' . $e->getMessage());
@@ -190,7 +201,7 @@ final class SchoolPeriodController extends AbstractController
                     'SchoolPeriod',
                     null,
                     $e->getMessage(),
-                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
+                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
                 );
             }
         }

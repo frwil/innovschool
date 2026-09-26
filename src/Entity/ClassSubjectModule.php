@@ -61,6 +61,9 @@ class ClassSubjectModule
     public function setCreatedAtValue(): void
     {
         $this->createdAt = new \DateTime();
+        if ($this->updatedAt === null) {
+            $this->updatedAt = new \DateTime();
+        }
     }
 
     #[ORM\PreUpdate]
