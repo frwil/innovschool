@@ -1,0 +1,41 @@
+# VCS
+.git/
+.gitignore
+.github/
+
+# Secrets et config d'environnement — fournis par le bind mount à l'exécution
+.env
+.env.*
+
+# IDE / éditeurs
+.idea/
+.vscode/
+
+# Outillage local
+.claude/
+.claude-code/
+
+# Dépendances — réinstallées dans l'image (vendor) ou inutiles au runtime
+vendor/
+node_modules/
+
+# Données et fichiers générés — fournis par le bind mount / volume à l'exécution
+var/
+data/
+public/uploads/
+
+# Tests et docs
+tests/
+*.md
+*.sql
+
+# Archives et scripts Windows
+*.rar
+*.zip
+*.bat
+*.lnk
+
+# Divers
+*.log
+.DS_Store
+Thumbs.db

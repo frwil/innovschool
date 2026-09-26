@@ -15,6 +15,17 @@ RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd intl zip
 # Installation de Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+WORKDIR /var/www
+
+# Dépendances Composer d'abord : cette couche reste en cache tant que
+# composer.lock ne change pas (vendor/ est exclu du contexte via .dockerignore)
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --no-scripts --no-progress --prefer-dist \
+    --no-interaction --optimize-autoloader
+
+# Copier les fichiers de l'application (contexte allégé : ~8 Mo au lieu de ~500 Mo)
+COPY . .
+
 # Configuration PHP mémoire
 RUN echo "memory_limit = 4096M" > /usr/local/etc/php/conf.d/memory.ini
 
@@ -26,17 +37,8 @@ RUN chmod +x /usr/local/bin/startup.sh
 RUN addgroup -g ${GROUP_ID:-1000} www 2>/dev/null || true && \
     adduser -u ${USER_ID:-1000} -G www -s /bin/sh -D www 2>/dev/null || true
 
-WORKDIR /var/www
-
-# Copier les fichiers de l'application
-COPY --chown=www:www . /var/www/
-
 RUN mkdir -p var/cache var/log var/mysql && \
     chown -R www:www var
-
-# Optimisation Composer — classmap optimisé évite les stat() sur le filesystem
-RUN composer dump-autoload --optimize --classmap-authoritative && \
-    composer clear-cache
 
 USER www
 
