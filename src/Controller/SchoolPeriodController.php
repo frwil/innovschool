@@ -13,6 +13,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use App\Entity\School;
 use App\Service\OperationLogger;
+use Symfony\Component\Form\FormError;
 
 #[Route('/school-period')]
 final class SchoolPeriodController extends AbstractController
@@ -38,52 +39,65 @@ final class SchoolPeriodController extends AbstractController
     public function index(SchoolPeriodRepository $schoolPeriodRepository, Request $request, EntityManagerInterface $entityManager): Response
     {
         $schoolPeriod = new SchoolPeriod();
+        $schoolPeriod->setName($schoolPeriodRepository->suggestNextName());
         $form = $this->createForm(SchoolPeriodType::class, $schoolPeriod, [
             'action' => $this->generateUrl('app_school_period_new'),
         ]);
 
 
         return $this->render('school_period/index.html.twig', [
-            'school_periods' => $schoolPeriodRepository->findAll(),
+            'school_periods' => $schoolPeriodRepository->findBy([], ['name' => 'ASC']),
             'form' => $form,
         ]);
     }
 
     #[Route('/new', name: 'app_school_period_new', methods: ['GET', 'POST'])]
-    public function new(Request $request, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
+    public function new(Request $request, EntityManagerInterface $entityManager, OperationLogger $operationLogger, SchoolPeriodRepository $schoolPeriodRepository): Response
     {
         $this->initContext($request);
         $schoolPeriod = new SchoolPeriod();
+        if (!$request->isMethod('POST')) {
+            $schoolPeriod->setName($schoolPeriodRepository->suggestNextName());
+        }
         $form = $this->createForm(SchoolPeriodType::class, $schoolPeriod);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
-            $entityManager->persist($schoolPeriod);
-            try {
-                $entityManager->flush();
-                $this->addFlash('success', 'Période scolaire créée avec succès.');
-                // Log the operation
-                $operationLogger->log(
-                    'CRÉATION DE PÉRIODE SCOLAIRE ' . $schoolPeriod->getName(),
-                    'SUCCESS',
-                    'SchoolPeriod',
-                    $schoolPeriod->getId(),
-                    null,
-                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
-                );
-                return $this->redirectToRoute('app_school_period_index', [], Response::HTTP_SEE_OTHER);
-            } catch (\Exception $e) {
-                // Gérer l'erreur (journaliser, afficher un message, etc.)
-                $this->addFlash('error', 'Une erreur est survenue lors de la création de la période scolaire : ' . $e->getMessage());
-                // log l'erreur
-                $operationLogger->log(
-                    'ÉCHEC DE CRÉATION DE PÉRIODE SCOLAIRE',
-                    'ERROR',
-                    'SchoolPeriod',
-                    null,
-                    $e->getMessage(),
-                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
-                );
+            $expected = $schoolPeriodRepository->getExpectedNextName();
+            if ($expected !== null && $schoolPeriod->getName() !== $expected) {
+                $form->get('name')->addError(new FormError(sprintf(
+                    'La nouvelle période doit être « %s », successeure directe de la dernière période existante.',
+                    $expected
+                )));
+            } else {
+                $schoolPeriod->setPreviousPeriod($schoolPeriodRepository->findLatest());
+                $entityManager->persist($schoolPeriod);
+                try {
+                    $entityManager->flush();
+                    $this->addFlash('success', 'Période scolaire créée avec succès.');
+                    // Log the operation
+                    $operationLogger->log(
+                        'CRÉATION DE PÉRIODE SCOLAIRE ' . $schoolPeriod->getName(),
+                        'SUCCESS',
+                        'SchoolPeriod',
+                        $schoolPeriod->getId(),
+                        null,
+                        ['name' => $schoolPeriod->getName(), 'previous' => $schoolPeriod->getPreviousPeriod()?->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
+                    );
+                    return $this->redirectToRoute('app_school_period_index', [], Response::HTTP_SEE_OTHER);
+                } catch (\Exception $e) {
+                    // Gérer l'erreur (journaliser, afficher un message, etc.)
+                    $this->addFlash('error', 'Une erreur est survenue lors de la création de la période scolaire : ' . $e->getMessage());
+                    // log l'erreur
+                    $operationLogger->log(
+                        'ÉCHEC DE CRÉATION DE PÉRIODE SCOLAIRE',
+                        'ERROR',
+                        'SchoolPeriod',
+                        null,
+                        $e->getMessage(),
+                        ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
+                    );
+                }
             }
         }
 
@@ -135,14 +149,23 @@ final class SchoolPeriodController extends AbstractController
     public function edit(Request $request, SchoolPeriod $schoolPeriod, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
     {
         $this->initContext($request);
-        $form = $this->createForm(SchoolPeriodType::class, $schoolPeriod);
+        $form = $this->createForm(SchoolPeriodType::class, $schoolPeriod, ['lock_name' => true]);
         $form->handleRequest($request);
 
         if ($form->isSubmitted() && $form->isValid()) {
             try{
                 $entityManager->flush();
-
-            return $this->redirectToRoute('app_school_period_index', [], Response::HTTP_SEE_OTHER);
+                $this->addFlash('success', 'Période scolaire mise à jour avec succès.');
+                // Log the operation
+                $operationLogger->log(
+                    'MISE À JOUR DE PÉRIODE SCOLAIRE ' . $schoolPeriod->getName(),
+                    'SUCCESS',
+                    'SchoolPeriod',
+                    $schoolPeriod->getId(),
+                    null,
+                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
+                );
+                return $this->redirectToRoute('app_school_period_index', [], Response::HTTP_SEE_OTHER);
             } catch (\Exception $e) {
                 $this->addFlash('error', 'Une erreur est survenue lors de la mise à jour de la période scolaire : ' . $e->getMessage());
                 // log l'erreur
@@ -155,17 +178,6 @@ final class SchoolPeriodController extends AbstractController
                     ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
                 );
             }
-            $this->addFlash('success', 'Période scolaire mise à jour avec succès.');
-            // Log the operation
-            $operationLogger->log(
-                'MISE À JOUR DE PÉRIODE SCOLAIRE ' . $schoolPeriod->getName(),
-                'SUCCESS',
-                'SchoolPeriod',
-                $schoolPeriod->getId(),
-                null,
-                ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
-            );
-            return $this->redirectToRoute('app_school_period_index', [], Response::HTTP_SEE_OTHER);
         }
 
         return $this->render('school_period/edit.html.twig', [
@@ -175,10 +187,25 @@ final class SchoolPeriodController extends AbstractController
     }
 
     #[Route('/{id}', name: 'app_school_period_delete', methods: ['POST'])]
-    public function delete(Request $request, SchoolPeriod $schoolPeriod, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
+    public function delete(Request $request, SchoolPeriod $schoolPeriod, EntityManagerInterface $entityManager, OperationLogger $operationLogger, SchoolPeriodRepository $schoolPeriodRepository): Response
     {
         $this->initContext($request);
         if ($this->isCsrfTokenValid('delete' . $schoolPeriod->getId(), $request->getPayload()->getString('_token'))) {
+            if ($schoolPeriodRepository->hasLaterThan($schoolPeriod)) {
+                $this->addFlash('error', sprintf(
+                    'Impossible de supprimer « %s » : seule la dernière période peut être supprimée.',
+                    $schoolPeriod->getName()
+                ));
+                $operationLogger->log(
+                    'SUPPRESSION REFUSÉE DE PÉRIODE SCOLAIRE ' . $schoolPeriod->getName(),
+                    'ERROR',
+                    'SchoolPeriod',
+                    $schoolPeriod->getId(),
+                    'La période n\'est pas la dernière.',
+                    ['name' => $schoolPeriod->getName(), 'school' => $this->currentSchool?->getName(), 'period' => $this->currentPeriod?->getName()]
+                );
+                return $this->redirectToRoute('app_school_period_index', [], Response::HTTP_SEE_OTHER);
+            }
             $entityManager->remove($schoolPeriod);
             try{
                 $entityManager->flush();

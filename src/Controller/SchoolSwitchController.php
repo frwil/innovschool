@@ -16,6 +16,7 @@ use App\Service\OperationLogger; // <-- Ajout ici
 use App\Entity\SchoolStudyType;
 use App\Service\LicenseManager; // <-- Ajout ici
 use App\Entity\AppLicense;
+use Symfony\Component\Validator\Validator\ValidatorInterface;
 
 
 class SchoolSwitchController extends AbstractController
@@ -69,6 +70,7 @@ class SchoolSwitchController extends AbstractController
             'schools' => $schools,
             'periods' => $periods, // Passage des périodes à la vue
             'studytypes' => $studytypes,
+            'suggestion' => $schoolPeriodRepository->suggestNextName(),
         ]);
     }
 
@@ -186,12 +188,14 @@ class SchoolSwitchController extends AbstractController
     public function createPeriod(
         Request $request,
         EntityManagerInterface $em,
-        OperationLogger $operationLogger // <-- Ajout ici
+        OperationLogger $operationLogger, // <-- Ajout ici
+        SchoolPeriodRepository $periodRepository,
+        ValidatorInterface $validator
     ) {
-        $name = $request->request->get('name');
+        $name = trim((string) $request->request->get('name'));
         $enabled = $request->request->get('enabled', 0);
 
-        if (!$name) {
+        if ($name === '') {
             return $this->json(['success' => false, 'message' => "Le nom de l'année scolaire est obligatoire."]);
         }
 
@@ -199,8 +203,30 @@ class SchoolSwitchController extends AbstractController
         $period->setName($name);
         $period->setEnabled((bool)$enabled);
 
+        $violations = $validator->validate($period);
+        if (count($violations) > 0) {
+            $messages = [];
+            foreach ($violations as $violation) {
+                $messages[] = $violation->getMessage();
+            }
+            return $this->json(['success' => false, 'message' => implode(' ', $messages)]);
+        }
+
+        $expected = $periodRepository->getExpectedNextName();
+        if ($expected !== null && $name !== $expected) {
+            return $this->json(['success' => false, 'message' => sprintf(
+                'La nouvelle période doit être « %s », successeure directe de la dernière période existante.',
+                $expected
+            )]);
+        }
+
+        $period->setPreviousPeriod($periodRepository->findLatest());
         $em->persist($period);
-        $em->flush();
+        try {
+            $em->flush();
+        } catch (\Exception $e) {
+            return $this->json(['success' => false, 'message' => 'Cette période scolaire existe déjà ou une erreur est survenue.']);
+        }
 
         $operationLogger->log(
             'Création d\'une année scolaire',
@@ -208,7 +234,7 @@ class SchoolSwitchController extends AbstractController
             'SchoolPeriod',
             $period->getId(),
             null,
-            ['name' => $period->getName()]
+            ['name' => $period->getName(), 'previous' => $period->getPreviousPeriod()?->getName()]
         );
 
         return $this->json(['success' => true, 'period_id' => $period->getId()]);

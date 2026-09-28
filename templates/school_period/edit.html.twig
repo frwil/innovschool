@@ -5,13 +5,28 @@
 {% block body %}
 <twig:Breadcrumbs label="Modification" />
 
+{% for label, messages in app.flashes %}
+    {% for message in messages %}
+        <div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+    {% endfor %}
+{% endfor %}
+
 <div class="card height-auto">
     <div class="card-body">
         <div class="mb-4 mt-3">
             <a class="btn btn-lg btn-dark" href="{{ path('app_school_period_index') }}">Retour</a>
             {{ include('school_period/_delete_form.html.twig') }}
         </div>
-        
+
+        {% if school_period.previousPeriod %}
+        <p>Période précédente : <strong>{{ school_period.previousPeriod.name }}</strong></p>
+        {% else %}
+        <p>Première période créée (aucune période précédente).</p>
+        {% endif %}
+
         {{ include('school_period/_form.html.twig', {'button_label': 'Mettre à jour'}) }}
 
     </div>

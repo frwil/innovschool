@@ -7,8 +7,13 @@ use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\ORM\Mapping as ORM;
 use App\Entity\SubjectGroup;
+use Symfony\Bridge\Doctrine\Validator\Constraints\UniqueEntity;
+use Symfony\Component\Validator\Constraints as Assert;
+use Symfony\Component\Validator\Context\ExecutionContextInterface;
 
 #[ORM\Entity(repositoryClass: SchoolPeriodRepository::class)]
+#[ORM\UniqueConstraint(name: 'uniq_school_period_name', columns: ['name'])]
+#[UniqueEntity(fields: ['name'], message: 'Cette période scolaire existe déjà.')]
 class SchoolPeriod
 {
     #[ORM\Id]
@@ -17,10 +22,16 @@ class SchoolPeriod
     private ?int $id = null;
 
     #[ORM\Column(length: 255)]
+    #[Assert\NotBlank(message: 'Le nom de la période scolaire est obligatoire.')]
+    #[Assert\Regex(pattern: '/^\d{4}\/\d{4}$/', message: 'Le nom doit respecter le format AAAA/AAAA (ex. 2024/2025).')]
     private ?string $name = null;
 
     #[ORM\Column]
     private ?bool $enabled = null;
+
+    #[ORM\ManyToOne(targetEntity: self::class)]
+    #[ORM\JoinColumn(name: 'previous_period_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?self $previousPeriod = null;
 
     /**
      * @var Collection<int, SchoolClassPeriod>
@@ -114,6 +125,57 @@ class SchoolPeriod
         $this->enabled = $enabled;
 
         return $this;
+    }
+
+    public function getPreviousPeriod(): ?self
+    {
+        return $this->previousPeriod;
+    }
+
+    public function setPreviousPeriod(?self $previousPeriod): self
+    {
+        $this->previousPeriod = $previousPeriod;
+
+        return $this;
+    }
+
+    /**
+     * Année de début du nom (ex. 2024 pour « 2024/2025 »), null si format invalide.
+     */
+    public function getStartYear(): ?int
+    {
+        if ($this->name === null || !preg_match('/^\d{4}\/\d{4}$/', $this->name)) {
+            return null;
+        }
+
+        return (int) substr($this->name, 0, 4);
+    }
+
+    /**
+     * Année de fin du nom (ex. 2025 pour « 2024/2025 »), null si format invalide.
+     */
+    public function getEndYear(): ?int
+    {
+        if ($this->name === null || !preg_match('/^\d{4}\/\d{4}$/', $this->name)) {
+            return null;
+        }
+
+        return (int) substr($this->name, 5, 4);
+    }
+
+    #[Assert\Callback]
+    public function validateNameContinuity(ExecutionContextInterface $context): void
+    {
+        if ($this->name === null || !preg_match('/^\d{4}\/\d{4}$/', $this->name)) {
+            return; // le format est contrôlé par la contrainte Regex
+        }
+
+        [$start, $end] = array_map('intval', explode('/', $this->name));
+        if ($end !== $start + 1) {
+            $context->buildViolation('La deuxième année doit être égale à la première année + 1 (ex. 2024/2025).')
+                ->atPath('name')
+                ->addViolation();
+        }
     }
 
     /**

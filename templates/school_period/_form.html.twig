@@ -1,10 +1,15 @@
 {{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+{{ form_errors(form) }}
 <div class="row">
     <div class="col-12-xxxl col-xl-4 col-sm-6 col-12 form-group">
         {{ form_label(form.name) }}
         {{ form_widget(form.name) }}
+        {{ form_errors(form.name) }}
+        {% if form.name.vars.disabled %}
+        <small class="form-text text-muted">Le nom de la période est verrouillé après création.</small>
+        {% endif %}
     </div>
-   
+
     <div class="col-12 form-group mg-t-8">
         <button type="submit" class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark">{{ button_label|default('Enregistrer') }}</button>
         <!-- <button type="reset" class="btn-fill-lg bg-blue-dark btn-hover-yellow">Reset</button> -->

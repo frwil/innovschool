@@ -13,7 +13,8 @@ class SchoolPeriodType extends AbstractType
     {
         $builder
             ->add('name', null, [
-                'label' => 'Nom',
+                'label'    => 'Nom',
+                'disabled' => $options['lock_name'],
             ])
         ;
     }
@@ -22,6 +23,7 @@ class SchoolPeriodType extends AbstractType
     {
         $resolver->setDefaults([
             'data_class' => SchoolPeriod::class,
+            'lock_name'  => false,
         ]);
     }
 }

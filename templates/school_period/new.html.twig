@@ -1,11 +1,26 @@
 {% extends 'base.html.twig' %}
 
-{% block title %}New SchoolPeriod{% endblock %}
+{% block title %}Nouvelle période scolaire{% endblock %}
 
 {% block body %}
-    <h1>Create new SchoolPeriod</h1>
+<twig:Breadcrumbs label="Nouvelle période scolaire" />
 
-    {{ include('school_period/_form.html.twig') }}
+{% for label, messages in app.flashes %}
+    {% for message in messages %}
+        <div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+    {% endfor %}
+{% endfor %}
 
-    <a href="{{ path('app_school_period_index') }}">back to list</a>
+<div class="card height-auto">
+    <div class="card-body">
+        <div class="mb-4 mt-3">
+            <a class="btn btn-lg btn-dark" href="{{ path('app_school_period_index') }}">Retour</a>
+        </div>
+
+        {{ include('school_period/_form.html.twig') }}
+    </div>
+</div>
 {% endblock %}

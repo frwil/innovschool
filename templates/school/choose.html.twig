@@ -109,7 +109,7 @@
         <form id="create-period-form" method="post" action="{{ path('period_create') }}">
             <div class="mb-3">
                 <label for="period_name" class="form-label">Nom de l'année scolaire</label>
-                <input type="text" name="name" id="period_name" class="form-control" required placeholder="Ex : 2024/2025">
+                <input type="text" name="name" id="period_name" class="form-control" required placeholder="Ex : 2024/2025" value="{{ suggestion|default('') }}">
             </div>
             <div class="mb-3">
                 <label for="enabled" class="form-label">Année scolaire par défaut ?</label>

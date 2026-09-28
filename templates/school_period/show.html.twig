@@ -12,8 +12,12 @@
                 <td>{{ school_period.id }}</td>
             </tr>
             <tr>
-                <th>Name</th>
+                <th>Nom</th>
                 <td>{{ school_period.name }}</td>
+            </tr>
+            <tr>
+                <th>Période précédente</th>
+                <td>{{ school_period.previousPeriod ? school_period.previousPeriod.name : '—' }}</td>
             </tr>
             <tr>
                 <th>Enabled</th>

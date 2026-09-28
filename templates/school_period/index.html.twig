@@ -5,12 +5,22 @@
 {% block body %}
 <twig:Breadcrumbs label="Gérer les périodes" />
 
+{% for label, messages in app.flashes %}
+    {% for message in messages %}
+        <div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+    {% endfor %}
+{% endfor %}
+
 <twig:Layout:ListAdd>
     <twig:block name="table">
         <table class="table display data-table text-nowrap">
             <thead>
                 <tr>
                     <th>Nom</th>
+                    <th>Période précédente</th>
                     <th>Actuelle</th>
                 </tr>
             </thead>
@@ -20,6 +30,7 @@
                     <td>
                         <a href="{{ path('app_school_period_edit', {'id': school_period.id}) }}">{{ school_period.name }}</a>
                     </td>
+                    <td>{{ school_period.previousPeriod ? school_period.previousPeriod.name : '—' }}</td>
                     <td>
                         {% if school_period.enabled %}
                         <span class="badge badge-success">Oui</span>
@@ -29,7 +40,7 @@
                         {% endif %}
                     </td>
                 </tr>
-               
+
                 {% endfor %}
             </tbody>
         </table>
