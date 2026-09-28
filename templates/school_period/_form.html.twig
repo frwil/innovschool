@@ -5,14 +5,39 @@
         {{ form_label(form.name) }}
         {{ form_widget(form.name) }}
         {{ form_errors(form.name) }}
-        {% if form.name.vars.disabled %}
+        {% if form.name.vars.attr.readonly|default(false) %}
+        <small class="form-text text-muted">Le nom est déterminé automatiquement : seule la successeure directe de la dernière période est acceptée.</small>
+        {% elseif form.name.vars.disabled %}
         <small class="form-text text-muted">Le nom de la période est verrouillé après création.</small>
         {% endif %}
     </div>
 
     <div class="col-12 form-group mg-t-8">
-        <button type="submit" class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark">{{ button_label|default('Enregistrer') }}</button>
+        <button type="submit" class="btn-fill-lg btn-gradient-yellow btn-hover-bluedark" data-submit-label="{{ button_label|default('Enregistrer') }}">{{ button_label|default('Enregistrer') }}</button>
         <!-- <button type="reset" class="btn-fill-lg bg-blue-dark btn-hover-yellow">Reset</button> -->
     </div>
 </div>
 {{ form_end(form) }}
+
+<script>
+(function () {
+    var form = document.getElementById('{{ form.vars.id }}');
+    if (!form) {
+        return;
+    }
+    form.addEventListener('submit', function (event) {
+        var btn = form.querySelector('button[type="submit"]');
+        if (!btn) {
+            return;
+        }
+        if (btn.dataset.submitting) {
+            // Déjà en cours : bloque les soumissions multiples (double-clic, touche Entrée, soumission programmatique)
+            event.preventDefault();
+            return;
+        }
+        btn.dataset.submitting = '1';
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ' + btn.dataset.submitLabel + '…';
+    });
+})();
+</script>

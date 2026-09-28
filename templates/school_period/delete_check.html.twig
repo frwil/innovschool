@@ -1,0 +1,110 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}Supprimer la période{% endblock %}
+
+{% block body %}
+<twig:Breadcrumbs label="Supprimer une période" />
+
+{% for label, messages in app.flashes %}
+    {% for message in messages %}
+        <div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="close" data-bs-dismiss="alert" aria-label="Fermer">&times;</button>
+        </div>
+    {% endfor %}
+{% endfor %}
+
+{% set total = 0 %}
+{% for count in counts %}
+    {% set total = total + count %}
+{% endfor %}
+
+<div class="card height-auto">
+    <div class="card-body">
+        <div class="mb-4 mt-3">
+            <a class="btn btn-lg btn-dark" href="{{ path('app_school_period_index') }}">Retour</a>
+        </div>
+
+        <h4>Supprimer la période <strong>{{ school_period.name }}</strong> ?</h4>
+
+        <table class="table display data-table text-nowrap">
+            <thead>
+                <tr>
+                    <th>Données liées</th>
+                    <th>Nombre</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for label, count in counts %}
+                <tr>
+                    <td>{{ label }}</td>
+                    <td>{{ count }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="table-active">
+                    <th>Total</th>
+                    <th>{{ total }}</th>
+                </tr>
+            </tbody>
+        </table>
+
+        {% if total > 0 %}
+        <div class="alert alert-danger" role="alert">
+            <strong>Attention :</strong> {{ total }} élément(s) lié(s) à cette période seront supprimés
+            définitivement (notes, inscriptions, présences, paiements…). Les élèves et les référentiels
+            partagés (matières, templates) ne sont pas affectés.
+        </div>
+
+        <form method="post" action="{{ path('app_school_period_delete', {'id': school_period.id}) }}" id="delete-force-form">
+            <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ school_period.id) }}">
+            <input type="hidden" name="force" value="1">
+            <div class="form-group">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="delete-confirm-checkbox" required>
+                    <label class="form-check-label" for="delete-confirm-checkbox">
+                        Je comprends que toutes les données liées seront supprimées définitivement.
+                    </label>
+                </div>
+            </div>
+            <div class="mt-3">
+                <button type="submit" class="btn btn-danger" data-submit-label="Forcer la suppression">Forcer la suppression</button>
+                <a class="btn btn-dark" href="{{ path('app_school_period_index') }}">Annuler</a>
+            </div>
+        </form>
+        {% else %}
+        <div class="alert alert-success" role="alert">
+            Aucune donnée n'est liée à cette période : la suppression est sans risque.
+        </div>
+
+        <form method="post" action="{{ path('app_school_period_delete', {'id': school_period.id}) }}" id="delete-force-form">
+            <input type="hidden" name="_token" value="{{ csrf_token('delete' ~ school_period.id) }}">
+            <button type="submit" class="btn btn-danger" data-submit-label="Supprimer">Supprimer</button>
+            <a class="btn btn-dark" href="{{ path('app_school_period_index') }}">Annuler</a>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+(function () {
+    var form = document.getElementById('delete-force-form');
+    if (!form) {
+        return;
+    }
+    form.addEventListener('submit', function (event) {
+        var btn = form.querySelector('button[type="submit"]');
+        if (!btn) {
+            return;
+        }
+        if (btn.dataset.submitting) {
+            // Déjà en cours : bloque les soumissions multiples (double-clic, touche Entrée, soumission programmatique)
+            event.preventDefault();
+            return;
+        }
+        btn.dataset.submitting = '1';
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ' + btn.dataset.submitLabel + '…';
+    });
+})();
+</script>
+{% endblock %}

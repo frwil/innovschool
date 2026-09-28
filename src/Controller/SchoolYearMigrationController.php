@@ -31,6 +31,7 @@ final class SchoolYearMigrationController extends AbstractController
 
     #[Route('', name: 'app_year_migration_index', methods: ['GET'])]
     public function index(
+        Request $request,
         SchoolPeriodRepository $periodRepo,
         MigrationLogRepository $logRepo,
         SessionInterface $session
@@ -45,6 +46,9 @@ final class SchoolYearMigrationController extends AbstractController
             'periods'  => $periodRepo->findAll(),
             'school'   => $school,
             'logs'     => $logRepo->findBySchool($school),
+            // Présélection quand le wizard est déclenché après la création d'une période
+            'source_period_id' => $request->query->getInt('source'),
+            'target_period_id' => $request->query->getInt('target'),
         ]);
     }
 

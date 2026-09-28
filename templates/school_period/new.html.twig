@@ -9,7 +9,7 @@
     {% for message in messages %}
         <div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
             {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+            <button type="button" class="close" data-bs-dismiss="alert" aria-label="Fermer">&times;</button>
         </div>
     {% endfor %}
 {% endfor %}
@@ -19,6 +19,12 @@
         <div class="mb-4 mt-3">
             <a class="btn btn-lg btn-dark" href="{{ path('app_school_period_index') }}">Retour</a>
         </div>
+
+        {% if previous_period %}
+        <p class="text-muted">La nouvelle période sera automatiquement liée à la période précédente : <strong>{{ previous_period.name }}</strong>.</p>
+        {% else %}
+        <p class="text-muted">Aucune période n'existe encore : cette première période ne sera liée à aucune précédente.</p>
+        {% endif %}
 
         {{ include('school_period/_form.html.twig') }}
     </div>

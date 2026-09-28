@@ -5,6 +5,15 @@
 {% block body %}
 <twig:Breadcrumbs label="Migration de nouvelle année scolaire" />
 
+{% for label, messages in app.flashes %}
+    {% for message in messages %}
+        <div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+    {% endfor %}
+{% endfor %}
+
 <div class="row">
     <div class="col-md-8 mx-auto">
         <div class="card">
@@ -30,7 +39,7 @@
                             <select name="source_period" class="form-select" required>
                                 <option value="">— Sélectionner —</option>
                                 {% for period in periods %}
-                                    <option value="{{ period.id }}">
+                                    <option value="{{ period.id }}" {% if source_period_id|default(0) == period.id %}selected{% endif %}>
                                         {{ period.name }}
                                         {% if period.enabled %}<span>(active)</span>{% endif %}
                                     </option>
@@ -44,7 +53,7 @@
                             <select name="target_period" class="form-select" required>
                                 <option value="">— Sélectionner —</option>
                                 {% for period in periods %}
-                                    <option value="{{ period.id }}">{{ period.name }}</option>
+                                    <option value="{{ period.id }}" {% if target_period_id|default(0) == period.id %}selected{% endif %}>{{ period.name }}</option>
                                 {% endfor %}
                             </select>
                             <div class="form-text">La nouvelle année scolaire à configurer. Créez-la d'abord si besoin.</div>

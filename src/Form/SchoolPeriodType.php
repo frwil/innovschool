@@ -15,6 +15,7 @@ class SchoolPeriodType extends AbstractType
             ->add('name', null, [
                 'label'    => 'Nom',
                 'disabled' => $options['lock_name'],
+                'attr'     => $options['readonly_name'] ? ['readonly' => 'readonly'] : [],
             ])
         ;
     }
@@ -22,8 +23,9 @@ class SchoolPeriodType extends AbstractType
     public function configureOptions(OptionsResolver $resolver): void
     {
         $resolver->setDefaults([
-            'data_class' => SchoolPeriod::class,
-            'lock_name'  => false,
+            'data_class'    => SchoolPeriod::class,
+            'lock_name'     => false,
+            'readonly_name' => false,
         ]);
     }
 }

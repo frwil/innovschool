@@ -9,7 +9,7 @@
     {% for message in messages %}
         <div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
             {{ message }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+            <button type="button" class="close" data-bs-dismiss="alert" aria-label="Fermer">&times;</button>
         </div>
     {% endfor %}
 {% endfor %}
@@ -22,6 +22,7 @@
                     <th>Nom</th>
                     <th>Période précédente</th>
                     <th>Actuelle</th>
+                    <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -39,6 +40,13 @@
                         <a class="btn btn-info" href="{{path('app_school_period_default', {id: school_period.id})}}">Définir par defaut</a>
                         {% endif %}
                     </td>
+                    <td>
+                        {# Seule la dernière période peut être supprimée : la vérification
+                           des données liées se fait sur la page dédiée. #}
+                        {% if latest is not null and school_period.id == latest.id %}
+                        <a class="btn btn-sm btn-danger" href="{{ path('app_school_period_delete_check', {'id': school_period.id}) }}">Supprimer</a>
+                        {% endif %}
+                    </td>
                 </tr>
 
                 {% endfor %}
@@ -46,6 +54,11 @@
         </table>
     </twig:block>
     <twig:block name="form">
+        {% if previous_period %}
+        <p class="text-muted">La nouvelle période sera automatiquement liée à la période précédente : <strong>{{ previous_period.name }}</strong>.</p>
+        {% else %}
+        <p class="text-muted">Aucune période n'existe encore : cette première période ne sera liée à aucune précédente.</p>
+        {% endif %}
         {{ include('school_period/_form.html.twig') }}
     </twig:block>
 </twig:Layout:ListAdd>
