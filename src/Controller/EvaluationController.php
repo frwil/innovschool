@@ -1087,22 +1087,19 @@ class EvaluationController extends AbstractController
 
         // Si on a plusieurs périodes, calculer les moyennes cumulatives
         if (count($evaluationTimes) > 1) {
+            $totalPeriodCount = count($evaluationTimes);
+
             // Calculer les moyennes par matière par élève sur toutes les périodes
             foreach ($allStudents as $student) {
                 $studentId = $student->getId();
-                $studentWeightedSum = 0;
-                $studentTotalCoef = 0;
 
                 // Initialiser les moyennes par matière pour cet élève
                 $cumulativeData['studentSubjectAverages'][$studentId] = [];
 
-                // Pour chaque matière
+                // --- CALCUL DES MOYENNES PARTIELLES PAR MATIÈRE ---
                 foreach ($classSubjectModules as $subjectId => $subjectData) {
                     $subjectTotalForAllPeriods = 0;
                     $periodsWithGrades = 0;
-
-                    // Récupérer le coefficient de la matière
-                    $subjectCoef = $subjectData['coef'] ?? 1;
 
                     // Calculer la moyenne de la matière sur toutes les périodes
                     foreach ($evaluationTimes as $time) {
@@ -1116,33 +1113,41 @@ class EvaluationController extends AbstractController
                             $classSubjectModules
                         );
 
-                        if ($subjectAverageForPeriod >= 0) {
+                        if ($subjectAverageForPeriod !== null) {
                             $subjectTotalForAllPeriods += $subjectAverageForPeriod;
                             $periodsWithGrades++;
                         }
                     }
 
-                    // Moyenne de la matière sur toutes les périodes (seulement si on a des notes)
-                    $subjectAverage = $periodsWithGrades > 0 ? ($subjectTotalForAllPeriods / $periodsWithGrades) : 0;
+                    // Moyenne PARTIELLE de la matière (basée uniquement sur les périodes notées)
+                    $subjectPartialAverage = $periodsWithGrades > 0 ? ($subjectTotalForAllPeriods / $periodsWithGrades) : 0;
 
-                    // Stocker la moyenne matière pour l'affichage
-                    $cumulativeData['studentSubjectAverages'][$studentId][$subjectId] = $subjectAverage;
+                    // Stocker la moyenne PARTIELLE pour l'affichage par matière
+                    $cumulativeData['studentSubjectAverages'][$studentId][$subjectId] = $subjectPartialAverage;
+                }
 
-                    // Calculer la moyenne pondérée (uniquement si la matière a une moyenne > 0)
-                    if ($subjectAverage >= 0) {
-                        if ($coefUsed) {
-                            $studentWeightedSum += ($subjectAverage * $subjectCoef);
-                            $studentTotalCoef += $subjectCoef;
-                        } else {
-                            $studentWeightedSum += $subjectAverage;
-                            $studentTotalCoef += 1;
-                        }
+                // --- CALCUL DE LA MOYENNE FINALE ET PARTIELLE ---
+                // Moyenne finale = somme des moyennes de chaque période / nombre TOTAL de périodes
+                // Moyenne partielle = somme des moyennes de chaque période / nombre de périodes complétées
+                // Les périodes sans note comptent pour 0 dans la somme
+                $sumOfPeriodAverages = 0;
+                $periodsWithStudentAverage = 0;
+                foreach ($evaluationTimes as $time) {
+                    $timeId = $time->getId();
+                    $periodAvg = $cumulativeData['studentAveragesByPeriod'][$studentId][$timeId] ?? 0;
+                    $sumOfPeriodAverages += $periodAvg;
+                    if ($periodAvg > 0) {
+                        $periodsWithStudentAverage++;
                     }
                 }
 
-                // Calculer la moyenne finale de l'élève (uniquement si on a des matières avec notes)
-                $studentAverage = $studentTotalCoef > 0 ? $studentWeightedSum / $studentTotalCoef : 0;
-                $cumulativeData['finalAverages'][$studentId] = $studentAverage;
+                // Moyenne FINALE : division par le nombre TOTAL de périodes
+                $finalAverage = $totalPeriodCount > 0 ? $sumOfPeriodAverages / $totalPeriodCount : 0;
+                $cumulativeData['finalAverages'][$studentId] = $finalAverage;
+
+                // Moyenne PARTIELLE : division par le nombre de périodes effectivement notées
+                $partialAverage = $periodsWithStudentAverage > 0 ? $sumOfPeriodAverages / $periodsWithStudentAverage : 0;
+                $cumulativeData['partialAverages'][$studentId] = $partialAverage;
             }
 
             // Calculer les rangs finaux pour TOUS les élèves ayant une moyenne > 0
@@ -1223,7 +1228,7 @@ class EvaluationController extends AbstractController
                             $periodData[$timeId]['evaluations'] ?? [],
                             $classSubjectModules
                         );
-                        $cumulativeData['studentSubjectAverages'][$studentId][$subjectId] = $subjectAverage;
+                        $cumulativeData['studentSubjectAverages'][$studentId][$subjectId] = $subjectAverage ?? 0;
                     }
                 }
 
@@ -1273,22 +1278,20 @@ class EvaluationController extends AbstractController
         ]);
     }
 
-    private function calculateSubjectAverageForPeriod($studentId, $subjectId, $evaluations, $classSubjectModules): float
+    private function calculateSubjectAverageForPeriod($studentId, $subjectId, $evaluations, $classSubjectModules): ?float
     {
         $subjectTotal = 0;
-        $moduleCount = 0;
         $modulesWithGrades = 0;
 
         // Vérifier si la matière existe dans les modules
         if (!isset($classSubjectModules[$subjectId])) {
-            return 0;
+            return null;
         }
 
         $subjectData = $classSubjectModules[$subjectId];
 
         foreach ($subjectData['modules'] as $module) {
             $moduleId = $module->getId();
-            $found = false;
             $moduleNote = 0;
 
             // Chercher l'évaluation pour ce module et cet élève
@@ -1298,28 +1301,24 @@ class EvaluationController extends AbstractController
                     $evaluation->getClassSubjectModule()->getId() == $moduleId
                 ) {
                     $moduleNote = $evaluation->getEvaluationNote();
-                    $found = true;
                     break;
                 }
             }
 
-            // Ajouter la note au total
-            $subjectTotal += $moduleNote;
-            $moduleCount++;
-
-            // Compter les modules avec des notes > 0
+            // Ajouter la note au total (uniquement si le module a une note > 0)
             if ($moduleNote > 0) {
+                $subjectTotal += $moduleNote;
                 $modulesWithGrades++;
             }
         }
 
-        // Si aucun module n'a de note > 0, retourner 0
+        // Si aucun module n'a de note > 0, retourner null pour indiquer l'absence de notes
         if ($modulesWithGrades == 0) {
-            return 0;
+            return null;
         }
 
-        // Calculer la moyenne (la note est déjà sur 20)
-        return $subjectTotal / $moduleCount;
+        // Calculer la moyenne en divisant uniquement par les modules qui ont des notes
+        return $subjectTotal / $modulesWithGrades;
     }
 
     private function calculateBordereauData($students, $classSubjectModules, $evaluations, bool $coefUsed = false): array
@@ -1370,6 +1369,10 @@ class EvaluationController extends AbstractController
             foreach ($classSubjectModules as $subjectId => $subjectData) {
                 $subjectTotal = 0;
                 $subjectModuleCount = 0;
+                // Compteurs pour les modules effectivement notés (note > 0)
+                $gradedSubjectTotal = 0;
+                $subjectGradedCount = 0;
+                $subjectGradedNotation = 0;
 
                 // Pour chaque module de la matière
                 foreach ($subjectData['modules'] as $module) {
@@ -1379,7 +1382,7 @@ class EvaluationController extends AbstractController
                     // Stocker la note du module
                     $studentNotes[$studentId][$moduleId] = $moduleNote;
 
-                    // Pour la moyenne de la matière : on somme les notes des modules
+                    // Pour la moyenne générale : on somme toutes les notes des modules
                     $subjectTotal += $moduleNote; // Note déjà sur 20
                     if ($coefUsed) {
                         $subjectModuleCount++;
@@ -1387,15 +1390,25 @@ class EvaluationController extends AbstractController
                         $subjectModuleCount += $module->getModuleNotation();
                         $studentTotalCoef += $module->getModuleNotation();
                     }
+
+                    // Pour la moyenne matière : on ne compte que les modules avec une note > 0
+                    if ($moduleNote > 0) {
+                        $gradedSubjectTotal += $moduleNote;
+                        if ($coefUsed) {
+                            $subjectGradedCount++;
+                        } else {
+                            $subjectGradedNotation += $module->getModuleNotation();
+                        }
+                    }
                 }
 
-                //dd($subjectModuleCount);
-
+                // Calculer la moyenne de la matière en ne divisant que par les modules notés
                 if ($coefUsed) {
-                    // Calculer la moyenne de la matière (déjà sur 20)
-                    $subjectAverage = $subjectModuleCount > 0 ? ($subjectTotal / $subjectModuleCount) : 0;
+                    // Mode coefficient : moyenne sur 20 (division par le nombre de modules notés)
+                    $subjectAverage = $subjectGradedCount > 0 ? ($gradedSubjectTotal / $subjectGradedCount) : 0;
                 } else {
-                    $subjectAverage = $subjectModuleCount > 0 ? ($subjectTotal / $subjectModuleCount) : 0;
+                    // Mode par défaut : moyenne pondérée ramenée sur 20
+                    $subjectAverage = $subjectGradedNotation > 0 ? ($gradedSubjectTotal / $subjectGradedNotation) * 20 : 0;
                 }
 
                 // Récupérer le coefficient de la matière depuis SchoolClassSubject
@@ -1418,14 +1431,13 @@ class EvaluationController extends AbstractController
                     $studentWeightedSum += ($subjectAverage * $subjectCoef);
                     $studentTotalCoef += $subjectCoef;
                 } else {
-                    // Mode par défaut : on somme simplement les moyennes des matières
+                    // Mode par défaut : on somme simplement les notes des modules
                     $studentWeightedSum += $subjectTotal;
-                    //foreach($subjectData['modules'] as $module)
-                    //$studentTotalCoef /=20; // Chaque matière compte pour 1 dans ce mode
                 }
 
-                // Mise à jour stats matière
-                if ($subjectModuleCount > 0) {
+                // Mise à jour stats matière (uniquement si la matière a des notes)
+                $hasGradedModules = $coefUsed ? ($subjectGradedCount > 0) : ($subjectGradedNotation > 0);
+                if ($hasGradedModules) {
                     $subjectStats[$subjectId]['total'] += $subjectAverage;
                     $subjectStats[$subjectId]['count']++;
                     $subjectStats[$subjectId]['max'] = max($subjectStats[$subjectId]['max'], $subjectAverage);

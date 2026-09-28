@@ -403,8 +403,8 @@
                 <td class="text-center">
                     {% if not multiplePeriods and periodData[evaluationTimes[0].id].studentAverages[student.id] is defined %}
                         {{ periodData[evaluationTimes[0].id].studentAverages[student.id]|number_format(2) }}
-                    {% elseif multiplePeriods and cumulativeData.finalAverages[student.id] is defined %}
-                        {{ cumulativeData.finalAverages[student.id]|number_format(2) }}
+                    {% elseif multiplePeriods and cumulativeData.partialAverages[student.id] is defined %}
+                        {{ cumulativeData.partialAverages[student.id]|number_format(2) }}
                     {% else %}
                         -
                     {% endif %}
