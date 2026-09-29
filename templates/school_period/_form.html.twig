@@ -1,4 +1,4 @@
-{{ form_start(form, {'attr': {'class': 'new-added-form'}}) }}
+{{ form_start(form, {'attr': {'class': 'new-added-form', 'id': form.vars.id}}) }}
 {{ form_errors(form) }}
 <div class="row">
     <div class="col-12-xxxl col-xl-4 col-sm-6 col-12 form-group">
@@ -25,19 +25,50 @@
     if (!form) {
         return;
     }
+
+    var btn = form.querySelector('button[type="submit"]');
+    if (!btn) {
+        return;
+    }
+
+    function disableButton() {
+        btn.dataset.submitting = '1';
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ' + btn.dataset.submitLabel + '…';
+    }
+
+    // Réactivation en cas d'erreur uniquement : remet le libellé d'origine
+    function enableButton() {
+        btn.dataset.submitting = '';
+        btn.disabled = false;
+        btn.innerHTML = btn.dataset.submitLabel;
+    }
+
     form.addEventListener('submit', function (event) {
-        var btn = form.querySelector('button[type="submit"]');
-        if (!btn) {
-            return;
-        }
         if (btn.dataset.submitting) {
             // Déjà en cours : bloque les soumissions multiples (double-clic, touche Entrée, soumission programmatique)
             event.preventDefault();
             return;
         }
-        btn.dataset.submitting = '1';
-        btn.disabled = true;
-        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ' + btn.dataset.submitLabel + '…';
+        disableButton();
+
+        // Filet de sécurité : si la page est toujours affichée après ce délai,
+        // la soumission n'a pas abouti (erreur réseau, serveur muet…) : on
+        // réactive le bouton pour permettre une nouvelle tentative. En cas de
+        // succès, la navigation a déjà vidé la page et ce timer ne s'exécute pas.
+        setTimeout(function () {
+            if (btn.dataset.submitting) {
+                enableButton();
+            }
+        }, 20000);
+    });
+
+    // Retour/avance du navigateur : la page restaurée depuis le cache fige
+    // l'état « désactivé + spinner », on le rétablit.
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted && btn.dataset.submitting) {
+            enableButton();
+        }
     });
 })();
 </script>
