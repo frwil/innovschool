@@ -76,7 +76,7 @@
                         <div class="small text-danger mt-1">En échec — à réessayer ou ignorer</div>
                     {% elseif st == 'skipped' %}
                         <span class="badge bg-secondary fs-6 w-100 py-2 text-decoration-line-through">{{ label }}</span>
-                        <div class="small text-muted mt-1">Ignorée</div>
+                        <div class="small text-muted mt-1">Ignorée{% if entry.message %} — {{ entry.message }}{% endif %}</div>
                     {% elseif blockedKeys[key]|default(false) %}
                         <span class="badge bg-dark fs-6 w-100 py-2"><i class="ti ti-lock me-1"></i>{{ label }}</span>
                         <div class="small text-muted mt-1">Bloquée (aucune classe cible)</div>
@@ -293,8 +293,8 @@
             </div>
             <div class="modal-body">
                 <p class="text-muted small mb-3">
-                    Cochez les classes dans lesquelles les élèves promus de
-                    <strong id="nextClassesModalClasse"></strong> peuvent être inscrits.
+                    Sélectionnez les occurrences de classe de l'année source dans lesquelles
+                    les élèves promus de <strong id="nextClassesModalClasse"></strong> peuvent être inscrits.
                 </p>
                 <div id="nextClassesModalBody"></div>
                 <div id="nextClassesModalMessage" class="mt-2"></div>
@@ -452,24 +452,35 @@
 
         var linked = linkedByIds[currentOccId] || [];
         var body = document.getElementById('nextClassesModalBody');
+        // Le select est recréé à chaque ouverture : détruire l'instance select2 précédente.
+        var previousSelect = document.getElementById('nextOccurencesSelect');
+        if (previousSelect && window.jQuery) {
+            window.jQuery(previousSelect).select2('destroy');
+        }
         body.innerHTML = '';
+
+        var optionsHtml = '';
         var count = 0;
         for (var id in occurencesForModal) {
             if (id === currentOccId) {
                 continue;
             }
             count++;
-            var checked = linked.indexOf(parseInt(id, 10)) !== -1 ? ' checked' : '';
-            var div = document.createElement('div');
-            div.className = 'form-check';
-            div.innerHTML =
-                '<input type="checkbox" class="form-check-input" id="next-occ-' + id + '" name="next_occurences[]" value="' + id + '"' + checked + '>' +
-                '<label class="form-check-label" for="next-occ-' + id + '">' + occurencesForModal[id] + '</label>';
-            body.appendChild(div);
+            var selected = linked.indexOf(parseInt(id, 10)) !== -1 ? ' selected' : '';
+            optionsHtml += '<option value="' + id + '"' + selected + '>' + occurencesForModal[id] + '</option>';
         }
         if (count === 0) {
-            body.innerHTML = '<div class="text-muted">Aucune autre classe à sélectionner.</div>';
+            body.innerHTML = '<div class="text-muted">Aucune autre occurrence à sélectionner.</div>';
+        } else {
+            body.innerHTML = '<select id="nextOccurencesSelect" name="next_occurences[]" multiple class="form-select"></select>';
+            document.getElementById('nextOccurencesSelect').innerHTML = optionsHtml;
+            window.jQuery('#nextOccurencesSelect').select2({
+                width: '100%',
+                placeholder: '— Choisir les classes suivantes —',
+                dropdownParent: window.jQuery('#nextClassesModal')
+            });
         }
+        document.getElementById('nextClassesModalSave').disabled = count === 0;
     });
 
     document.getElementById('nextClassesModalSave').addEventListener('click', function () {
@@ -481,8 +492,9 @@
 
         var params = new URLSearchParams();
         params.append('_token', currentCsrf || '');
-        modalEl.querySelectorAll('input[name="next_occurences[]"]:checked').forEach(function (input) {
-            params.append('next_occurences[]', input.value);
+        var values = window.jQuery('#nextOccurencesSelect').val() || [];
+        values.forEach(function (value) {
+            params.append('next_occurences[]', value);
         });
 
         fetch('/school-class-period/occurrence/' + currentOccId + '/next-occurrences', {

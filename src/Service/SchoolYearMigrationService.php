@@ -201,9 +201,14 @@ class SchoolYearMigrationService
                     'linkedIds'   => $config !== null ? array_map(fn(ClassOccurence $o) => $o->getId(), $config->getNextOccurences()->toArray()) : [],
                 ];
             }
+            // Occurrences liées à l'année source de l'école : seules les classes
+            // existant dans l'année source peuvent être proposées comme classes suivantes.
             $occurencesForModal = [];
-            foreach ($this->em->getRepository(ClassOccurence::class)->findAll() as $o) {
-                $occurencesForModal[$o->getId()] = $o->getName();
+            foreach ($this->em->getRepository(SchoolClassPeriod::class)->findBy(['school' => $school, 'period' => $log->getSourcePeriod()]) as $scp) {
+                $o = $scp->getClassOccurence();
+                if ($o !== null) {
+                    $occurencesForModal[$o->getId()] = $o->getName();
+                }
             }
             return [
                 'rows'               => $rows,
@@ -349,12 +354,28 @@ class SchoolYearMigrationService
                 $summary = $log->getConfigSummary();
                 $summary[$stepKey] = ($summary[$stepKey] ?? 0) + $createdCount;
                 $log->setConfigSummary($summary);
-                $this->setStepStatus($log, $stepKey, 'done', [
-                    'created'  => $createdCount,
-                    'existing' => $existingCount,
-                    'errors'   => 0,
-                    'message'  => sprintf('%d créé(s), %d déjà existant(s).', $createdCount, $existingCount),
-                ]);
+                if ($sourceTotal === 0) {
+                    // Rien à cloner dans la source : étape ignorée automatiquement.
+                    $this->setStepStatus($log, $stepKey, 'skipped', [
+                        'created'  => 0,
+                        'existing' => 0,
+                        'errors'   => 0,
+                        'message'  => '0 élément à traiter.',
+                    ]);
+                } else {
+                    $this->setStepStatus($log, $stepKey, 'done', [
+                        'created'  => $createdCount,
+                        'existing' => $existingCount,
+                        'errors'   => 0,
+                        'message'  => sprintf('%d créé(s), %d déjà existant(s).', $createdCount, $existingCount),
+                    ]);
+                }
+            }
+
+            // Les étapes suivantes sans élément à traiter sont ignorées automatiquement :
+            // le wizard saute directement à la prochaine étape ayant du contenu.
+            if ($stepKey !== 'students') {
+                $this->autoSkipEmptySteps($log);
             }
 
             $log->setCreatedIds($createdIds);
@@ -363,9 +384,7 @@ class SchoolYearMigrationService
 
             $conn->commit();
 
-            $result = $log->getStepsState()[$stepKey] ?? [];
-            $result['status'] = 'done';
-            return $result;
+            return $log->getStepsState()[$stepKey] ?? [];
 
         } catch (\Throwable $e) {
             $conn->rollBack();
@@ -396,6 +415,52 @@ class SchoolYearMigrationService
             'message' => 'Étape ignorée : la migration continue sans les données de cette étape.',
         ]);
         $this->em->flush();
+    }
+
+    /**
+     * Ignore automatiquement les étapes en attente qui n'ont rien à traiter
+     * (0 élément dans la période source), jusqu'à la première étape avec du
+     * contenu. L'étape Élèves n'est jamais ignorée automatiquement
+     * (prévisualisation et choix explicites). Retourne le nombre d'étapes ignorées.
+     */
+    public function autoSkipEmptySteps(MigrationLog $log): int
+    {
+        if ($log->getStatus() !== 'in_progress') {
+            return 0;
+        }
+        $skipped = 0;
+        foreach (self::STEPS as $key => $label) {
+            if ($key === 'students') {
+                break;
+            }
+            $state  = $log->getStepsState() ?? [];
+            $status = $state[$key]['status'] ?? 'pending';
+            if ($status !== 'pending') {
+                continue;
+            }
+            if ($this->countStepSourceElements($log->getSchool(), $log->getSourcePeriod(), $key) > 0) {
+                break;
+            }
+            $this->setStepStatus($log, $key, 'skipped', ['message' => '0 élément à traiter.']);
+            $skipped++;
+        }
+        if ($skipped > 0) {
+            $this->em->flush();
+        }
+        return $skipped;
+    }
+
+    /** Nombre d'éléments sources à cloner pour une étape (0 = rien à traiter). */
+    private function countStepSourceElements(School $school, SchoolPeriod $sourcePeriod, string $stepKey): int
+    {
+        return match ($stepKey) {
+            'subject_groups' => count($this->em->getRepository(SubjectGroup::class)->findBy(['school' => $school, 'period' => $sourcePeriod])),
+            'classes'        => count($this->em->getRepository(SchoolClassPeriod::class)->findBy(['school' => $school, 'period' => $sourcePeriod])),
+            'subjects'       => $this->sumSourceRelation($school, $sourcePeriod, 'getSchoolClassSubjects'),
+            'modules'        => $this->sumSourceRelation($school, $sourcePeriod, 'getClassSubjectModules'),
+            'payment_modals' => $this->sumSourceRelation($school, $sourcePeriod, 'getPaymentModals'),
+            default          => 0,
+        };
     }
 
     /** Clôture : statut executed, executedAt = maintenant, étapes encore pending marquées skipped. */

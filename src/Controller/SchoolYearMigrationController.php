@@ -115,6 +115,10 @@ final class SchoolYearMigrationController extends AbstractController
                 : $this->redirectToRoute('app_year_migration_manage', ['id' => $log->getId()]);
         }
 
+        // Les étapes en attente sans élément à traiter (0 dans la source) sont
+        // ignorées automatiquement : le wizard repart sur la prochaine étape utile.
+        $this->migrationService->autoSkipEmptySteps($log);
+
         $currentKey = $this->migrationService->getNextStepKey($log);
         $context    = $currentKey ? $this->migrationService->getStepContext($log, $currentKey) : [];
 
@@ -164,6 +168,8 @@ final class SchoolYearMigrationController extends AbstractController
             $label  = SchoolYearMigrationService::STEPS[$stepKey] ?? $stepKey;
             if ($result['status'] === 'done') {
                 $this->addFlash('success', sprintf('Étape « %s » réussie : %s', $label, $result['message']));
+            } elseif ($result['status'] === 'skipped') {
+                $this->addFlash('info', sprintf('Étape « %s » ignorée automatiquement : %s', $label, $result['message'] ?? '0 élément à traiter.'));
             } else {
                 $this->addFlash('danger', sprintf('Échec de l\'étape « %s » : %s', $label, $result['message']));
             }
