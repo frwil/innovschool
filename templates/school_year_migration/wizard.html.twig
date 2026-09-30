@@ -1,0 +1,512 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Migration assistée{% endblock %}
+
+{% block body %}
+<twig:Breadcrumbs label="Migration assistée" />
+
+{% for label, messages in app.flashes %}
+    {% for message in messages %}
+        <div class="alert alert-{{ label }} alert-dismissible fade show" role="alert">
+            {{ message }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fermer"></button>
+        </div>
+    {% endfor %}
+{% endfor %}
+
+{# ── En-tête ── #}
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <i class="ti ti-arrows-transfer-up me-2"></i>
+            Migration : <strong>{{ log.sourcePeriod.name }}</strong>
+            <i class="ti ti-arrow-right mx-1 text-muted"></i>
+            <strong>{{ log.targetPeriod.name }}</strong>
+        </h5>
+        <span class="badge bg-info fs-6">Brouillon</span>
+    </div>
+    <div class="card-body">
+        <div class="row g-3 text-center">
+            <div class="col-md-4">
+                <div class="text-muted small">Note de passage</div>
+                <div class="fw-bold">{{ log.passingGrade }}/20</div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Éléments à reconduire</div>
+                <div class="fw-bold">
+                    {% set activeOptions = log.options|filter(v => v)|length %}
+                    {{ activeOptions }} étape(s) activée(s)
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="text-muted small">Progression</div>
+                {% set doneCount = 0 %}
+                {% for key, label in steps %}
+                    {% if stepsState[key] is defined and stepsState[key].status in ['done', 'skipped'] %}
+                        {% set doneCount = doneCount + 1 %}
+                    {% endif %}
+                {% endfor %}
+                <div class="progress mt-2" style="height: 6px;">
+                    <div class="progress-bar" role="progressbar" style="width: {{ (doneCount / steps|length * 100)|round }}%;"></div>
+                </div>
+                <div class="small text-muted mt-1">{{ doneCount }}/{{ steps|length }} étape(s) traitée(s)</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{# ── Stepper des étapes ── #}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="ti ti-list-numbers me-2"></i>Étapes de la migration</h5>
+    </div>
+    <div class="card-body">
+        <div class="row g-3 text-center">
+            {% for key, label in steps %}
+                {% set entry = stepsState[key] ?? null %}
+                {% set st = entry ? entry.status : 'pending' %}
+                <div class="col-6 col-md-4 col-xl-2">
+                    {% if st == 'done' %}
+                        <span class="badge bg-success fs-6 w-100 py-2"><i class="ti ti-check me-1"></i>{{ label }}</span>
+                        <div class="small text-muted mt-1">
+                            +{{ entry.created }} créé(s){% if entry.existing > 0 %} · {{ entry.existing }} réutilisé(s){% endif %}
+                        </div>
+                    {% elseif st == 'failed' %}
+                        <span class="badge bg-danger fs-6 w-100 py-2"><i class="ti ti-x me-1"></i>{{ label }}</span>
+                        <div class="small text-danger mt-1">En échec — à réessayer ou ignorer</div>
+                    {% elseif st == 'skipped' %}
+                        <span class="badge bg-secondary fs-6 w-100 py-2 text-decoration-line-through">{{ label }}</span>
+                        <div class="small text-muted mt-1">Ignorée</div>
+                    {% elseif blockedKeys[key]|default(false) %}
+                        <span class="badge bg-dark fs-6 w-100 py-2"><i class="ti ti-lock me-1"></i>{{ label }}</span>
+                        <div class="small text-muted mt-1">Bloquée (aucune classe cible)</div>
+                    {% elseif key == currentKey %}
+                        <span class="badge bg-primary fs-6 w-100 py-2"><i class="ti ti-player-play me-1"></i>{{ label }}</span>
+                        <div class="small text-muted mt-1">Étape courante</div>
+                    {% else %}
+                        <span class="badge bg-secondary fs-6 w-100 py-2">{{ label }}</span>
+                        <div class="small text-muted mt-1">En attente</div>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{# ── Étape courante ── #}
+{% if currentKey %}
+<div class="card mb-4 border-primary">
+    <div class="card-header">
+        <h5 class="mb-0">
+            <i class="ti ti-playlist-add me-2"></i>
+            Étape : {{ steps[currentKey] }}
+        </h5>
+    </div>
+    <div class="card-body">
+
+        {% if stepsState[currentKey] is defined and stepsState[currentKey].status == 'failed' %}
+        <div class="alert alert-danger">
+            <i class="ti ti-alert-triangle me-2"></i>
+            <strong>Cette étape a échoué :</strong> {{ stepsState[currentKey].message }}
+        </div>
+        {% endif %}
+
+        <form id="wizard-step-form" method="POST"
+              action="{{ path('app_year_migration_step_execute', {id: log.id, stepKey: currentKey}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('wizard_step_' ~ log.id) }}">
+
+            {% if currentKey == 'students' %}
+
+                {% if context.rows is empty %}
+                    <div class="alert alert-warning">
+                        <i class="ti ti-alert-circle me-2"></i>
+                        Aucune classe trouvée pour la période source. Vérifiez que des classes ont été configurées.
+                    </div>
+                {% else %}
+                    <p class="text-muted">
+                        <i class="ti ti-info-circle me-2"></i>
+                        Les promus sont inscrits dans les <strong>classes suivantes</strong> configurées sur chaque
+                        classe concrète (occurrence). Si plusieurs classes suivantes sont possibles, le choix est
+                        requis : les promus d'une classe sans choix restent non affectés. Une classe sans lien
+                        bloque l'étape — utilisez le bouton <em>Configurer</em>. Les redoublants restent dans la
+                        classe équivalente.
+                    </p>
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Classe source</th>
+                                    <th class="text-center">Total élèves</th>
+                                    <th class="text-center text-success">Promus (&ge; {{ log.passingGrade }})</th>
+                                    <th class="text-center text-danger">Redoublants (&lt; {{ log.passingGrade }})</th>
+                                    <th>Classe cible pour les promus</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for row in context.rows %}
+                                <tr>
+                                    <td><strong>{{ row.preview.className }}</strong></td>
+                                    <td class="text-center">{{ row.preview.total }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-success fs-6">{{ row.preview.eligible }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-danger fs-6">{{ row.preview.nonEligible }}</span>
+                                    </td>
+                                    <td>
+                                        {% if row.preview.eligible == 0 %}
+                                            <span class="text-muted">—</span>
+                                        {% elseif row.finalLevel %}
+                                            <span class="badge bg-info fs-6"><i class="ti ti-flag me-1"></i>Niveau final</span>
+                                            <div class="form-text">Sortants : les promus ne sont pas inscrits.</div>
+                                        {% elseif row.missingLink %}
+                                            <span class="badge bg-danger fs-6">Configuration requise</span>
+                                            {% if row.occId %}
+                                            <button type="button" class="btn btn-sm btn-outline-primary ms-1"
+                                                    data-bs-toggle="modal" data-bs-target="#nextClassesModal"
+                                                    data-occ-id="{{ row.occId }}"
+                                                    data-occ-name="{{ row.occName }}"
+                                                    data-csrf="{{ csrf_token('occ_next_' ~ row.occId) }}">
+                                                <i class="ti ti-settings me-1"></i>Configurer les classes suivantes
+                                            </button>
+                                            {% endif %}
+                                            <div class="form-text">L'étape est bloquée tant que les classes suivantes ne sont pas définies.</div>
+                                        {% elseif row.candidates is empty %}
+                                            <select name="class_mapping[{{ row.sourceSCPId }}]" class="form-select form-select-sm" disabled>
+                                                <option value="">— Choisir la classe suivante —</option>
+                                            </select>
+                                            <div class="form-text">
+                                                Aucune classe suivante dans la période cible : les promus seront comptés non affectés.
+                                            </div>
+                                        {% else %}
+                                            <select name="class_mapping[{{ row.sourceSCPId }}]" class="form-select form-select-sm">
+                                                <option value="">— Choisir la classe suivante —</option>
+                                                {% for targetId, targetName in row.candidates %}
+                                                    <option value="{{ targetId }}"
+                                                        {% if row.selected == targetId %}selected{% endif %}>
+                                                        {{ targetName }}
+                                                    </option>
+                                                {% endfor %}
+                                            </select>
+                                            {% if row.candidates|length > 1 %}
+                                                <span class="badge bg-warning text-dark mt-1"><i class="ti ti-alert-triangle me-1"></i>Choix requis</span>
+                                            {% endif %}
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% if row.preview.studentStats is not empty %}
+                                <tr class="table-secondary">
+                                    <td colspan="5" class="py-1">
+                                        <a class="text-decoration-none small" data-bs-toggle="collapse"
+                                           href="#wizard-students-{{ row.sourceSCPId }}">
+                                            <i class="ti ti-chevron-down me-1"></i>
+                                            Voir le détail des {{ row.preview.total }} élèves
+                                        </a>
+                                        <div class="collapse mt-2" id="wizard-students-{{ row.sourceSCPId }}">
+                                            <table class="table table-sm mb-0">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Élève</th>
+                                                        <th class="text-center">Moyenne</th>
+                                                        <th class="text-center">Statut</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {% for stat in row.preview.studentStats %}
+                                                    <tr>
+                                                        <td>
+                                                            {{ stat.student.firstName ?? '' }} {{ stat.student.lastName ?? stat.student.username }}
+                                                        </td>
+                                                        <td class="text-center">
+                                                            {% if stat.average is not null %}
+                                                                <strong class="{{ stat.eligible ? 'text-success' : 'text-danger' }}">
+                                                                    {{ stat.average|number_format(2, ',') }}/20
+                                                                </strong>
+                                                            {% else %}
+                                                                <span class="text-muted">—</span>
+                                                            {% endif %}
+                                                        </td>
+                                                        <td class="text-center">
+                                                            {% if stat.eligible %}
+                                                                <span class="badge bg-success">Promu</span>
+                                                            {% else %}
+                                                                <span class="badge bg-danger">Redoublant</span>
+                                                            {% endif %}
+                                                        </td>
+                                                    </tr>
+                                                    {% endfor %}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+
+            {% else %}
+                <div class="alert alert-secondary">
+                    <i class="ti ti-info-circle me-2"></i>
+                    <strong>{{ context.sourceCount }}</strong> élément(s) source à traiter.
+                    Ceux déjà présents dans la période cible seront réutilisés (aucun doublon ne sera créé).
+                </div>
+            {% endif %}
+        </form>
+
+        {% if canSkip %}
+        <form id="wizard-skip-form" method="POST"
+              action="{{ path('app_year_migration_step_skip', {id: log.id, stepKey: currentKey}) }}">
+            <input type="hidden" name="_token" value="{{ csrf_token('wizard_skip_' ~ log.id) }}">
+        </form>
+        {% endif %}
+
+        <div class="d-flex gap-2 flex-wrap mt-3">
+            <button type="submit" form="wizard-step-form" id="wizard-step-submit"
+                    class="btn btn-success" data-submit-label="Exécution en cours">
+                <i class="ti ti-player-play me-1"></i>
+                {{ stepsState[currentKey] is defined and stepsState[currentKey].status == 'failed' ? 'Réessayer cette étape' : 'Exécuter cette étape' }}
+            </button>
+            {% if canSkip %}
+            <button type="submit" form="wizard-skip-form" class="btn btn-outline-warning"
+                    onclick="return confirm('Continuer sans les données de cette étape ? Les éléments manquants devront être créés manuellement.')">
+                <i class="ti ti-arrow-right me-1"></i>
+                Continuer avec ce qui a réussi
+            </button>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+{% endif %}
+
+{# ── Modal : configurer les classes suivantes (étape Élèves) ── #}
+{% if currentKey == 'students' and context.rows is not empty %}
+<div class="modal fade" id="nextClassesModal" tabindex="-1" aria-labelledby="nextClassesModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="nextClassesModalLabel">Classes suivantes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">
+                    Cochez les classes dans lesquelles les élèves promus de
+                    <strong id="nextClassesModalClasse"></strong> peuvent être inscrits.
+                </p>
+                <div id="nextClassesModalBody"></div>
+                <div id="nextClassesModalMessage" class="mt-2"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-primary" id="nextClassesModalSave">
+                    <i class="ti ti-check me-1"></i>Enregistrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+<script type="application/json" id="occurencesForModalData">{{ context.occurencesForModal|json_encode|raw }}</script>
+<script type="application/json" id="linkedIdsData">
+{%- set linkedMap = {} -%}
+{%- for row in context.rows -%}
+    {%- if row.occId -%}
+        {%- set linkedMap = linkedMap|merge({(row.occId): row.linkedIds}) -%}
+    {%- endif -%}
+{%- endfor -%}
+{{ linkedMap|json_encode|raw }}</script>
+{% endif %}
+
+{# ── Clôture ── #}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0"><i class="ti ti-flag me-2"></i>Terminer la migration</h5>
+    </div>
+    <div class="card-body">
+        {% if canFinish %}
+            {% if currentKey is null %}
+                <div class="alert alert-success">
+                    <i class="ti ti-circle-check me-2"></i>
+                    Toutes les étapes exécutables ont été traitées. Vous pouvez terminer la migration.
+                </div>
+            {% else %}
+                <div class="alert alert-warning">
+                    <i class="ti ti-alert-triangle me-2"></i>
+                    <strong>Attention :</strong> des étapes restent en attente{% if blockedKeys|length > 0 %}
+                    et certaines sont bloquées faute de classes dans la période cible{% endif %}.
+                    En terminant maintenant, les étapes non exécutées seront marquées « ignorées » et les
+                    élèves non affectés ne seront pas inscrits.
+                </div>
+            {% endif %}
+            <form method="POST" action="{{ path('app_year_migration_wizard_finish', {id: log.id}) }}"
+                  onsubmit="return confirm('Terminer la migration ? Les étapes non exécutées seront marquées « ignorées ».')">
+                <input type="hidden" name="_token" value="{{ csrf_token('wizard_finish_' ~ log.id) }}">
+                <button type="submit" class="btn btn-primary">
+                    <i class="ti ti-flag me-1"></i>Terminer la migration
+                </button>
+            </form>
+        {% else %}
+            <div class="alert alert-danger">
+                <i class="ti ti-alert-triangle me-2"></i>
+                Une étape est en échec : réessayez-la, ou choisissez « Continuer avec ce qui a réussi ».
+                La progression vers l'étape suivante n'est possible que si l'échec est résolu.
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{# ── Annulation ── #}
+<div class="card border-danger mb-4">
+    <div class="card-header bg-danger text-white">
+        <h6 class="mb-0"><i class="ti ti-trash me-2"></i>Zone d'annulation</h6>
+    </div>
+    <div class="card-body">
+        <p class="text-muted">
+            L'annulation supprimera définitivement tout ce qui a été créé par cette migration
+            (groupes de matières, classes, matières, modules, modalités, inscriptions) — uniquement
+            si aucune note n'a été saisie sur les élèves migrés.
+        </p>
+        <form method="POST" action="{{ path('app_year_migration_wizard_cancel', {id: log.id}) }}"
+              onsubmit="return confirm('Annuler la migration et supprimer tout ce qui a été créé ? Vous pourrez recommencer à zéro.')">
+            <input type="hidden" name="_token" value="{{ csrf_token('cancel_migration_' ~ log.id) }}">
+            <button type="submit" class="btn btn-danger">
+                <i class="ti ti-trash me-1"></i>Tout annuler et recommencer
+            </button>
+            <a href="{{ path('app_year_migration_index') }}" class="btn btn-light ms-2">
+                <i class="ti ti-arrow-left me-1"></i>Retour à l'accueil des migrations
+            </a>
+        </form>
+    </div>
+</div>
+
+<script>
+(function () {
+    var form = document.getElementById('wizard-step-form');
+    var btn  = document.getElementById('wizard-step-submit');
+    if (!form || !btn) {
+        return;
+    }
+
+    var label = btn.dataset.submitLabel;
+
+    function disableButton() {
+        btn.dataset.submitting = '1';
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> ' + label + '…';
+    }
+
+    function enableButton() {
+        btn.dataset.submitting = '';
+        btn.disabled = false;
+        btn.innerHTML = btn.getAttribute('data-original');
+    }
+
+    btn.setAttribute('data-original', btn.innerHTML);
+
+    form.addEventListener('submit', function (event) {
+        if (btn.dataset.submitting) {
+            // Déjà en cours : bloque les soumissions multiples (double-clic, touche Entrée)
+            event.preventDefault();
+            return;
+        }
+        disableButton();
+
+        // Filet de sécurité : si la page est toujours affichée après ce délai,
+        // la soumission n'a pas abouti (erreur réseau, serveur muet…) : on réactive.
+        setTimeout(function () {
+            if (btn.dataset.submitting) {
+                enableButton();
+            }
+        }, 20000);
+    });
+
+    window.addEventListener('pageshow', function (event) {
+        if (event.persisted && btn.dataset.submitting) {
+            enableButton();
+        }
+    });
+})();
+</script>
+<script>
+(function () {
+    var modalEl = document.getElementById('nextClassesModal');
+    if (!modalEl) {
+        return;
+    }
+
+    var occurencesForModal = JSON.parse(document.getElementById('occurencesForModalData').textContent || '{}');
+    var linkedByIds = JSON.parse(document.getElementById('linkedIdsData').textContent || '{}');
+    var currentOccId = null;
+    var currentCsrf = null;
+
+    modalEl.addEventListener('show.bs.modal', function (event) {
+        var trigger = event.relatedTarget;
+        currentOccId = trigger ? trigger.getAttribute('data-occ-id') : null;
+        currentCsrf = trigger ? trigger.getAttribute('data-csrf') : null;
+
+        document.getElementById('nextClassesModalClasse').textContent =
+            trigger ? trigger.getAttribute('data-occ-name') : '';
+        document.getElementById('nextClassesModalMessage').innerHTML = '';
+
+        var linked = linkedByIds[currentOccId] || [];
+        var body = document.getElementById('nextClassesModalBody');
+        body.innerHTML = '';
+        var count = 0;
+        for (var id in occurencesForModal) {
+            if (id === currentOccId) {
+                continue;
+            }
+            count++;
+            var checked = linked.indexOf(parseInt(id, 10)) !== -1 ? ' checked' : '';
+            var div = document.createElement('div');
+            div.className = 'form-check';
+            div.innerHTML =
+                '<input type="checkbox" class="form-check-input" id="next-occ-' + id + '" name="next_occurences[]" value="' + id + '"' + checked + '>' +
+                '<label class="form-check-label" for="next-occ-' + id + '">' + occurencesForModal[id] + '</label>';
+            body.appendChild(div);
+        }
+        if (count === 0) {
+            body.innerHTML = '<div class="text-muted">Aucune autre classe à sélectionner.</div>';
+        }
+    });
+
+    document.getElementById('nextClassesModalSave').addEventListener('click', function () {
+        var btn = this;
+        if (!currentOccId) {
+            return;
+        }
+        btn.disabled = true;
+
+        var params = new URLSearchParams();
+        params.append('_token', currentCsrf || '');
+        modalEl.querySelectorAll('input[name="next_occurences[]"]:checked').forEach(function (input) {
+            params.append('next_occurences[]', input.value);
+        });
+
+        fetch('/school-class-period/occurrence/' + currentOccId + '/next-occurrences', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString()
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (data.ok) {
+                bootstrap.Modal.getInstance(modalEl).hide();
+                location.reload();
+            } else {
+                document.getElementById('nextClassesModalMessage').innerHTML =
+                    '<div class="alert alert-danger mb-0">' + data.message + '</div>';
+                btn.disabled = false;
+            }
+        })
+        .catch(function () {
+            document.getElementById('nextClassesModalMessage').innerHTML =
+                '<div class="alert alert-danger mb-0">Erreur réseau. Réessayez.</div>';
+            btn.disabled = false;
+        });
+    });
+})();
+</script>
+{% endblock %}

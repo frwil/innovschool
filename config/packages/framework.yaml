@@ -19,6 +19,12 @@ framework:
     php_errors:
         log: true
 
+    assets:
+        # Cache-busting : suffixe l'URL des assets (?20260930) pour forcer le
+        # navigateur à les recharger après une mise à jour (nginx les sert
+        # avec « expires 30d »). À incrémenter à chaque modification de CSS/JS.
+        version: '20260930'
+
 when@test:
     framework:
         test: true

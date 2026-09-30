@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Entity\ClassOccurence;
 use App\Entity\ClassSubjectModule;
 use App\Entity\Evaluation;
 use App\Entity\MigrationLog;
@@ -16,6 +17,19 @@ use Doctrine\ORM\EntityManagerInterface;
 
 class SchoolYearMigrationService
 {
+    /** Étapes du wizard, dans l'ordre d'exécution. Les clés correspondent aux options de la config. */
+    public const STEPS = [
+        'subject_groups' => 'Groupes de matières',
+        'classes'        => 'Classes',
+        'subjects'       => 'Matières & enseignants',
+        'modules'        => 'Modules',
+        'payment_modals' => 'Modalités de paiement',
+        'students'       => 'Élèves',
+    ];
+
+    /** Étapes qui nécessitent des classes dans la période cible pour être exécutées. */
+    private const CLASS_DEPENDENT_STEPS = ['subjects', 'modules', 'payment_modals', 'students'];
+
     public function __construct(private EntityManagerInterface $em) {}
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -59,142 +73,518 @@ class SchoolYearMigrationService
     }
 
     // ─────────────────────────────────────────────────────────────────────────
-    // EXECUTE (remplace migrateConfiguration + migrateStudents)
-    // Enveloppe tout dans une transaction et crée le MigrationLog.
+    // WIZARD PAR ÉTAPES
+    // Le brouillon (MigrationLog en statut « in_progress ») porte tout l'état :
+    // options, createdIds cumulés (base de l'annulation), stepsState par étape
+    // et les maps internes (_group_map / _class_map) nécessaires aux étapes suivantes.
     // ─────────────────────────────────────────────────────────────────────────
 
-    public function executeMigration(
+    /**
+     * Crée un brouillon in_progress, ou reprend le plus récent pour le même
+     * école/source/cible (la config soumise est alors ignorée).
+     */
+    public function startMigration(
         School $school,
         SchoolPeriod $sourcePeriod,
         SchoolPeriod $targetPeriod,
         float $passingGrade,
         array $options,
-        array $classMapping,
         string $executedBy
     ): MigrationLog {
+        $existing = $this->em->getRepository(MigrationLog::class)->findOneBy([
+            'school'       => $school,
+            'sourcePeriod' => $sourcePeriod,
+            'targetPeriod' => $targetPeriod,
+            'status'       => 'in_progress',
+        ], ['id' => 'DESC']);
+
+        if ($existing) {
+            return $existing;
+        }
+
+        $log = new MigrationLog();
+        $log->setSchool($school)
+            ->setSourcePeriod($sourcePeriod)
+            ->setTargetPeriod($targetPeriod)
+            ->setPassingGrade($passingGrade)
+            ->setOptions($options)
+            ->setExecutedBy($executedBy)
+            ->setStatus('in_progress')
+            // Les 6 clés toujours initialisées (manage.html.twig et checkMigrationState les lisent)
+            ->setCreatedIds([
+                'subjectGroups'       => [],
+                'schoolClassPeriods'  => [],
+                'schoolClassSubjects' => [],
+                'classSubjectModules' => [],
+                'paymentModals'       => [],
+                'studentClasses'      => [],
+            ]);
+
+        $stepsState = [];
+        foreach (self::STEPS as $key => $label) {
+            // L'étape élèves n'a pas d'option : toujours en attente.
+            $stepsState[$key] = ($key !== 'students' && empty($options[$key] ?? null))
+                ? $this->initStepState('skipped', 'Option non sélectionnée.')
+                : $this->initStepState('pending');
+        }
+        $log->setStepsState($stepsState);
+
+        $this->em->persist($log);
+        $this->em->flush();
+
+        return $log;
+    }
+
+    /** Prochaine étape à exécuter (pending ou failed) ; null si le wizard est terminé. Les étapes bloquées sont sautées. */
+    public function getNextStepKey(MigrationLog $log): ?string
+    {
+        $state = $log->getStepsState() ?? [];
+        foreach (self::STEPS as $key => $label) {
+            $status = $state[$key]['status'] ?? 'pending';
+            if ($status === 'pending' || $status === 'failed') {
+                return $this->isStepBlocked($log, $key) ? null : $key;
+            }
+        }
+        return null;
+    }
+
+    /** Entrée stepsState d'une étape (compteurs + message), pour afficher le résultat de la dernière exécution. */
+    public function getStepResult(MigrationLog $log, string $stepKey): ?array
+    {
+        $state = $log->getStepsState() ?? [];
+        return $state[$stepKey] ?? null;
+    }
+
+    /** true si l'étape dépend des classes et qu'aucune classe n'existe dans la période cible. */
+    public function isStepBlocked(MigrationLog $log, string $stepKey): bool
+    {
+        if (!in_array($stepKey, self::CLASS_DEPENDENT_STEPS, true)) {
+            return false;
+        }
+        return !$this->hasTargetClasses($log->getSchool(), $log->getTargetPeriod());
+    }
+
+    /** Données de rendu de l'étape courante (page wizard). */
+    public function getStepContext(MigrationLog $log, string $stepKey): array
+    {
+        $school = $log->getSchool();
+
+        if ($stepKey === 'students') {
+            $preview = $this->previewStudentMigration($school, $log->getSourcePeriod(), $log->getPassingGrade());
+            $targetByOccurence = $this->getTargetSCPsByOccurence($school, $log->getTargetPeriod());
+            $rows = [];
+            foreach ($preview as $row) {
+                $sourceSCP = $row['schoolClassPeriod'];
+                $occurence = $sourceSCP->getClassOccurence();
+                // Candidats = classes de la période cible dont l'occurrence est une
+                // occurrence suivante (promotion) de l'occurrence source.
+                $candidates = [];
+                if ($occurence !== null) {
+                    foreach ($occurence->getNextOccurences() as $nextOccurence) {
+                        foreach ($targetByOccurence[$nextOccurence->getId()] ?? [] as $targetSCP) {
+                            $candidates[$targetSCP->getId()] = $targetSCP->getClassOccurence()?->getName() ?? '(ID ' . $targetSCP->getId() . ')';
+                        }
+                    }
+                }
+                $rows[] = [
+                    'preview'     => $row,
+                    'sourceSCPId' => $sourceSCP->getId(),
+                    'occId'       => $occurence?->getId(),
+                    'occName'     => $occurence?->getName(),
+                    'candidates'  => $candidates,
+                    // Pré-sélection uniquement s'il n'y a qu'une seule occurrence suivante.
+                    'selected'    => count($candidates) === 1 ? array_key_first($candidates) : null,
+                    'missingLink' => $occurence === null || $occurence->getNextOccurences()->isEmpty(),
+                    'finalLevel'  => $occurence !== null && $occurence->isFinalLevel(),
+                    'linkedIds'   => $occurence !== null ? array_map(fn(ClassOccurence $o) => $o->getId(), $occurence->getNextOccurences()->toArray()) : [],
+                ];
+            }
+            $occurencesForModal = [];
+            foreach ($this->em->getRepository(ClassOccurence::class)->findAll() as $o) {
+                $occurencesForModal[$o->getId()] = $o->getName();
+            }
+            return [
+                'rows'               => $rows,
+                'occurencesForModal' => $occurencesForModal,
+                'hasTargetClasses'   => $this->hasTargetClasses($school, $log->getTargetPeriod()),
+            ];
+        }
+
+        return ['sourceCount' => $this->countSourceItems($school, $log->getSourcePeriod(), $stepKey)];
+    }
+
+    /**
+     * Exécute UNE étape dans sa propre transaction, met à jour createdIds +
+     * stepsState, puis retourne le résultat (compteurs + message).
+     *
+     * @param array<int, mixed> $classMapping mapping explicite classe source => classe cible (étape classes/students)
+     * @return array{status: string, created: int, existing: int, errors: int, message: string}
+     */
+    public function executeStep(MigrationLog $log, string $stepKey, array $classMapping = []): array
+    {
+        // Gardes avant transaction (anti double-clic / rejeu)
+        if ($log->getStatus() !== 'in_progress') {
+            throw new \LogicException('La migration n\'est plus modifiable.');
+        }
+        if (!isset(self::STEPS[$stepKey])) {
+            throw new \InvalidArgumentException('Étape inconnue : ' . $stepKey);
+        }
+        $state   = $log->getStepsState() ?? [];
+        $current = $state[$stepKey]['status'] ?? 'pending';
+        if ($current !== 'pending' && $current !== 'failed') {
+            throw new \LogicException('Cette étape a déjà été exécutée.');
+        }
+        if ($this->isStepBlocked($log, $stepKey)) {
+            throw new \LogicException('Aucune classe cible disponible : impossible d\'exécuter cette étape.');
+        }
+
+        $school       = $log->getSchool();
+        $sourcePeriod = $log->getSourcePeriod();
+        $targetPeriod = $log->getTargetPeriod();
+
+        // Garde liens de succession : toute occurrence source ayant au moins un élève
+        // éligible doit avoir ses occurrences suivantes configurées (sauf niveau final).
+        if ($stepKey === 'students') {
+            $missing = [];
+            foreach ($this->previewStudentMigration($school, $sourcePeriod, $log->getPassingGrade()) as $row) {
+                if ($row['eligible'] > 0) {
+                    $occurence = $row['schoolClassPeriod']->getClassOccurence();
+                    if ($occurence !== null && !$occurence->isFinalLevel() && $occurence->getNextOccurences()->isEmpty()) {
+                        $missing[] = $occurence->getName();
+                    }
+                }
+            }
+            if ($missing) {
+                throw new \LogicException('Configurez les classes suivantes pour : ' . implode(', ', array_unique($missing)));
+            }
+        }
+
         $conn = $this->em->getConnection();
         $conn->beginTransaction();
 
         try {
-            $created = [
-                'subjectGroups'      => [],
-                'schoolClassPeriods' => [],
-                'schoolClassSubjects'=> [],
-                'classSubjectModules'=> [],
-                'paymentModals'      => [],
-                'studentClasses'     => [],
-            ];
+            $sourceTotal   = 0;
+            $entities      = [];   // entités de configuration créées par cette étape
+            $groupMap      = null; // map matière-groupe produite par l'étape (persistée après flush)
+            $classMap      = null; // map classes produite par l'étape (persistée après flush)
+            $studentResult = null; // compteurs élèves (étape students uniquement)
 
-            // ── Configuration ────────────────────────────────────────────────
-            $configSummary = [
-                'subject_groups'  => 0,
-                'classes'         => 0,
-                'subjects'        => 0,
-                'modules'         => 0,
-                'payment_modals'  => 0,
-            ];
-
-            $groupMap = [];
-            if ($options['subject_groups'] ?? true) {
-                [$groupMap, $groupEntities] = $this->cloneSubjectGroups($school, $sourcePeriod, $targetPeriod);
-                $configSummary['subject_groups'] = count($groupEntities);
+            switch ($stepKey) {
+                case 'subject_groups':
+                    $sourceTotal = count($this->em->getRepository(SubjectGroup::class)->findBy(['school' => $school, 'period' => $sourcePeriod]));
+                    [$groupMap, $entities] = $this->cloneSubjectGroups($school, $sourcePeriod, $targetPeriod);
+                    break;
+                case 'classes':
+                    $sourceTotal = count($this->em->getRepository(SchoolClassPeriod::class)->findBy(['school' => $school, 'period' => $sourcePeriod]));
+                    [$classMap, $entities] = $this->cloneClasses($school, $sourcePeriod, $targetPeriod, $classMapping);
+                    break;
+                case 'subjects':
+                    $sourceTotal = $this->sumSourceRelation($school, $sourcePeriod, 'getSchoolClassSubjects');
+                    [, $entities] = $this->cloneSubjects($this->loadClassMap($log), $this->loadGroupMap($log));
+                    break;
+                case 'modules':
+                    $sourceTotal = $this->sumSourceRelation($school, $sourcePeriod, 'getClassSubjectModules');
+                    [, $entities] = $this->cloneModules($school, $sourcePeriod, $targetPeriod, $this->loadClassMap($log));
+                    break;
+                case 'payment_modals':
+                    $sourceTotal = $this->sumSourceRelation($school, $sourcePeriod, 'getPaymentModals');
+                    [, $entities] = $this->clonePaymentModals($school, $sourcePeriod, $targetPeriod, $this->loadClassMap($log));
+                    break;
+                case 'students':
+                    $studentResult = $this->runStudentsStep($log, $classMapping);
+                    break;
             }
 
-            $classMap = [];
-            if ($options['classes'] ?? true) {
-                [$classMap, $classEntities] = $this->cloneClasses($school, $sourcePeriod, $targetPeriod, $classMapping);
-                $configSummary['classes'] = count($classEntities);
+            $this->em->flush(); // IDs disponibles
+
+            $createdIds = $log->getCreatedIds();
+            foreach ($entities as $e) {
+                $key = match (true) {
+                    $e instanceof SubjectGroup             => 'subjectGroups',
+                    $e instanceof SchoolClassPeriod        => 'schoolClassPeriods',
+                    $e instanceof SchoolClassSubject       => 'schoolClassSubjects',
+                    $e instanceof ClassSubjectModule       => 'classSubjectModules',
+                    $e instanceof SchoolClassPaymentModal  => 'paymentModals',
+                    default                                => null,
+                };
+                if ($key !== null) { $createdIds[$key][] = $e->getId(); }
             }
 
-            $subjectEntities = [];
-            if ($options['subjects'] ?? true) {
-                [$count, $subjectEntities] = $this->cloneSubjects($classMap, $groupMap);
-                $configSummary['subjects'] = $count;
+            // Persistance des maps internes pour les étapes suivantes
+            if ($groupMap !== null) {
+                $s = $log->getStepsState() ?? [];
+                $s['_group_map'] = array_map(fn(SubjectGroup $g) => $g->getId(), $groupMap);
+                $log->setStepsState($s);
+            }
+            if ($classMap !== null) {
+                $s = $log->getStepsState() ?? [];
+                $s['classes']['_class_map'] = array_map(fn(SchoolClassPeriod $c) => $c->getId(), $classMap);
+                $log->setStepsState($s);
             }
 
-            $moduleEntities = [];
-            if ($options['modules'] ?? true) {
-                [$count, $moduleEntities] = $this->cloneModules($school, $sourcePeriod, $targetPeriod, $classMap);
-                $configSummary['modules'] = $count;
-            }
-
-            $paymentEntities = [];
-            if ($options['payment_modals'] ?? true) {
-                [$count, $paymentEntities] = $this->clonePaymentModals($school, $sourcePeriod, $targetPeriod, $classMap);
-                $configSummary['payment_modals'] = $count;
-            }
-
-            // Premier flush → IDs disponibles pour config
-            $this->em->flush();
-
-            foreach ($groupEntities   ?? [] as $e) { $created['subjectGroups'][]       = $e->getId(); }
-            foreach ($classEntities   ?? [] as $e) { $created['schoolClassPeriods'][]   = $e->getId(); }
-            foreach ($subjectEntities         as $e) { $created['schoolClassSubjects'][] = $e->getId(); }
-            foreach ($moduleEntities          as $e) { $created['classSubjectModules'][] = $e->getId(); }
-            foreach ($paymentEntities         as $e) { $created['paymentModals'][]       = $e->getId(); }
-
-            // ── Élèves ───────────────────────────────────────────────────────
-            $studentStats    = ['promoted' => 0, 'repeated' => 0, 'skipped' => 0];
-            $studentEntities = [];
-
-            $sourceClasses      = $this->em->getRepository(SchoolClassPeriod::class)->findBy([
-                'school' => $school, 'period' => $sourcePeriod,
-            ]);
-            $repeaterTargetMap  = $this->buildRepeaterTargetMap($school, $targetPeriod);
-
-            foreach ($sourceClasses as $sourceSCP) {
-                $sourceId       = $sourceSCP->getId();
-                $promotedTarget = isset($classMapping[$sourceId])
-                    ? $this->em->getRepository(SchoolClassPeriod::class)->find($classMapping[$sourceId])
-                    : null;
-                $occId          = $sourceSCP->getClassOccurence()?->getId();
-                $repeaterTarget = $occId ? ($repeaterTargetMap[$occId] ?? null) : null;
-
-                foreach ($sourceSCP->getStudentClasses() as $studentClass) {
-                    $avg        = $this->calculateStudentAverage($studentClass, $sourceSCP);
-                    $isEligible = $avg !== null && $avg >= $passingGrade;
-
-                    if ($isEligible && $promotedTarget) {
-                        $sc = $this->enrollStudent($studentClass->getStudent(), $promotedTarget);
-                        if ($sc) { $studentEntities[] = $sc; $studentStats['promoted']++; }
-                    } elseif (!$isEligible && $repeaterTarget) {
-                        $sc = $this->enrollStudent($studentClass->getStudent(), $repeaterTarget);
-                        if ($sc) { $studentEntities[] = $sc; $studentStats['repeated']++; }
-                    } else {
-                        $studentStats['skipped']++;
-                    }
+            if ($studentResult !== null) {
+                foreach ($studentResult['studentClasses'] as $sc) {
+                    $createdIds['studentClasses'][] = $sc->getId();
                 }
+                $stats = $log->getStudentStats();
+                $log->setStudentStats([
+                    'promoted' => ($stats['promoted'] ?? 0) + $studentResult['promoted'],
+                    'repeated' => ($stats['repeated'] ?? 0) + $studentResult['repeated'],
+                    'skipped'  => ($stats['skipped'] ?? 0) + $studentResult['skipped'],
+                    'existing' => ($stats['existing'] ?? 0) + $studentResult['existing'],
+                ]);
+                $this->setStepStatus($log, $stepKey, 'done', [
+                    'created'  => $studentResult['created'],
+                    'existing' => $studentResult['existing'],
+                    'errors'   => $studentResult['errors'],
+                    'message'  => $studentResult['message'],
+                ]);
+            } else {
+                $createdCount = count($entities);
+                $existingCount = max(0, $sourceTotal - $createdCount);
+                $summary = $log->getConfigSummary();
+                $summary[$stepKey] = ($summary[$stepKey] ?? 0) + $createdCount;
+                $log->setConfigSummary($summary);
+                $this->setStepStatus($log, $stepKey, 'done', [
+                    'created'  => $createdCount,
+                    'existing' => $existingCount,
+                    'errors'   => 0,
+                    'message'  => sprintf('%d créé(s), %d déjà existant(s).', $createdCount, $existingCount),
+                ]);
             }
 
-            // Deuxième flush → IDs élèves disponibles
-            $this->em->flush();
-
-            foreach ($studentEntities as $e) { $created['studentClasses'][] = $e->getId(); }
-
-            // ── MigrationLog ─────────────────────────────────────────────────
-            $log = new MigrationLog();
-            $log->setSchool($school)
-                ->setSourcePeriod($sourcePeriod)
-                ->setTargetPeriod($targetPeriod)
-                ->setPassingGrade($passingGrade)
-                ->setOptions($options)
-                ->setCreatedIds($created)
-                ->setConfigSummary($configSummary)
-                ->setStudentStats($studentStats)
-                ->setExecutedBy($executedBy)
-                ->setStatus('executed');
-
+            $log->setCreatedIds($createdIds);
             $this->em->persist($log);
             $this->em->flush();
 
             $conn->commit();
 
-            return $log;
+            $result = $log->getStepsState()[$stepKey] ?? [];
+            $result['status'] = 'done';
+            return $result;
 
         } catch (\Throwable $e) {
             $conn->rollBack();
-            throw $e;
+            // Vider l'UOW : le rollback ne touche que la base ; sans clear(), les
+            // INSERT du pas échoué seraient rejoués au flush suivant.
+            $this->em->clear();
+            $log = $this->em->find(MigrationLog::class, $log->getId());
+            $this->setStepStatus($log, $stepKey, 'failed', [
+                'created' => 0,
+                'existing'=> 0,
+                'errors'  => 1,
+                'message' => $e->getMessage(),
+            ]);
+            $this->em->flush();
+            return ['status' => 'failed', 'created' => 0, 'existing' => 0, 'errors' => 1, 'message' => $e->getMessage()];
         }
+    }
+
+    /** « Continuer avec ce qui a réussi » : marque l'étape en échec comme ignorée. */
+    public function skipFailedStep(MigrationLog $log, string $stepKey): void
+    {
+        $state   = $log->getStepsState() ?? [];
+        $current = $state[$stepKey]['status'] ?? null;
+        if ($current !== 'failed') {
+            throw new \LogicException('Seule une étape en échec peut être ignorée.');
+        }
+        $this->setStepStatus($log, $stepKey, 'skipped', [
+            'message' => 'Étape ignorée : la migration continue sans les données de cette étape.',
+        ]);
+        $this->em->flush();
+    }
+
+    /** Clôture : statut executed, executedAt = maintenant, étapes encore pending marquées skipped. */
+    public function finishMigration(MigrationLog $log): void
+    {
+        if ($log->getStatus() !== 'in_progress') {
+            throw new \LogicException('La migration n\'est pas en cours.');
+        }
+
+        $state = $log->getStepsState() ?? [];
+        foreach (self::STEPS as $key => $label) {
+            $status = $state[$key]['status'] ?? 'pending';
+            if ($status === 'failed') {
+                throw new \LogicException('Une étape est en échec : réessayez-la ou ignorez-la avant de terminer.');
+            }
+            if ($status === 'pending') {
+                $this->setStepStatus($log, $key, 'skipped', ['message' => 'Non exécutée avant la clôture.']);
+            }
+        }
+
+        $log->setStatus('executed')->setExecutedAt(new \DateTimeImmutable());
+        $this->em->flush();
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // HELPERS DU WIZARD
+    // ─────────────────────────────────────────────────────────────────────────
+
+    private function initStepState(string $status, string $message = ''): array
+    {
+        return ['status' => $status, 'created' => 0, 'existing' => 0, 'errors' => 0, 'message' => $message];
+    }
+
+    /** Écrit (ou fusionne) l'entrée stepsState d'une étape en préservant les clés internes (_class_map…). */
+    private function setStepStatus(MigrationLog $log, string $stepKey, string $status, array $extra = []): void
+    {
+        $state = $log->getStepsState() ?? [];
+        $entry = array_merge($this->initStepState($status), $state[$stepKey] ?? [], $extra);
+        $entry['status'] = $status;
+        $state[$stepKey] = $entry;
+        $log->setStepsState($state);
+    }
+
+    /** @return array<int, SchoolClassPeriod> map sourceId => classe cible persistée par l'étape classes */
+    private function loadClassMap(MigrationLog $log): array
+    {
+        $state = $log->getStepsState() ?? [];
+        $map   = [];
+        foreach (($state['classes']['_class_map'] ?? []) as $oldId => $newId) {
+            $scp = $this->em->getRepository(SchoolClassPeriod::class)->find($newId);
+            if ($scp) { $map[(int) $oldId] = $scp; }
+        }
+        return $map;
+    }
+
+    /** @return array<int, SubjectGroup> map oldId => groupe cible persisté par l'étape subject_groups */
+    private function loadGroupMap(MigrationLog $log): array
+    {
+        $state = $log->getStepsState() ?? [];
+        $map   = [];
+        foreach (($state['_group_map'] ?? []) as $oldId => $newId) {
+            $group = $this->em->getRepository(SubjectGroup::class)->find($newId);
+            if ($group) { $map[(int) $oldId] = $group; }
+        }
+        return $map;
+    }
+
+    private function hasTargetClasses(School $school, SchoolPeriod $targetPeriod): bool
+    {
+        return count($this->em->getRepository(SchoolClassPeriod::class)->findBy([
+            'school' => $school, 'period' => $targetPeriod,
+        ])) > 0;
+    }
+
+    /** Total d'éléments sources concernés par une étape (pour le compteur « déjà existants »). */
+    private function countSourceItems(School $school, SchoolPeriod $sourcePeriod, string $stepKey): int
+    {
+        return match ($stepKey) {
+            'subject_groups' => count($this->em->getRepository(SubjectGroup::class)->findBy(['school' => $school, 'period' => $sourcePeriod])),
+            'classes'        => count($this->em->getRepository(SchoolClassPeriod::class)->findBy(['school' => $school, 'period' => $sourcePeriod])),
+            'subjects'       => $this->sumSourceRelation($school, $sourcePeriod, 'getSchoolClassSubjects'),
+            'modules'        => $this->sumSourceRelation($school, $sourcePeriod, 'getClassSubjectModules'),
+            'payment_modals' => $this->sumSourceRelation($school, $sourcePeriod, 'getPaymentModals'),
+            default          => 0,
+        };
+    }
+
+    private function sumSourceRelation(School $school, SchoolPeriod $sourcePeriod, string $getter): int
+    {
+        $total = 0;
+        foreach ($this->em->getRepository(SchoolClassPeriod::class)->findBy(['school' => $school, 'period' => $sourcePeriod]) as $scp) {
+            $total += $scp->$getter()->count();
+        }
+        return $total;
+    }
+
+    /**
+     * Classe cible issue du mapping explicite, validée (école + période cibles).
+     * null, '' ou 0 = pas de mapping ; id introuvable ou hors période cible = invalide.
+     */
+    private function resolveExplicitTarget(School $school, SchoolPeriod $targetPeriod, mixed $targetId): ?SchoolClassPeriod
+    {
+        if (!$targetId) { return null; }
+        $scp = $this->em->getRepository(SchoolClassPeriod::class)->find($targetId);
+        if ($scp && $scp->getSchool() === $school && $scp->getPeriod() === $targetPeriod) {
+            return $scp;
+        }
+        return null;
+    }
+
+    /**
+     * ÉTAPE ÉLÈVES : inscrit chaque élève dans sa classe cible.
+     * Promus : mapping explicite du formulaire prioritaire, sinon l'occurrence suivante
+     * configurée sur l'occurrence source (exactement une → automatique ; plusieurs ou
+     * aucune → non affecté). Redoublants : classe de même occurrence (inchangé).
+     */
+    private function runStudentsStep(MigrationLog $log, array $classMapping): array
+    {
+        $school       = $log->getSchool();
+        $sourcePeriod = $log->getSourcePeriod();
+        $targetPeriod = $log->getTargetPeriod();
+        $passingGrade = $log->getPassingGrade();
+
+        $promoted = 0; $repeated = 0; $skipped = 0; $existingCount = 0; $errors = 0;
+        $studentClasses = [];
+
+        $sourceClasses     = $this->em->getRepository(SchoolClassPeriod::class)->findBy([
+            'school' => $school, 'period' => $sourcePeriod,
+        ]);
+        $repeaterTargetMap = $this->buildRepeaterTargetMap($school, $targetPeriod);
+        $targetByOccurence = $this->getTargetSCPsByOccurence($school, $targetPeriod);
+
+        foreach ($sourceClasses as $sourceSCP) {
+            $sourceId = $sourceSCP->getId();
+            $occId    = $sourceSCP->getClassOccurence()?->getId();
+
+            // Mapping explicite valide → prioritaire ; invalide (hors période cible) →
+            // signalé, l'élève reste non affecté.
+            $explicitId     = $classMapping[$sourceId] ?? null;
+            $invalidMapping = false;
+            $promotedTarget = null;
+            if (!empty($explicitId)) {
+                $promotedTarget = $this->resolveExplicitTarget($school, $targetPeriod, $explicitId);
+                if ($promotedTarget === null) { $invalidMapping = true; }
+            }
+            // Sans mapping explicite : occurrences suivantes configurées sur l'occurrence source.
+            // Exactement une occurrence suivante → affectation automatique ; plusieurs ou
+            // aucune → les promus restent non affectés (choix explicite requis / niveau final).
+            if (!$invalidMapping && $promotedTarget === null) {
+                $occurence = $sourceSCP->getClassOccurence();
+                $candidates = [];
+                if ($occurence !== null) {
+                    foreach ($occurence->getNextOccurences() as $nextOccurence) {
+                        foreach ($targetByOccurence[$nextOccurence->getId()] ?? [] as $targetSCP) {
+                            $candidates[] = $targetSCP;
+                        }
+                    }
+                }
+                if (count($candidates) === 1) { $promotedTarget = $candidates[0]; }
+            }
+
+            $repeaterTarget = $occId ? ($repeaterTargetMap[$occId] ?? null) : null;
+
+            foreach ($sourceSCP->getStudentClasses() as $studentClass) {
+                $avg        = $this->calculateStudentAverage($studentClass, $sourceSCP);
+                $isEligible = $avg !== null && $avg >= $passingGrade;
+
+                if ($isEligible && $invalidMapping) {
+                    $errors++; $skipped++;
+                } elseif ($isEligible && $promotedTarget) {
+                    $sc = $this->enrollStudent($studentClass->getStudent(), $promotedTarget);
+                    if ($sc) { $studentClasses[] = $sc; $promoted++; }
+                    else { $existingCount++; } // déjà inscrit dans la classe cible
+                } elseif (!$isEligible && $repeaterTarget) {
+                    $sc = $this->enrollStudent($studentClass->getStudent(), $repeaterTarget);
+                    if ($sc) { $studentClasses[] = $sc; $repeated++; }
+                    else { $existingCount++; }
+                } else {
+                    $skipped++;
+                }
+            }
+        }
+
+        return [
+            'created'        => count($studentClasses),
+            'existing'       => $existingCount,
+            'errors'         => $errors,
+            'promoted'       => $promoted,
+            'repeated'       => $repeated,
+            'skipped'        => $skipped,
+            'message'        => sprintf('%d inscrit(s), %d déjà inscrit(s), %d non affecté(s).', count($studentClasses), $existingCount, $skipped),
+            'studentClasses' => $studentClasses,
+        ];
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -355,13 +745,26 @@ class SchoolYearMigrationService
 
     public function applyCorrection(MigrationLog $log, float $newPassingGrade, array $classMapping): array
     {
+        $school       = $log->getSchool();
+        $targetPeriod = $log->getTargetPeriod();
         $conn = $this->em->getConnection();
         $conn->beginTransaction();
 
         try {
-            $preview   = $this->previewCorrection($log, $newPassingGrade);
-            $applied   = ['demoted' => 0, 'promoted' => 0, 'added' => 0];
-            $createdIds = $log->getCreatedIds();
+            $preview       = $this->previewCorrection($log, $newPassingGrade);
+            $applied       = ['demoted' => 0, 'promoted' => 0, 'added' => 0];
+            $createdIds    = $log->getCreatedIds();
+            $newStudentClasses = []; // inscriptions créées pendant la correction (IDs collectés après flush)
+            $repeaterTargetMap = $this->buildRepeaterTargetMap($school, $targetPeriod);
+
+            // Classe cible d'une promotion : mapping explicite validé, sinon classe de même
+            // occurrence dans la période cible (BUG1 : retrouve les classes auto-créées par la migration).
+            $resolvePromotionTarget = function (SchoolClassPeriod $sourceSCP) use ($school, $targetPeriod, $classMapping, $repeaterTargetMap): ?SchoolClassPeriod {
+                $target = $this->resolveExplicitTarget($school, $targetPeriod, $classMapping[$sourceSCP->getId()] ?? null);
+                if ($target !== null) { return $target; }
+                $occId = $sourceSCP->getClassOccurence()?->getId();
+                return $occId !== null ? ($repeaterTargetMap[$occId] ?? null) : null;
+            };
 
             // Rétrograder les promus sans notes → les déplacer vers la classe redoublant
             foreach ($preview['toDemote'] as $item) {
@@ -371,18 +774,13 @@ class SchoolYearMigrationService
                     if ($key !== false) { unset($createdIds['studentClasses'][$key]); }
 
                     $newSC = $this->enrollStudent($item['student'], $item['repeaterSCP']);
-                    if ($newSC) { $createdIds['studentClasses'][] = 0; } // sera mis à jour après flush
-                    $applied['demoted']++;
+                    if ($newSC) { $newStudentClasses[] = $newSC; $applied['demoted']++; }
                 }
             }
 
             // Promouvoir les redoublants sans notes → les déplacer vers la classe promu
             foreach ($preview['toPromote'] as $item) {
-                $sourceId    = $item['sourceSCP']->getId();
-                $newTargetId = $classMapping[$sourceId] ?? null;
-                $newTargetSCP = $newTargetId
-                    ? $this->em->getRepository(SchoolClassPeriod::class)->find($newTargetId)
-                    : null;
+                $newTargetSCP = $resolvePromotionTarget($item['sourceSCP']);
 
                 if ($item['targetSC'] && $newTargetSCP) {
                     $this->em->remove($item['targetSC']);
@@ -390,37 +788,31 @@ class SchoolYearMigrationService
                     if ($key !== false) { unset($createdIds['studentClasses'][$key]); }
 
                     $newSC = $this->enrollStudent($item['student'], $newTargetSCP);
-                    if ($newSC) { $createdIds['studentClasses'][] = 0; }
-                    $applied['promoted']++;
+                    if ($newSC) { $newStudentClasses[] = $newSC; $applied['promoted']++; }
                 }
             }
 
             // Ajouter les ignorés devenus éligibles
             foreach ($preview['toAdd'] as $item) {
-                $sourceId    = $item['sourceSCP']->getId();
-                $newTargetId = $classMapping[$sourceId] ?? null;
-                $newTargetSCP = $newTargetId
-                    ? $this->em->getRepository(SchoolClassPeriod::class)->find($newTargetId)
-                    : null;
+                $newTargetSCP = $resolvePromotionTarget($item['sourceSCP']);
 
                 if ($newTargetSCP) {
                     $newSC = $this->enrollStudent($item['student'], $newTargetSCP);
-                    if ($newSC) { $createdIds['studentClasses'][] = 0; }
-                    $applied['added']++;
+                    if ($newSC) { $newStudentClasses[] = $newSC; $applied['added']++; }
                 }
             }
 
             $this->em->flush();
 
-            // Reconstruire les IDs corrects après flush
-            $finalIds = array_values(array_filter($createdIds['studentClasses'], fn($id) => $id > 0));
-            // Récupérer les nouveaux IDs des SC fraîchement créés
-            foreach ($this->em->getUnitOfWork()->getScheduledEntityInsertions() as $entity) {
-                if ($entity instanceof StudentClass && $entity->getId()) {
-                    $finalIds[] = $entity->getId();
-                }
+            // IDs des nouvelles inscriptions collectés APRÈS flush (plus de marqueurs 0 ni de
+            // getScheduledEntityInsertions, toujours vide après flush : BUG d)
+            foreach ($newStudentClasses as $sc) {
+                $createdIds['studentClasses'][] = $sc->getId();
             }
-            $createdIds['studentClasses'] = array_values(array_unique($finalIds));
+            $createdIds['studentClasses'] = array_values(array_unique(array_filter(
+                $createdIds['studentClasses'],
+                fn($id) => is_int($id) && $id > 0
+            )));
 
             $log->setPassingGrade($newPassingGrade)
                 ->setCreatedIds($createdIds)
@@ -676,9 +1068,14 @@ class SchoolYearMigrationService
         foreach ($this->em->getRepository(SchoolClassPeriod::class)->findBy(['school' => $school, 'period' => $source]) as $scp) {
             $existing = null;
 
-            // 1. Mapping explicite choisi par l'utilisateur (classe cible existante)
-            if (isset($classMapping[$scp->getId()])) {
+            // 1. Mapping explicite choisi par l'utilisateur (classe cible existante).
+            //    Un mapping vide ou pointant vers une classe hors période cible est ignoré :
+            //    on retombe sur la résolution par occurrence ou la création.
+            if (!empty($classMapping[$scp->getId()] ?? null)) {
                 $existing = $this->em->getRepository(SchoolClassPeriod::class)->find($classMapping[$scp->getId()]);
+                if ($existing && ($existing->getSchool() !== $school || $existing->getPeriod() !== $target)) {
+                    $existing = null;
+                }
             }
 
             // 2. Classe cible existante avec la même occurrence
@@ -813,6 +1210,17 @@ class SchoolYearMigrationService
         foreach ($this->em->getRepository(SchoolClassPeriod::class)->findBy(['school' => $school, 'period' => $targetPeriod]) as $scp) {
             $occId = $scp->getClassOccurence()?->getId();
             if ($occId !== null) { $map[$occId] = $scp; }
+        }
+        return $map;
+    }
+
+    /** @return array<int, SchoolClassPeriod[]> classes de la période cible groupées par occurrence (une requête). */
+    private function getTargetSCPsByOccurence(School $school, SchoolPeriod $targetPeriod): array
+    {
+        $map = [];
+        foreach ($this->em->getRepository(SchoolClassPeriod::class)->findBy(['school' => $school, 'period' => $targetPeriod]) as $scp) {
+            $occId = $scp->getClassOccurence()?->getId();
+            if ($occId !== null) { $map[$occId][] = $scp; }
         }
         return $map;
     }

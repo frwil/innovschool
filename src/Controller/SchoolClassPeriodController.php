@@ -517,6 +517,10 @@ final class SchoolClassPeriodController extends AbstractController
                 $class->setClassMaster($classMaster);
             }
 
+            // Classes suivantes (promotion) et niveau final, portés par l'occurrence de classe
+            $this->applyNextOccurences($class->getClassOccurence(), $request->request->all('next_occurences'), $entityManager);
+            $class->getClassOccurence()->setIsFinalLevel((bool) $request->request->get('is_final_level'));
+
 
             // Ajoute ici les autres champs à éditer si besoin
 
@@ -592,7 +596,8 @@ final class SchoolClassPeriodController extends AbstractController
         return $this->render('school_class/edit.html.twig', [
             'class' => $class,
             'teachers' => $teachers,
-            'section' => $class->getClassOccurence()->getClasse()
+            'section' => $class->getClassOccurence()->getClasse(),
+            'occurences' => $entityManager->getRepository(ClassOccurence::class)->findAll(),
         ]);
     }
 
@@ -675,7 +680,8 @@ final class SchoolClassPeriodController extends AbstractController
         Classe $classe,
         EntityManagerInterface $entityManager,
         OperationLogger $operationLogger,
-        SessionInterface $session
+        SessionInterface $session,
+        ManagerRegistry $doctrine
     ): Response {
         $this->session = $session;
         $this->entityManager = $entityManager;
@@ -729,6 +735,74 @@ final class SchoolClassPeriodController extends AbstractController
             'classe' => $classe,
             'sections' => $sections,
         ]);
+    }
+
+    /**
+     * Enregistre les classes suivantes (promotion) d'une occurrence de classe —
+     * utilisé par le modal du wizard de migration et par la page d'édition de classe.
+     */
+    #[Route('/occurrence/{id}/next-occurrences', name: 'app_school_class_occurence_next_edit', methods: ['POST'])]
+    public function editNextOccurences(
+        Request $request,
+        ClassOccurence $occurence,
+        EntityManagerInterface $entityManager,
+        OperationLogger $operationLogger,
+        ManagerRegistry $doctrine,
+        SessionInterface $session
+    ): JsonResponse {
+        if (!$this->isCsrfTokenValid('occ_next_' . $occurence->getId(), $request->request->get('_token'))) {
+            return new JsonResponse(['ok' => false, 'message' => 'Jeton de sécurité invalide.'], 403);
+        }
+
+        $this->session = $session;
+        $this->currentSchool = $entityManager->getRepository(School::class)->find($this->session->get('school_id'));
+        $this->currentPeriod = $entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
+
+        $this->applyNextOccurences($occurence, $request->request->all('next_occurences'), $entityManager);
+
+        try {
+            $entityManager->flush();
+
+            // Log l'opération de modification
+            $operationLogger->log(
+                'MODIFICATION CLASSES SUIVANTES ' . $occurence->getName(),
+                'SUCCESS',
+                'ClassOccurence',
+                $occurence->getId(),
+                null,
+                ['name' => $occurence->getName(), 'school' => $this->currentSchool->getName(), 'period' => $this->currentPeriod->getName()]
+            );
+
+            return new JsonResponse(['ok' => true, 'message' => 'Classes suivantes enregistrées.']);
+        } catch (\Exception $e) {
+            if (!$entityManager->isOpen()) {
+                $entityManager = $doctrine->resetManager();
+            }
+            // Log l'erreur
+            $operationLogger->log(
+                'MODIFICATION CLASSES SUIVANTES ' . $occurence->getName(),
+                'ERROR',
+                'ClassOccurence',
+                $occurence->getId(),
+                $e->getMessage(),
+                ['name' => $occurence->getName()]
+            );
+            return new JsonResponse(['ok' => false, 'message' => 'Erreur : ' . $e->getMessage()]);
+        }
+    }
+
+    /** Remplace la liste des occurrences suivantes d'une occurrence (ids invalides ou l'id courant ignorés). */
+    private function applyNextOccurences(ClassOccurence $occurence, array $ids, EntityManagerInterface $entityManager): void
+    {
+        $filtered = array_unique(array_filter(array_map('intval', $ids), fn(int $id) => $id !== $occurence->getId()));
+        $occurences = $filtered ? $entityManager->getRepository(ClassOccurence::class)->findBy(['id' => $filtered]) : [];
+
+        foreach ($occurence->getNextOccurences()->toArray() as $existing) {
+            $occurence->removeNextOccurence($existing);
+        }
+        foreach ($occurences as $o) {
+            $occurence->addNextOccurence($o);
+        }
     }
 
     #[Route('/class/new', name: 'app_class_new', methods: ['POST'])]

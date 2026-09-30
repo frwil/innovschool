@@ -28,9 +28,30 @@ class ClassOccurence
     #[ORM\OneToMany(mappedBy: 'classOccurence', targetEntity: SchoolClassPeriod::class)]
     private Collection $schoolClassPeriods;
 
+    /**
+     * Occurrences de classes accessibles après promotion (ex. 2nde A → 1ere C, 1ere D).
+     * Côté propriétaire de la relation auto-référencée.
+     */
+    #[ORM\ManyToMany(targetEntity: self::class, inversedBy: 'previousOccurences')]
+    #[ORM\JoinTable(name: 'class_occurence_next',
+        joinColumns: [new ORM\JoinColumn(name: 'class_occurence_id', referencedColumnName: 'id', onDelete: 'CASCADE')],
+        inverseJoinColumns: [new ORM\JoinColumn(name: 'next_class_occurence_id', referencedColumnName: 'id', onDelete: 'CASCADE')]
+    )]
+    private Collection $nextOccurences;
+
+    /** Côté inverse : occurrences dont celle-ci est une classe suivante. */
+    #[ORM\ManyToMany(targetEntity: self::class, mappedBy: 'nextOccurences')]
+    private Collection $previousOccurences;
+
+    /** Classe terminale : ses élèves promus quittent l'établissement (aucune classe suivante requise). */
+    #[ORM\Column(type: 'boolean')]
+    private bool $isFinalLevel = false;
+
     public function __construct()
     {
         $this->schoolClassPeriods = new ArrayCollection();
+        $this->nextOccurences = new ArrayCollection();
+        $this->previousOccurences = new ArrayCollection();
     }
 
     public function getId(): ?int
@@ -74,5 +95,51 @@ class ClassOccurence
     public function getSchoolClassPeriods(): Collection
     {
         return $this->schoolClassPeriods;
+    }
+
+    /** @return Collection<int, ClassOccurence> */
+    public function getNextOccurences(): Collection
+    {
+        return $this->nextOccurences;
+    }
+
+    public function addNextOccurence(ClassOccurence $nextOccurence): self
+    {
+        if (!$this->nextOccurences->contains($nextOccurence)) {
+            $this->nextOccurences[] = $nextOccurence;
+            // Synchronise le côté inverse
+            if (!$nextOccurence->previousOccurences->contains($this)) {
+                $nextOccurence->previousOccurences[] = $this;
+            }
+        }
+        return $this;
+    }
+
+    public function removeNextOccurence(ClassOccurence $nextOccurence): self
+    {
+        if ($this->nextOccurences->removeElement($nextOccurence)) {
+            if ($nextOccurence->previousOccurences->contains($this)) {
+                $nextOccurence->previousOccurences->removeElement($this);
+            }
+        }
+        return $this;
+    }
+
+    /** @return Collection<int, ClassOccurence> */
+    public function getPreviousOccurences(): Collection
+    {
+        return $this->previousOccurences;
+    }
+
+    public function isFinalLevel(): bool
+    {
+        return $this->isFinalLevel;
+    }
+
+    public function setIsFinalLevel(bool $isFinalLevel): self
+    {
+        $this->isFinalLevel = $isFinalLevel;
+
+        return $this;
     }
 }

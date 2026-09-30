@@ -44,6 +44,19 @@
     </div>
     {% endif %}
 
+    {# ── Aucun changement ── #}
+    {% if changes.locked|length == 0 and changes.toDemote|length == 0 and changes.toPromote|length == 0 and changes.toAdd|length == 0 %}
+    <div class="alert alert-success">
+        <i class="ti ti-circle-check me-2"></i>
+        Aucun changement : tous les élèves ont la même classification avec cette note de passage.
+    </div>
+    {% else %}
+    {# Le formulaire enveloppe les tableaux : les selects class_mapping DOIVENT être
+       soumis avec le POST (BUG e : ils étaient hors form, jamais envoyés). #}
+    <form method="POST" action="{{ path('app_year_migration_correct', {id: log.id}) }}">
+        <input type="hidden" name="_token" value="{{ csrf_token('correct_migration_' ~ log.id) }}">
+        <input type="hidden" name="new_passing_grade" value="{{ newPassingGrade }}">
+
     {# ── Élèves à rétrograder ── #}
     {% if changes.toDemote|length > 0 %}
     <div class="card border-warning mb-4">
@@ -129,32 +142,16 @@
     </div>
     {% endif %}
 
-    {# ── Aucun changement ── #}
-    {% if changes.locked|length == 0 and changes.toDemote|length == 0 and changes.toPromote|length == 0 and changes.toAdd|length == 0 %}
-    <div class="alert alert-success">
-        <i class="ti ti-circle-check me-2"></i>
-        Aucun changement : tous les élèves ont la même classification avec cette note de passage.
-    </div>
-    {% else %}
     {# ── Bouton confirmation ── #}
-    <form method="POST" action="{{ path('app_year_migration_correct', {id: log.id}) }}">
-        <input type="hidden" name="_token" value="{{ csrf_token('correct_migration_' ~ log.id) }}">
-        <input type="hidden" name="new_passing_grade" value="{{ newPassingGrade }}">
-        {% for item in changes.toPromote %}
-            {% if app.request.request.get('class_mapping') %}
-                <input type="hidden" name="class_mapping[{{ item.sourceSCP.id }}]"
-                       value="{{ app.request.request.all('class_mapping')[item.sourceSCP.id]|default('') }}">
-            {% endif %}
-        {% endfor %}
-        <div class="d-flex gap-2">
-            <button type="submit" class="btn btn-success"
-                    onclick="return confirm('Appliquer la correction ? Les élèves verrouillés ne seront pas modifiés.')">
-                <i class="ti ti-check me-1"></i>Appliquer la correction
-            </button>
-            <a href="{{ path('app_year_migration_manage', {id: log.id}) }}" class="btn btn-light">
-                <i class="ti ti-arrow-left me-1"></i>Retour
-            </a>
-        </div>
+    <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-success"
+                onclick="return confirm('Appliquer la correction ? Les élèves verrouillés ne seront pas modifiés.')">
+            <i class="ti ti-check me-1"></i>Appliquer la correction
+        </button>
+        <a href="{{ path('app_year_migration_manage', {id: log.id}) }}" class="btn btn-light">
+            <i class="ti ti-arrow-left me-1"></i>Retour
+        </a>
+    </div>
     </form>
     {% endif %}
 

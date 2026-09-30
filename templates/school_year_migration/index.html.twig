@@ -31,7 +31,8 @@
                     et d'évaluer l'éligibilité des élèves à passer en classe supérieure.
                 </div>
 
-                <form method="POST" action="{{ path('app_year_migration_preview') }}">
+                <form method="POST" action="{{ path('app_year_migration_start') }}">
+                    <input type="hidden" name="_token" value="{{ csrf_token('year_migration') }}">
                     <div class="row g-3">
 
                         <div class="col-md-6">
@@ -107,8 +108,8 @@
 
                         <div class="col-12 mt-3">
                             <button type="submit" class="btn btn-primary">
-                                <i class="ti ti-eye me-1"></i>
-                                Prévisualiser la migration
+                                <i class="ti ti-player-play me-1"></i>
+                                Démarrer la migration assistée
                             </button>
                             <a href="{{ path('app_school_period_index') }}" class="btn btn-light ms-2">
                                 Gérer les périodes
@@ -163,16 +164,25 @@
                                 <span class="badge bg-success">Active</span>
                             {% elseif log.status == 'cancelled' %}
                                 <span class="badge bg-danger">Annulée</span>
+                            {% elseif log.status == 'in_progress' %}
+                                <span class="badge bg-info">Brouillon</span>
                             {% else %}
                                 <span class="badge bg-warning text-dark">Corrigée</span>
                             {% endif %}
                         </td>
                         <td>
-                            <a href="{{ path('app_year_migration_manage', {id: log.id}) }}"
-                               class="btn btn-sm {{ log.status == 'executed' ? 'btn-outline-warning' : 'btn-outline-secondary' }}">
-                                <i class="ti ti-{{ log.status == 'executed' ? 'settings' : 'eye' }} me-1"></i>
-                                {{ log.status == 'executed' ? 'Gérer' : 'Voir' }}
-                            </a>
+                            {% if log.status == 'in_progress' %}
+                                <a href="{{ path('app_year_migration_wizard', {id: log.id}) }}"
+                                   class="btn btn-sm btn-info">
+                                    <i class="ti ti-player-play me-1"></i>Reprendre
+                                </a>
+                            {% else %}
+                                <a href="{{ path('app_year_migration_manage', {id: log.id}) }}"
+                                   class="btn btn-sm {{ log.status == 'executed' ? 'btn-outline-warning' : 'btn-outline-secondary' }}">
+                                    <i class="ti ti-{{ log.status == 'executed' ? 'settings' : 'eye' }} me-1"></i>
+                                    {{ log.status == 'executed' ? 'Gérer' : 'Voir' }}
+                                </a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% endfor %}

@@ -36,7 +36,7 @@ class MigrationLog
     #[ORM\Column(type: 'json')]
     private array $createdIds = [];
 
-    /** executed | cancelled | corrected */
+    /** executed | cancelled | corrected | in_progress */
     #[ORM\Column(length: 20)]
     private string $status = 'executed';
 
@@ -53,6 +53,15 @@ class MigrationLog
     /** Résumé élèves (promus, redoublants, ignorés) */
     #[ORM\Column(type: 'json')]
     private array $studentStats = [];
+
+    /**
+     * État du wizard par étape (brouillon in_progress) : clé => {status, created, existing, errors, message}.
+     * status : pending | done | failed | skipped. L'entrée « classes » porte en plus la map interne
+     * « _class_map » (sourceId => targetId) et le niveau racine « _group_map » (oldId => newId) —
+     * clés privées jamais rendues par Twig.
+     */
+    #[ORM\Column(type: 'json', nullable: true)]
+    private ?array $stepsState = null;
 
     public function __construct()
     {
@@ -93,4 +102,7 @@ class MigrationLog
 
     public function getStudentStats(): array { return $this->studentStats; }
     public function setStudentStats(array $s): static { $this->studentStats = $s; return $this; }
+
+    public function getStepsState(): ?array { return $this->stepsState; }
+    public function setStepsState(?array $s): static { $this->stepsState = $s; return $this; }
 }

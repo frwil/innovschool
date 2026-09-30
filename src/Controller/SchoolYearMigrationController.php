@@ -26,8 +26,252 @@ final class SchoolYearMigrationController extends AbstractController
     ) {}
 
     // ─────────────────────────────────────────────────────────────────────────
-    // INDEX + PREVIEW + EXECUTE (inchangés sauf execute qui appelle executeMigration)
+    // WIZARD PAR ÉTAPES (start → wizard → step… → finish → result)
     // ─────────────────────────────────────────────────────────────────────────
+
+    #[Route('/start', name: 'app_year_migration_start', methods: ['POST'])]
+    public function start(
+        Request $request,
+        SchoolPeriodRepository $periodRepo,
+        SessionInterface $session
+    ): Response {
+        if (!$this->isCsrfTokenValid('year_migration', $request->request->get('_token'))) {
+            $this->addFlash('danger', 'Token CSRF invalide.');
+            return $this->redirectToRoute('app_year_migration_index');
+        }
+
+        $school = $this->getSchool($session);
+        if (!$school) {
+            $this->addFlash('danger', 'Aucune école sélectionnée.');
+            return $this->redirectToRoute('app_year_migration_index');
+        }
+
+        $sourcePeriod = $periodRepo->find($request->request->get('source_period'));
+        $targetPeriod = $periodRepo->find($request->request->get('target_period'));
+        $passingGrade = (float) $request->request->get('passing_grade', 10);
+        $options      = $this->extractOptions($request);
+
+        if (!$sourcePeriod || !$targetPeriod || $sourcePeriod === $targetPeriod) {
+            $this->addFlash('danger', 'Périodes invalides ou identiques.');
+            return $this->redirectToRoute('app_year_migration_index');
+        }
+
+        // Brouillon déjà en cours pour ces périodes ? La config soumise sera ignorée.
+        $resumed = (bool) $this->em->getRepository(MigrationLog::class)->findOneBy([
+            'school'       => $school,
+            'sourcePeriod' => $sourcePeriod,
+            'targetPeriod' => $targetPeriod,
+            'status'       => 'in_progress',
+        ]);
+
+        // Avertissement si une migration a déjà été exécutée pour ces périodes :
+        // les étapes ne créeront que les éléments manquants (aucun doublon).
+        $previousLog = $this->em->getRepository(MigrationLog::class)->createQueryBuilder('m')
+            ->andWhere('m.school = :school')->setParameter('school', $school)
+            ->andWhere('m.sourcePeriod = :source')->setParameter('source', $sourcePeriod)
+            ->andWhere('m.targetPeriod = :target')->setParameter('target', $targetPeriod)
+            ->andWhere('m.status IN (:statuses)')->setParameter('statuses', ['executed', 'corrected'])
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+
+        if ($previousLog) {
+            $this->addFlash('warning', 'Une migration a déjà été exécutée pour ces périodes : seuls les éléments manquants seront créés.');
+        }
+
+        $user = $this->getUser();
+        try {
+            $log = $this->migrationService->startMigration(
+                $school,
+                $sourcePeriod,
+                $targetPeriod,
+                $passingGrade,
+                $options,
+                $user ? $user->getUserIdentifier() : 'inconnu'
+            );
+        } catch (\Exception $e) {
+            $this->addFlash('danger', 'Erreur lors de la préparation de la migration : ' . $e->getMessage());
+            return $this->redirectToRoute('app_year_migration_index');
+        }
+
+        if ($resumed) {
+            $this->addFlash('info', 'Brouillon de migration existant repris : la progression précédente est conservée.');
+        }
+
+        return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
+    }
+
+    #[Route('/{id}/wizard', name: 'app_year_migration_wizard', methods: ['GET'])]
+    public function wizard(MigrationLog $log, SessionInterface $session): Response
+    {
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        if ($log->getStatus() !== 'in_progress') {
+            return $log->getStatus() === 'cancelled'
+                ? $this->redirectToRoute('app_year_migration_index')
+                : $this->redirectToRoute('app_year_migration_manage', ['id' => $log->getId()]);
+        }
+
+        $currentKey = $this->migrationService->getNextStepKey($log);
+        $context    = $currentKey ? $this->migrationService->getStepContext($log, $currentKey) : [];
+
+        $blockedKeys = [];
+        foreach (SchoolYearMigrationService::STEPS as $key => $label) {
+            if ($this->migrationService->isStepBlocked($log, $key)) {
+                $blockedKeys[$key] = true;
+            }
+        }
+
+        $state     = $log->getStepsState() ?? [];
+        $hasFailed = false;
+        foreach (SchoolYearMigrationService::STEPS as $key => $label) {
+            if (($state[$key]['status'] ?? null) === 'failed') { $hasFailed = true; break; }
+        }
+
+        return $this->render('school_year_migration/wizard.html.twig', [
+            'log'         => $log,
+            'school'      => $school,
+            'steps'       => SchoolYearMigrationService::STEPS,
+            'stepsState'  => $state,
+            'currentKey'  => $currentKey,
+            'context'     => $context,
+            'blockedKeys' => $blockedKeys,
+            'canFinish'   => !$hasFailed,
+            'canSkip'     => $currentKey !== null && ($state[$currentKey]['status'] ?? null) === 'failed',
+        ]);
+    }
+
+    #[Route('/{id}/wizard/step/{stepKey}', name: 'app_year_migration_step_execute', methods: ['POST'], requirements: ['stepKey' => '[a-z_]+'])]
+    public function stepExecute(MigrationLog $log, string $stepKey, Request $request, SessionInterface $session): Response
+    {
+        if (!$this->isCsrfTokenValid('wizard_step_' . $log->getId(), $request->request->get('_token'))) {
+            $this->addFlash('danger', 'Token CSRF invalide.');
+            return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
+        }
+
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        $classMapping = $request->request->all('class_mapping');
+
+        try {
+            $result = $this->migrationService->executeStep($log, $stepKey, $classMapping);
+            $label  = SchoolYearMigrationService::STEPS[$stepKey] ?? $stepKey;
+            if ($result['status'] === 'done') {
+                $this->addFlash('success', sprintf('Étape « %s » réussie : %s', $label, $result['message']));
+            } else {
+                $this->addFlash('danger', sprintf('Échec de l\'étape « %s » : %s', $label, $result['message']));
+            }
+        } catch (\LogicException $e) {
+            $this->addFlash('warning', $e->getMessage());
+        } catch (\Exception $e) {
+            $this->addFlash('danger', 'Erreur inattendue : ' . $e->getMessage());
+        }
+
+        return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
+    }
+
+    #[Route('/{id}/wizard/step/{stepKey}/skip', name: 'app_year_migration_step_skip', methods: ['POST'], requirements: ['stepKey' => '[a-z_]+'])]
+    public function stepSkip(MigrationLog $log, string $stepKey, Request $request, SessionInterface $session): Response
+    {
+        if (!$this->isCsrfTokenValid('wizard_skip_' . $log->getId(), $request->request->get('_token'))) {
+            $this->addFlash('danger', 'Token CSRF invalide.');
+            return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
+        }
+
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        try {
+            $this->migrationService->skipFailedStep($log, $stepKey);
+            $label = SchoolYearMigrationService::STEPS[$stepKey] ?? $stepKey;
+            $this->addFlash('warning', sprintf('Étape « %s » ignorée : la migration continue sans les données de cette étape.', $label));
+        } catch (\LogicException $e) {
+            $this->addFlash('warning', $e->getMessage());
+        }
+
+        return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
+    }
+
+    #[Route('/{id}/wizard/cancel', name: 'app_year_migration_wizard_cancel', methods: ['POST'])]
+    public function wizardCancel(MigrationLog $log, Request $request, SessionInterface $session): Response
+    {
+        if (!$this->isCsrfTokenValid('cancel_migration_' . $log->getId(), $request->request->get('_token'))) {
+            $this->addFlash('danger', 'Token CSRF invalide.');
+            return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
+        }
+
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        if ($log->getStatus() !== 'in_progress') {
+            $this->addFlash('warning', 'Ce brouillon a déjà été clôturé.');
+            return $this->redirectToRoute('app_year_migration_index');
+        }
+
+        try {
+            $this->migrationService->cancelMigration($log);
+            $this->addFlash('success', 'Migration annulée avec succès. Toutes les données créées ont été supprimées.');
+        } catch (\LogicException $e) {
+            $this->addFlash('danger', $e->getMessage());
+        } catch (\Exception $e) {
+            $this->addFlash('danger', 'Erreur lors de l\'annulation : ' . $e->getMessage());
+        }
+
+        return $this->redirectToRoute('app_year_migration_index');
+    }
+
+    #[Route('/{id}/wizard/finish', name: 'app_year_migration_wizard_finish', methods: ['POST'])]
+    public function wizardFinish(MigrationLog $log, Request $request, SessionInterface $session): Response
+    {
+        if (!$this->isCsrfTokenValid('wizard_finish_' . $log->getId(), $request->request->get('_token'))) {
+            $this->addFlash('danger', 'Token CSRF invalide.');
+            return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
+        }
+
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        try {
+            $this->migrationService->finishMigration($log);
+            $this->addFlash('success', 'Migration terminée.');
+        } catch (\LogicException $e) {
+            $this->addFlash('warning', $e->getMessage());
+            return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
+        }
+
+        return $this->redirectToRoute('app_year_migration_result', ['id' => $log->getId()]);
+    }
+
+    #[Route('/{id}/result', name: 'app_year_migration_result', methods: ['GET'])]
+    public function result(MigrationLog $log, SessionInterface $session): Response
+    {
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        return $this->render('school_year_migration/result.html.twig', [
+            'school'        => $school,
+            'sourcePeriod'  => $log->getSourcePeriod(),
+            'targetPeriod'  => $log->getTargetPeriod(),
+            'configSummary' => $log->getConfigSummary(),
+            'studentStats'  => $log->getStudentStats(),
+            'passingGrade'  => $log->getPassingGrade(),
+            'log'           => $log,
+        ]);
+    }
 
     #[Route('', name: 'app_year_migration_index', methods: ['GET'])]
     public function index(
@@ -52,109 +296,6 @@ final class SchoolYearMigrationController extends AbstractController
         ]);
     }
 
-    #[Route('/preview', name: 'app_year_migration_preview', methods: ['POST'])]
-    public function preview(
-        Request $request,
-        SchoolPeriodRepository $periodRepo,
-        SessionInterface $session
-    ): Response {
-        $school = $this->getSchool($session);
-        if (!$school) {
-            $this->addFlash('danger', 'Aucune école sélectionnée.');
-            return $this->redirectToRoute('app_year_migration_index');
-        }
-
-        $sourcePeriod = $periodRepo->find($request->request->get('source_period'));
-        $targetPeriod = $periodRepo->find($request->request->get('target_period'));
-        $passingGrade = (float) $request->request->get('passing_grade', 10);
-        $options      = $this->extractOptions($request);
-
-        if (!$sourcePeriod || !$targetPeriod || $sourcePeriod === $targetPeriod) {
-            $this->addFlash('danger', 'Périodes invalides ou identiques.');
-            return $this->redirectToRoute('app_year_migration_index');
-        }
-
-        return $this->render('school_year_migration/preview.html.twig', [
-            'school'             => $school,
-            'sourcePeriod'       => $sourcePeriod,
-            'targetPeriod'       => $targetPeriod,
-            'passingGrade'       => $passingGrade,
-            'options'            => $options,
-            'preview'            => $this->migrationService->previewStudentMigration($school, $sourcePeriod, $passingGrade),
-            'targetClassOptions' => $this->migrationService->getTargetClassOptions($school, $targetPeriod),
-        ]);
-    }
-
-    #[Route('/execute', name: 'app_year_migration_execute', methods: ['POST'])]
-    public function execute(
-        Request $request,
-        SchoolPeriodRepository $periodRepo,
-        SessionInterface $session
-    ): Response {
-        if (!$this->isCsrfTokenValid('year_migration', $request->request->get('_token'))) {
-            $this->addFlash('danger', 'Token CSRF invalide.');
-            return $this->redirectToRoute('app_year_migration_index');
-        }
-
-        $school = $this->getSchool($session);
-        if (!$school) {
-            $this->addFlash('danger', 'Aucune école sélectionnée.');
-            return $this->redirectToRoute('app_year_migration_index');
-        }
-
-        $sourcePeriod = $periodRepo->find($request->request->get('source_period'));
-        $targetPeriod = $periodRepo->find($request->request->get('target_period'));
-        $passingGrade = (float) $request->request->get('passing_grade', 10);
-        $options      = $this->extractOptions($request);
-        $classMapping = $request->request->all('class_mapping');
-
-        if (!$sourcePeriod || !$targetPeriod || $sourcePeriod === $targetPeriod) {
-            $this->addFlash('danger', 'Périodes invalides.');
-            return $this->redirectToRoute('app_year_migration_index');
-        }
-
-        // Avertissement si une migration a déjà été exécutée pour ces périodes :
-        // le service ne créera que les éléments manquants (aucun doublon).
-        $previousLog = $this->em->getRepository(MigrationLog::class)->createQueryBuilder('m')
-            ->andWhere('m.school = :school')->setParameter('school', $school)
-            ->andWhere('m.sourcePeriod = :source')->setParameter('source', $sourcePeriod)
-            ->andWhere('m.targetPeriod = :target')->setParameter('target', $targetPeriod)
-            ->andWhere('m.status IN (:statuses)')->setParameter('statuses', ['executed', 'corrected'])
-            ->setMaxResults(1)
-            ->getQuery()
-            ->getOneOrNullResult();
-
-        if ($previousLog) {
-            $this->addFlash('warning', 'Une migration a déjà été exécutée pour ces périodes : seuls les éléments manquants seront créés.');
-        }
-
-        try {
-            $user = $this->getUser();
-            $log  = $this->migrationService->executeMigration(
-                $school,
-                $sourcePeriod,
-                $targetPeriod,
-                $passingGrade,
-                $options,
-                $classMapping,
-                $user ? ($user->getUserIdentifier()) : 'inconnu'
-            );
-        } catch (\Exception $e) {
-            $this->addFlash('danger', 'Erreur lors de la migration : ' . $e->getMessage());
-            return $this->redirectToRoute('app_year_migration_index');
-        }
-
-        return $this->render('school_year_migration/result.html.twig', [
-            'school'        => $school,
-            'sourcePeriod'  => $sourcePeriod,
-            'targetPeriod'  => $targetPeriod,
-            'configSummary' => $log->getConfigSummary(),
-            'studentStats'  => $log->getStudentStats(),
-            'passingGrade'  => $passingGrade,
-            'log'           => $log,
-        ]);
-    }
-
     // ─────────────────────────────────────────────────────────────────────────
     // GESTION D'UNE MIGRATION (annuler ou corriger)
     // ─────────────────────────────────────────────────────────────────────────
@@ -165,6 +306,11 @@ final class SchoolYearMigrationController extends AbstractController
         $school = $this->getSchool($session);
         if (!$school || $log->getSchool() !== $school) {
             throw $this->createAccessDeniedException();
+        }
+
+        // Un brouillon in_progress se reprend dans le wizard, pas sur cette page.
+        if ($log->getStatus() === 'in_progress') {
+            return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
         }
 
         $state              = $this->migrationService->checkMigrationState($log);
