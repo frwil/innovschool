@@ -40,21 +40,22 @@
 									<div class="form-check">
 										<input type="checkbox" class="form-check-input" id="next-{{ occurence.id }}"
 											   name="next_occurences[]" value="{{ occurence.id }}"
-											   {% if occurence.id in class.classOccurence.nextOccurences|map(o => o.id) %} checked {% endif %}>
+											   {% if classConfig and occurence.id in classConfig.nextOccurences|map(o => o.id) %} checked {% endif %}>
 										<label class="form-check-label" for="next-{{ occurence.id }}">{{ occurence.name }}</label>
 									</div>
 								{% endif %}
 							{% endfor %}
 						</div>
 						<small class="form-text text-muted">
-							Occurrences de classes dans lesquelles les élèves promus de cette classe peuvent être inscrits.
+							Occurrences de classes dans lesquelles les élèves promus de cette classe peuvent être
+							inscrits — configuration propre à votre établissement.
 						</small>
 					</div>
 					<div class="mb-3">
 						<div class="form-check">
 							<input type="checkbox" class="form-check-input" id="is-final-level"
 								   name="is_final_level" value="1"
-								   {% if class.classOccurence.isFinalLevel %} checked {% endif %}>
+								   {% if classConfig and classConfig.isFinalLevel %} checked {% endif %}>
 							<label class="form-check-label" for="is-final-level">Niveau final (classe terminale)</label>
 						</div>
 						<small class="form-text text-muted">

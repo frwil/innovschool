@@ -24,6 +24,7 @@ use Symfony\Component\HttpFoundation\File\UploadedFile;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use App\Entity\Classe;
 use App\Entity\ClassOccurence;
+use App\Entity\ClassOccurenceSchoolConfig;
 use App\Entity\SubjectGroup;
 use App\Repository\ClasseRepository;
 use App\Entity\School;
@@ -517,9 +518,9 @@ final class SchoolClassPeriodController extends AbstractController
                 $class->setClassMaster($classMaster);
             }
 
-            // Classes suivantes (promotion) et niveau final, portés par l'occurrence de classe
-            $this->applyNextOccurences($class->getClassOccurence(), $request->request->all('next_occurences'), $entityManager);
-            $class->getClassOccurence()->setIsFinalLevel((bool) $request->request->get('is_final_level'));
+            // Classes suivantes (promotion) et niveau final, configurés pour l'école
+            // sur l'occurrence de classe (partagée entre écoles)
+            $this->applyNextOccurences($this->currentSchool, $class->getClassOccurence(), $request->request->all('next_occurences'), $request->request->get('is_final_level'), $entityManager);
 
 
             // Ajoute ici les autres champs à éditer si besoin
@@ -598,6 +599,8 @@ final class SchoolClassPeriodController extends AbstractController
             'teachers' => $teachers,
             'section' => $class->getClassOccurence()->getClasse(),
             'occurences' => $entityManager->getRepository(ClassOccurence::class)->findAll(),
+            'classConfig' => $entityManager->getRepository(ClassOccurenceSchoolConfig::class)
+                ->findOneBy(['school' => $this->currentSchool, 'classOccurence' => $class->getClassOccurence()]),
         ]);
     }
 
@@ -738,8 +741,9 @@ final class SchoolClassPeriodController extends AbstractController
     }
 
     /**
-     * Enregistre les classes suivantes (promotion) d'une occurrence de classe —
-     * utilisé par le modal du wizard de migration et par la page d'édition de classe.
+     * Enregistre les classes suivantes (promotion) d'une occurrence de classe,
+     * POUR L'ÉCOLE de session — utilisé par le modal du wizard de migration et
+     * par la page d'édition de classe.
      */
     #[Route('/occurrence/{id}/next-occurrences', name: 'app_school_class_occurence_next_edit', methods: ['POST'])]
     public function editNextOccurences(
@@ -758,7 +762,7 @@ final class SchoolClassPeriodController extends AbstractController
         $this->currentSchool = $entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
 
-        $this->applyNextOccurences($occurence, $request->request->all('next_occurences'), $entityManager);
+        $this->applyNextOccurences($this->currentSchool, $occurence, $request->request->all('next_occurences'), null, $entityManager);
 
         try {
             $entityManager->flush();
@@ -791,17 +795,32 @@ final class SchoolClassPeriodController extends AbstractController
         }
     }
 
-    /** Remplace la liste des occurrences suivantes d'une occurrence (ids invalides ou l'id courant ignorés). */
-    private function applyNextOccurences(ClassOccurence $occurence, array $ids, EntityManagerInterface $entityManager): void
+    /**
+     * Remplace la chaîne de promotion d'une occurrence POUR L'ÉCOLE de session :
+     * trouve ou crée la config de l'école (ids invalides ou l'id courant ignorés).
+     * $isFinalLevel null = conserver la valeur existante (modal) ; sinon l'imposer (page d'édition).
+     */
+    private function applyNextOccurences(School $school, ClassOccurence $occurence, array $ids, ?string $isFinalLevel, EntityManagerInterface $entityManager): void
     {
+        $config = $entityManager->getRepository(ClassOccurenceSchoolConfig::class)
+            ->findOneBy(['school' => $school, 'classOccurence' => $occurence]);
+        if ($config === null) {
+            $config = new ClassOccurenceSchoolConfig();
+            $config->setSchool($school)->setClassOccurence($occurence);
+            $entityManager->persist($config);
+        }
+        if ($isFinalLevel !== null) {
+            $config->setIsFinalLevel((bool) $isFinalLevel);
+        }
+
         $filtered = array_unique(array_filter(array_map('intval', $ids), fn(int $id) => $id !== $occurence->getId()));
         $occurences = $filtered ? $entityManager->getRepository(ClassOccurence::class)->findBy(['id' => $filtered]) : [];
 
-        foreach ($occurence->getNextOccurences()->toArray() as $existing) {
-            $occurence->removeNextOccurence($existing);
+        foreach ($config->getNextOccurences()->toArray() as $existing) {
+            $config->removeNextOccurence($existing);
         }
         foreach ($occurences as $o) {
-            $occurence->addNextOccurence($o);
+            $config->addNextOccurence($o);
         }
     }
 

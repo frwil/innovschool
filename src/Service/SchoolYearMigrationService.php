@@ -3,6 +3,7 @@
 namespace App\Service;
 
 use App\Entity\ClassOccurence;
+use App\Entity\ClassOccurenceSchoolConfig;
 use App\Entity\ClassSubjectModule;
 use App\Entity\Evaluation;
 use App\Entity\MigrationLog;
@@ -176,11 +177,12 @@ class SchoolYearMigrationService
             foreach ($preview as $row) {
                 $sourceSCP = $row['schoolClassPeriod'];
                 $occurence = $sourceSCP->getClassOccurence();
+                $config    = $this->getSchoolConfig($school, $occurence);
                 // Candidats = classes de la période cible dont l'occurrence est une
-                // occurrence suivante (promotion) de l'occurrence source.
+                // occurrence suivante configurée pour CETTE école.
                 $candidates = [];
-                if ($occurence !== null) {
-                    foreach ($occurence->getNextOccurences() as $nextOccurence) {
+                if ($config !== null) {
+                    foreach ($config->getNextOccurences() as $nextOccurence) {
                         foreach ($targetByOccurence[$nextOccurence->getId()] ?? [] as $targetSCP) {
                             $candidates[$targetSCP->getId()] = $targetSCP->getClassOccurence()?->getName() ?? '(ID ' . $targetSCP->getId() . ')';
                         }
@@ -194,9 +196,9 @@ class SchoolYearMigrationService
                     'candidates'  => $candidates,
                     // Pré-sélection uniquement s'il n'y a qu'une seule occurrence suivante.
                     'selected'    => count($candidates) === 1 ? array_key_first($candidates) : null,
-                    'missingLink' => $occurence === null || $occurence->getNextOccurences()->isEmpty(),
-                    'finalLevel'  => $occurence !== null && $occurence->isFinalLevel(),
-                    'linkedIds'   => $occurence !== null ? array_map(fn(ClassOccurence $o) => $o->getId(), $occurence->getNextOccurences()->toArray()) : [],
+                    'missingLink' => $config === null || $config->getNextOccurences()->isEmpty(),
+                    'finalLevel'  => $config !== null && $config->isFinalLevel(),
+                    'linkedIds'   => $config !== null ? array_map(fn(ClassOccurence $o) => $o->getId(), $config->getNextOccurences()->toArray()) : [],
                 ];
             }
             $occurencesForModal = [];
@@ -243,13 +245,15 @@ class SchoolYearMigrationService
         $targetPeriod = $log->getTargetPeriod();
 
         // Garde liens de succession : toute occurrence source ayant au moins un élève
-        // éligible doit avoir ses occurrences suivantes configurées (sauf niveau final).
+        // éligible doit avoir ses classes suivantes configurées POUR CETTE ÉCOLE
+        // (sauf niveau final).
         if ($stepKey === 'students') {
             $missing = [];
             foreach ($this->previewStudentMigration($school, $sourcePeriod, $log->getPassingGrade()) as $row) {
                 if ($row['eligible'] > 0) {
                     $occurence = $row['schoolClassPeriod']->getClassOccurence();
-                    if ($occurence !== null && !$occurence->isFinalLevel() && $occurence->getNextOccurences()->isEmpty()) {
+                    $config    = $this->getSchoolConfig($school, $occurence);
+                    if ($occurence !== null && ($config === null || (!$config->isFinalLevel() && $config->getNextOccurences()->isEmpty()))) {
                         $missing[] = $occurence->getName();
                     }
                 }
@@ -537,16 +541,20 @@ class SchoolYearMigrationService
                 $promotedTarget = $this->resolveExplicitTarget($school, $targetPeriod, $explicitId);
                 if ($promotedTarget === null) { $invalidMapping = true; }
             }
-            // Sans mapping explicite : occurrences suivantes configurées sur l'occurrence source.
-            // Exactement une occurrence suivante → affectation automatique ; plusieurs ou
-            // aucune → les promus restent non affectés (choix explicite requis / niveau final).
+            // Sans mapping explicite : occurrences suivantes configurées pour CETTE école
+            // sur l'occurrence source. Exactement une occurrence suivante → affectation
+            // automatique ; plusieurs ou aucune → les promus restent non affectés
+            // (choix explicite requis / niveau final).
             if (!$invalidMapping && $promotedTarget === null) {
                 $occurence = $sourceSCP->getClassOccurence();
                 $candidates = [];
                 if ($occurence !== null) {
-                    foreach ($occurence->getNextOccurences() as $nextOccurence) {
-                        foreach ($targetByOccurence[$nextOccurence->getId()] ?? [] as $targetSCP) {
-                            $candidates[] = $targetSCP;
+                    $config = $this->getSchoolConfig($school, $occurence);
+                    if ($config !== null) {
+                        foreach ($config->getNextOccurences() as $nextOccurence) {
+                            foreach ($targetByOccurence[$nextOccurence->getId()] ?? [] as $targetSCP) {
+                                $candidates[] = $targetSCP;
+                            }
                         }
                     }
                 }
@@ -1202,6 +1210,17 @@ class SchoolYearMigrationService
             }
         }
         return [count($entities), $entities];
+    }
+
+    /**
+     * Chaîne de promotion de l'école pour une occurrence (null si jamais configurée
+     * pour cette école). L'occurrence est globale : chaque école a sa propre config.
+     */
+    private function getSchoolConfig(School $school, ?ClassOccurence $occurence): ?ClassOccurenceSchoolConfig
+    {
+        if ($occurence === null) { return null; }
+        return $this->em->getRepository(ClassOccurenceSchoolConfig::class)
+            ->findOneBy(['school' => $school, 'classOccurence' => $occurence]);
     }
 
     private function buildRepeaterTargetMap(School $school, SchoolPeriod $targetPeriod): array
