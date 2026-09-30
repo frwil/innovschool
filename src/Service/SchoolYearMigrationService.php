@@ -457,38 +457,157 @@ class SchoolYearMigrationService
     // HELPERS PRIVÉS
     // ─────────────────────────────────────────────────────────────────────────
 
+    /** @var array<int, array|null> Contexte de calcul par classe (mémo valable par requête) */
+    private array $classAverageContextCache = [];
+
+    /**
+     * Moyenne annuelle d'un élève, fidèle au PV annuel (EvaluationController::bordereauGeneral,
+     * evaluationFrameId='all') : moyenne des moyennes par période d'évaluation > 0 — la
+     * sémantique « partielle » que le PV affiche en réalité pour tous les élèves (finalAverages
+     * pour les classés, qui est identique car ils ont une moyenne > 0 à chaque période ;
+     * partialAverages pour les non classés). Toute évolution du calcul du PV doit être
+     * répercutée ici : voir EvaluationController lignes ~1017-1018 et ~1324-1451.
+     */
     private function calculateStudentAverage(StudentClass $studentClass, SchoolClassPeriod $scp): ?float
     {
         $evaluations = $studentClass->getEvaluations();
         if ($evaluations->isEmpty()) { return null; }
 
-        $coeffMap = [];
-        foreach ($scp->getSchoolClassSubjects() as $scs) {
-            $subjectId = $scs->getStudySubject()?->getId();
-            if ($subjectId !== null) { $coeffMap[$subjectId] = $scs->getCoefficient(); }
-        }
+        $ctx = $this->getClassAverageContext($scp);
+        if ($ctx === null) { return null; } // classe sans module ou sans aucune évaluation
 
-        $subjectNotes = [];
+        // Notes de l'élève : timeId => moduleId => note (modules de la classe uniquement,
+        // le PV ignore les évaluations hors modules de la classe)
+        $notes = [];
         foreach ($evaluations as $eval) {
-            $module    = $eval->getClassSubjectModule();
-            if (!$module) { continue; }
-            $subjectId = $module->getSubject()?->getId();
-            if ($subjectId === null) { continue; }
-            $subjectNotes[$subjectId][] = $eval->getEvaluationNote();
+            $module = $eval->getClassSubjectModule();
+            $time   = $eval->getTime();
+            if ($module === null || $time === null) { continue; }
+            $moduleId = $module->getId();
+            if (!isset($ctx['moduleIds'][$moduleId])) { continue; }
+            $notes[$time->getId()][$moduleId] = $eval->getEvaluationNote() ?? 0;
         }
 
-        if (empty($subjectNotes)) { return null; }
-
-        $totalWeighted = 0.0;
-        $totalCoeff    = 0;
-        foreach ($subjectNotes as $subjectId => $notes) {
-            $subjectAvg     = array_sum($notes) / count($notes);
-            $coeff          = $coeffMap[$subjectId] ?? 1;
-            $totalWeighted += $subjectAvg * $coeff;
-            $totalCoeff    += $coeff;
+        $sumOfAverages   = 0.0;
+        $positivePeriods = 0;
+        foreach ($ctx['timeIds'] as $timeId) {
+            $periodAvg = $this->calculatePeriodAverage($timeId, $notes, $ctx);
+            $sumOfAverages += $periodAvg;
+            if ($periodAvg > 0) { $positivePeriods++; }
         }
 
-        return $totalCoeff > 0 ? round($totalWeighted / $totalCoeff, 2) : null;
+        return $positivePeriods > 0 ? round($sumOfAverages / $positivePeriods, 2) : 0.0;
+    }
+
+    /**
+     * Contexte de calcul commun à tous les élèves d'une classe (mémorisé par classe) :
+     * - timeIds : times distincts de TOUTES les évaluations des modules de la classe
+     *   (équivalent de BulletinDataService::getAllTimesGroupedByFrame) ;
+     * - subjects : groupement des modules par matière + coefficient = PREMIÈRE ligne
+     *   SchoolClassSubject du couple (classe, matière), 0 si absente
+     *   (fidèle à EvaluationController::calculateBordereauData) ;
+     * - totalNotation : somme des moduleNotation de TOUS les modules de la classe
+     *   (dénominateur du mode sans coefficients, notes à 0 incluses) ;
+     * - coefUsed : template présent && nom != 'D' (EvaluationController 1017-1018).
+     *
+     * @return array{timeIds:int[],moduleIds:array<int,true>,subjects:array<int,array{moduleIds:int[],coef:int}>,totalNotation:float,coefUsed:bool}|null
+     */
+    private function getClassAverageContext(SchoolClassPeriod $scp): ?array
+    {
+        $scpId = $scp->getId();
+        if (isset($this->classAverageContextCache[$scpId])) {
+            return $this->classAverageContextCache[$scpId];
+        }
+
+        $modules = $scp->getClassSubjectModules()->getValues();
+        if (empty($modules)) {
+            return $this->classAverageContextCache[$scpId] = null;
+        }
+
+        $moduleIds = array_map(fn (ClassSubjectModule $m) => $m->getId(), $modules);
+
+        $timeIds = $this->em->createQueryBuilder()
+            ->select('DISTINCT IDENTITY(e.time)')
+            ->from(Evaluation::class, 'e')
+            ->where('IDENTITY(e.classSubjectModule) IN (:moduleIds)')
+            ->setParameter('moduleIds', $moduleIds)
+            ->getQuery()
+            ->getSingleColumnResult();
+
+        if (empty($timeIds)) {
+            return $this->classAverageContextCache[$scpId] = null;
+        }
+
+        $subjects      = [];
+        $totalNotation = 0.0;
+        foreach ($modules as $module) {
+            $subject = $module->getSubject();
+            if ($subject === null) { continue; } // défensif : colonne NOT NULL en base
+            $subjects[$subject->getId()]['moduleIds'][] = $module->getId();
+            $totalNotation += $module->getModuleNotation() ?? 0;
+        }
+
+        foreach ($subjects as $subjectId => &$subjectData) {
+            $schoolClassSubjects = $this->em->getRepository(SchoolClassSubject::class)->findBy([
+                'schoolClassPeriod' => $scp,
+                'studySubject'      => $subjectId,
+            ]);
+            // Le PV prend findBy(...)[0] ; getCoefficient() est NOT NULL (défaut 1) ; 0 si aucune ligne
+            $subjectData['coef'] = !empty($schoolClassSubjects) ? ($schoolClassSubjects[0]->getCoefficient() ?? 1) : 0;
+        }
+        unset($subjectData);
+
+        $template = $scp->getReportCardTemplate();
+
+        return $this->classAverageContextCache[$scpId] = [
+            'timeIds'       => array_map('intval', $timeIds),
+            'moduleIds'     => array_fill_keys($moduleIds, true),
+            'subjects'      => $subjects,
+            'totalNotation' => $totalNotation,
+            'coefUsed'      => $template !== null && $template->getName() !== 'D',
+        ];
+    }
+
+    /**
+     * Moyenne de l'élève sur UNE période d'évaluation, fidèle à
+     * EvaluationController::calculateBordereauData (lignes ~1369-1451).
+     *
+     * @param array<int, array<int, float>> $notes notes[timeId][moduleId] de l'élève
+     * @param array{timeIds:int[],moduleIds:array<int,true>,subjects:array<int,array{moduleIds:int[],coef:int}>,totalNotation:float,coefUsed:bool} $ctx
+     */
+    private function calculatePeriodAverage(int $timeId, array $notes, array $ctx): float
+    {
+        if ($ctx['coefUsed']) {
+            // Mode coefficient : moyenne matière = moyenne arithmétique des notes > 0,
+            // pondérée par le coefficient SchoolClassSubject
+            $weightedSum = 0.0;
+            $totalCoef   = 0;
+            foreach ($ctx['subjects'] as $subjectData) {
+                $gradedTotal = 0.0;
+                $gradedCount = 0;
+                foreach ($subjectData['moduleIds'] as $moduleId) {
+                    $note = $notes[$timeId][$moduleId] ?? 0;
+                    if ($note > 0) {
+                        $gradedTotal += $note;
+                        $gradedCount++;
+                    }
+                }
+                $subjectAvg    = $gradedCount > 0 ? $gradedTotal / $gradedCount : 0;
+                $weightedSum  += $subjectAvg * $subjectData['coef'];
+                $totalCoef    += $subjectData['coef'];
+            }
+            return $totalCoef > 0 ? $weightedSum / $totalCoef : 0;
+        }
+
+        // Mode par défaut (template 'D') : somme des notes de tous les modules
+        // (notes à 0 incluses), divisée par la notation totale de la classe, ramenée sur 20
+        $weightedSum = 0.0;
+        foreach ($ctx['subjects'] as $subjectData) {
+            foreach ($subjectData['moduleIds'] as $moduleId) {
+                $weightedSum += $notes[$timeId][$moduleId] ?? 0;
+            }
+        }
+        return $ctx['totalNotation'] > 0 ? $weightedSum / $ctx['totalNotation'] * 20 : 0;
     }
 
     /** @return array{0: array<int,SubjectGroup>, 1: SubjectGroup[]} [map oldId→entity, list] */
