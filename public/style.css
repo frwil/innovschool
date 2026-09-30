@@ -5089,3 +5089,17 @@ ul {
 #wrapper > div.dashboard-page-one{
   height: 90vh !important;
 }
+
+/* Badges style Bootstrap 5 (badge bg-*) utilisés aussi sur les pages en Bootstrap 4 :
+   Bootstrap 4 ne colore pas le texte des .badge, le texte reste noir sur fond coloré.
+   Sur les pages Bootstrap 5 ces règles sont sans effet ou améliorent le contraste. */
+.badge.bg-primary,
+.badge.bg-secondary,
+.badge.bg-success,
+.badge.bg-danger,
+.badge.bg-info {
+  color: #fff;
+}
+.badge.bg-warning {
+  color: #212529;
+}
