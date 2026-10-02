@@ -519,8 +519,9 @@ final class SchoolClassPeriodController extends AbstractController
             }
 
             // Classes suivantes (promotion) et niveau final, configurés pour l'école
-            // sur l'occurrence de classe (partagée entre écoles)
-            $this->applyNextOccurences($this->currentSchool, $class->getClassOccurence(), $request->request->all('next_occurences'), $request->request->get('is_final_level'), $entityManager);
+            // sur l'occurrence de classe (partagée entre écoles). Le formulaire porte
+            // toujours l'état complet : case décochée = niveau final explicitement retiré.
+            $this->applyNextOccurences($this->currentSchool, $class->getClassOccurence(), $request->request->all('next_occurences'), $request->request->has('is_final_level') ? '1' : '0', $entityManager);
 
 
             // Ajoute ici les autres champs à éditer si besoin
@@ -762,7 +763,7 @@ final class SchoolClassPeriodController extends AbstractController
         $this->currentSchool = $entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
 
-        $this->applyNextOccurences($this->currentSchool, $occurence, $request->request->all('next_occurences'), null, $entityManager);
+        $this->applyNextOccurences($this->currentSchool, $occurence, $request->request->all('next_occurences'), $request->request->get('is_final_level'), $entityManager);
 
         try {
             $entityManager->flush();
@@ -798,7 +799,8 @@ final class SchoolClassPeriodController extends AbstractController
     /**
      * Remplace la chaîne de promotion d'une occurrence POUR L'ÉCOLE de session :
      * trouve ou crée la config de l'école (ids invalides ou l'id courant ignorés).
-     * $isFinalLevel null = conserver la valeur existante (modal) ; sinon l'imposer (page d'édition).
+     * $isFinalLevel null = conserver la valeur existante ; sinon l'imposer
+     * (le modal du wizard et la page d'édition envoient toujours 0 ou 1).
      */
     private function applyNextOccurences(School $school, ClassOccurence $occurence, array $ids, ?string $isFinalLevel, EntityManagerInterface $entityManager): void
     {
@@ -809,12 +811,18 @@ final class SchoolClassPeriodController extends AbstractController
             $config->setSchool($school)->setClassOccurence($occurence);
             $entityManager->persist($config);
         }
-        if ($isFinalLevel !== null) {
-            $config->setIsFinalLevel((bool) $isFinalLevel);
-        }
 
         $filtered = array_unique(array_filter(array_map('intval', $ids), fn(int $id) => $id !== $occurence->getId()));
         $occurences = $filtered ? $entityManager->getRepository(ClassOccurence::class)->findBy(['id' => $filtered]) : [];
+
+        // Exclusion mutuelle : « niveau final » et classes suivantes ne coexistent pas.
+        // Niveau final coché → liens vidés ; des classes suivantes envoyées → niveau final décoché.
+        if ($isFinalLevel !== null && (bool) $isFinalLevel) {
+            $config->setIsFinalLevel(true);
+            $occurences = [];
+        } elseif ($isFinalLevel !== null || $occurences !== []) {
+            $config->setIsFinalLevel(false);
+        }
 
         foreach ($config->getNextOccurences()->toArray() as $existing) {
             $config->removeNextOccurence($existing);

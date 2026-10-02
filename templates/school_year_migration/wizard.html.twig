@@ -129,7 +129,9 @@
                         établissement sur chaque classe concrète (occurrence). Si plusieurs classes suivantes sont
                         possibles, le choix est requis : les promus d'une classe sans choix restent non affectés.
                         Une classe sans lien bloque l'étape — utilisez le bouton <em>Configurer</em>. Les redoublants
-                        restent dans la classe équivalente.
+                        restent dans la classe équivalente. La <strong>note de passage</strong> définie au démarrage
+                        ({{ log.passingGrade }}/20) s'applique par défaut : elle peut être ajustée classe par classe
+                        dans la colonne « Moyenne de passage ».
                     </p>
                     <div class="table-responsive">
                         <table class="table table-bordered align-middle mb-0">
@@ -137,8 +139,9 @@
                                 <tr>
                                     <th>Classe source</th>
                                     <th class="text-center">Total élèves</th>
-                                    <th class="text-center text-success">Promus (&ge; {{ log.passingGrade }})</th>
-                                    <th class="text-center text-danger">Redoublants (&lt; {{ log.passingGrade }})</th>
+                                    <th class="text-center text-success">Promus</th>
+                                    <th class="text-center text-danger">Redoublants</th>
+                                    <th class="text-center" style="width: 140px;">Moyenne de passage</th>
                                     <th>Classe cible pour les promus</th>
                                 </tr>
                             </thead>
@@ -148,10 +151,30 @@
                                     <td><strong>{{ row.preview.className }}</strong></td>
                                     <td class="text-center">{{ row.preview.total }}</td>
                                     <td class="text-center">
-                                        <span class="badge bg-success fs-6">{{ row.preview.eligible }}</span>
+                                        <span class="badge bg-success fs-6" id="wizard-eligible-{{ row.sourceSCPId }}">{{ row.preview.eligible }}</span>
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge bg-danger fs-6">{{ row.preview.nonEligible }}</span>
+                                        <span class="badge bg-danger fs-6" id="wizard-noneligible-{{ row.sourceSCPId }}">{{ row.preview.nonEligible }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if row.occId %}
+                                        <input type="number" class="form-control form-control-sm wizard-grade-input text-center"
+                                               step="0.01" min="0" max="20"
+                                               value="{{ row.grade }}"
+                                               placeholder="{{ log.passingGrade }}"
+                                               data-occ-id="{{ row.occId }}"
+                                               data-source-scp-id="{{ row.sourceSCPId }}"
+                                               data-eligible="{{ row.preview.eligible }}"
+                                               data-csrf="{{ csrf_token('wizard_grade_' ~ log.id) }}"
+                                               data-url="{{ path('app_year_migration_wizard_students_grade', {id: log.id, occId: row.occId}) }}">
+                                        <span id="wizard-grade-indicator-{{ row.sourceSCPId }}" class="d-block mt-1">
+                                            {% if row.hasOverride %}
+                                            <span class="badge bg-warning text-dark">spécifique</span>
+                                            {% endif %}
+                                        </span>
+                                        {% else %}
+                                        <span class="text-muted">—</span>
+                                        {% endif %}
                                     </td>
                                     <td>
                                         {% if row.preview.eligible == 0 %}
@@ -161,15 +184,6 @@
                                             <div class="form-text">Sortants : les promus ne sont pas inscrits.</div>
                                         {% elseif row.missingLink %}
                                             <span class="badge bg-danger fs-6">Configuration requise</span>
-                                            {% if row.occId %}
-                                            <button type="button" class="btn btn-sm btn-outline-primary ms-1"
-                                                    data-bs-toggle="modal" data-bs-target="#nextClassesModal"
-                                                    data-occ-id="{{ row.occId }}"
-                                                    data-occ-name="{{ row.occName }}"
-                                                    data-csrf="{{ csrf_token('occ_next_' ~ row.occId) }}">
-                                                <i class="ti ti-settings me-1"></i>Configurer les classes suivantes
-                                            </button>
-                                            {% endif %}
                                             <div class="form-text">L'étape est bloquée tant que les classes suivantes ne sont pas définies.</div>
                                         {% elseif row.candidates is empty %}
                                             <select name="class_mapping[{{ row.sourceSCPId }}]" class="form-select form-select-sm" disabled>
@@ -192,11 +206,20 @@
                                                 <span class="badge bg-warning text-dark mt-1"><i class="ti ti-alert-triangle me-1"></i>Choix requis</span>
                                             {% endif %}
                                         {% endif %}
+                                        {% if row.occId %}
+                                        <button type="button" class="btn btn-sm btn-outline-secondary ms-1"
+                                                data-bs-toggle="modal" data-bs-target="#nextClassesModal"
+                                                data-occ-id="{{ row.occId }}"
+                                                data-occ-name="{{ row.occName }}"
+                                                data-csrf="{{ csrf_token('occ_next_' ~ row.occId) }}">
+                                            <i class="ti ti-settings me-1"></i>Configurer
+                                        </button>
+                                        {% endif %}
                                     </td>
                                 </tr>
                                 {% if row.preview.studentStats is not empty %}
                                 <tr class="table-secondary">
-                                    <td colspan="5" class="py-1">
+                                    <td colspan="6" class="py-1">
                                         <a class="text-decoration-none small" data-bs-toggle="collapse"
                                            href="#wizard-students-{{ row.sourceSCPId }}">
                                             <i class="ti ti-chevron-down me-1"></i>
@@ -211,7 +234,7 @@
                                                         <th class="text-center">Statut</th>
                                                     </tr>
                                                 </thead>
-                                                <tbody>
+                                                <tbody id="wizard-students-body-{{ row.sourceSCPId }}">
                                                     {% for stat in row.preview.studentStats %}
                                                     <tr>
                                                         <td>
@@ -296,6 +319,13 @@
                     Sélectionnez les occurrences de classe de l'année source dans lesquelles
                     les élèves promus de <strong id="nextClassesModalClasse"></strong> peuvent être inscrits.
                 </p>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" id="nextClassesFinalLevel">
+                    <label class="form-check-label" for="nextClassesFinalLevel">
+                        <i class="ti ti-flag me-1"></i>Niveau final — les promus de cette classe quittent l'école
+                        (aucune classe suivante).
+                    </label>
+                </div>
                 <div id="nextClassesModalBody"></div>
                 <div id="nextClassesModalMessage" class="mt-2"></div>
             </div>
@@ -317,6 +347,14 @@
     {%- endif -%}
 {%- endfor -%}
 {{ linkedMap|json_encode|raw }}</script>
+<script type="application/json" id="finalLevelData">
+{%- set finalMap = {} -%}
+{%- for row in context.rows -%}
+    {%- if row.occId -%}
+        {%- set finalMap = finalMap|merge({(row.occId): row.finalLevel}) -%}
+    {%- endif -%}
+{%- endfor -%}
+{{ finalMap|json_encode|raw }}</script>
 {% endif %}
 
 {# ── Clôture ── #}
@@ -438,26 +476,30 @@
 
     var occurencesForModal = JSON.parse(document.getElementById('occurencesForModalData').textContent || '{}');
     var linkedByIds = JSON.parse(document.getElementById('linkedIdsData').textContent || '{}');
+    var finalByIds = JSON.parse(document.getElementById('finalLevelData').textContent || '{}');
     var currentOccId = null;
     var currentCsrf = null;
+    var finalCheckbox = document.getElementById('nextClassesFinalLevel');
+    var saveBtn = document.getElementById('nextClassesModalSave');
 
-    modalEl.addEventListener('show.bs.modal', function (event) {
-        var trigger = event.relatedTarget;
-        currentOccId = trigger ? trigger.getAttribute('data-occ-id') : null;
-        currentCsrf = trigger ? trigger.getAttribute('data-csrf') : null;
-
-        document.getElementById('nextClassesModalClasse').textContent =
-            trigger ? trigger.getAttribute('data-occ-name') : '';
-        document.getElementById('nextClassesModalMessage').innerHTML = '';
-
+    // Reconstruit le corps du modal : soit le message « niveau final », soit le select2
+    // des classes suivantes. Le select est recréé à chaque fois (select2 ne suit pas
+    // les reconstructions du DOM).
+    function renderBody(finalChecked) {
         var linked = linkedByIds[currentOccId] || [];
         var body = document.getElementById('nextClassesModalBody');
-        // Le select est recréé à chaque ouverture : détruire l'instance select2 précédente.
         var previousSelect = document.getElementById('nextOccurencesSelect');
         if (previousSelect && window.jQuery) {
             window.jQuery(previousSelect).select2('destroy');
         }
         body.innerHTML = '';
+
+        if (finalChecked) {
+            body.innerHTML = '<div class="text-muted"><i class="ti ti-flag me-1"></i>' +
+                'Niveau final : aucune classe suivante. Les promus quitteront l\'établissement.</div>';
+            saveBtn.disabled = false;
+            return;
+        }
 
         var optionsHtml = '';
         var count = 0;
@@ -480,10 +522,27 @@
                 dropdownParent: window.jQuery('#nextClassesModal')
             });
         }
-        document.getElementById('nextClassesModalSave').disabled = count === 0;
+        saveBtn.disabled = count === 0;
+    }
+
+    modalEl.addEventListener('show.bs.modal', function (event) {
+        var trigger = event.relatedTarget;
+        currentOccId = trigger ? trigger.getAttribute('data-occ-id') : null;
+        currentCsrf = trigger ? trigger.getAttribute('data-csrf') : null;
+
+        document.getElementById('nextClassesModalClasse').textContent =
+            trigger ? trigger.getAttribute('data-occ-name') : '';
+        document.getElementById('nextClassesModalMessage').innerHTML = '';
+
+        finalCheckbox.checked = finalByIds[currentOccId] || false;
+        renderBody(finalCheckbox.checked);
     });
 
-    document.getElementById('nextClassesModalSave').addEventListener('click', function () {
+    finalCheckbox.addEventListener('change', function () {
+        renderBody(this.checked);
+    });
+
+    saveBtn.addEventListener('click', function () {
         var btn = this;
         if (!currentOccId) {
             return;
@@ -492,10 +551,15 @@
 
         var params = new URLSearchParams();
         params.append('_token', currentCsrf || '');
-        var values = window.jQuery('#nextOccurencesSelect').val() || [];
-        values.forEach(function (value) {
-            params.append('next_occurences[]', value);
-        });
+        if (finalCheckbox.checked) {
+            params.append('is_final_level', '1');
+        } else {
+            params.append('is_final_level', '0');
+            var values = window.jQuery('#nextOccurencesSelect').val() || [];
+            values.forEach(function (value) {
+                params.append('next_occurences[]', value);
+            });
+        }
 
         fetch('/school-class-period/occurrence/' + currentOccId + '/next-occurrences', {
             method: 'POST',
@@ -517,6 +581,101 @@
             document.getElementById('nextClassesModalMessage').innerHTML =
                 '<div class="alert alert-danger mb-0">Erreur réseau. Réessayez.</div>';
             btn.disabled = false;
+        });
+    });
+})();
+</script>
+<script>
+(function () {
+    var inputs = document.querySelectorAll('.wizard-grade-input');
+    if (!inputs.length) {
+        return;
+    }
+
+    function escapeHtml(value) {
+        var div = document.createElement('div');
+        div.textContent = value;
+        return div.innerHTML;
+    }
+
+    // Met à jour compteurs, badge « spécifique », valeur du champ et détail des élèves.
+    // Si l'éligibilité franchit zéro, l'affichage de la colonne cible change de nature
+    // (choix de classe / tiret) : on recharge la page pour rester cohérent.
+    function applyGradeUpdate(data) {
+        var crossedZero = false;
+        (data.rows || []).forEach(function (row) {
+            var eligibleBadge = document.getElementById('wizard-eligible-' + row.sourceSCPId);
+            var nonEligibleBadge = document.getElementById('wizard-noneligible-' + row.sourceSCPId);
+            if (eligibleBadge) { eligibleBadge.textContent = row.eligible; }
+            if (nonEligibleBadge) { nonEligibleBadge.textContent = row.nonEligible; }
+
+            var input = document.querySelector('.wizard-grade-input[data-source-scp-id="' + row.sourceSCPId + '"]');
+            if (input) {
+                var previous = parseInt(input.dataset.eligible, 10) || 0;
+                if ((previous === 0) !== (row.eligible === 0)) {
+                    crossedZero = true;
+                }
+                input.dataset.eligible = String(row.eligible);
+                input.value = row.grade;
+            }
+
+            var indicator = document.getElementById('wizard-grade-indicator-' + row.sourceSCPId);
+            if (indicator) {
+                indicator.innerHTML = row.hasOverride
+                    ? '<span class="badge bg-warning text-dark">spécifique</span>'
+                    : '';
+            }
+
+            var detailBody = document.getElementById('wizard-students-body-' + row.sourceSCPId);
+            if (detailBody) {
+                detailBody.innerHTML = row.studentStats.map(function (stat) {
+                    var average = stat.average !== null
+                        ? '<strong class="' + (stat.eligible ? 'text-success' : 'text-danger') + '">' +
+                          stat.average.toFixed(2).replace('.', ',') + '/20</strong>'
+                        : '<span class="text-muted">—</span>';
+                    var status = stat.eligible
+                        ? '<span class="badge bg-success">Promu</span>'
+                        : '<span class="badge bg-danger">Redoublant</span>';
+                    return '<tr><td>' + escapeHtml(stat.name) + '</td>' +
+                           '<td class="text-center">' + average + '</td>' +
+                           '<td class="text-center">' + status + '</td></tr>';
+                }).join('');
+            }
+        });
+        if (crossedZero) {
+            location.reload();
+        }
+    }
+
+    inputs.forEach(function (input) {
+        var previousValue = input.value;
+        input.addEventListener('focus', function () {
+            previousValue = input.value;
+        });
+        input.addEventListener('change', function () {
+            var el = this;
+            var params = new URLSearchParams();
+            params.append('_token', el.dataset.csrf || '');
+            params.append('grade', el.value.trim());
+
+            fetch(el.dataset.url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: params.toString()
+            })
+            .then(function (response) { return response.json(); })
+            .then(function (data) {
+                if (data.ok) {
+                    applyGradeUpdate(data);
+                } else {
+                    el.value = previousValue;
+                    alert(data.message || 'Erreur lors de l\'enregistrement de la moyenne.');
+                }
+            })
+            .catch(function () {
+                el.value = previousValue;
+                alert('Erreur réseau. Réessayez.');
+            });
         });
     });
 })();

@@ -37,10 +37,15 @@ class SchoolYearMigrationService
     // PREVIEW
     // ─────────────────────────────────────────────────────────────────────────
 
+    /**
+     * @param array<int, float> $grades moyennes de passage individuelles (occId => moyenne) ;
+     *                                 les occurrences absentes retombent sur la note globale.
+     */
     public function previewStudentMigration(
         School $school,
         SchoolPeriod $sourcePeriod,
-        float $passingGrade
+        float $passingGrade,
+        array $grades = []
     ): array {
         $results = [];
         $sourceClasses = $this->em->getRepository(SchoolClassPeriod::class)->findBy([
@@ -49,6 +54,9 @@ class SchoolYearMigrationService
         ]);
 
         foreach ($sourceClasses as $scp) {
+            $occId = $scp->getClassOccurence()?->getId();
+            $grade = $occId !== null ? ($grades[$occId] ?? $passingGrade) : $passingGrade;
+
             $eligible = [];
             $nonEligible = [];
             foreach ($scp->getStudentClasses() as $studentClass) {
@@ -56,7 +64,7 @@ class SchoolYearMigrationService
                 $stat = [
                     'student'  => $studentClass->getStudent(),
                     'average'  => $avg,
-                    'eligible' => $avg !== null && $avg >= $passingGrade,
+                    'eligible' => $avg !== null && $avg >= $grade,
                 ];
                 $stat['eligible'] ? $eligible[] = $stat : $nonEligible[] = $stat;
             }
@@ -67,6 +75,7 @@ class SchoolYearMigrationService
                 'eligible'          => count($eligible),
                 'nonEligible'       => count($nonEligible),
                 'studentStats'      => array_merge($eligible, $nonEligible),
+                'grade'             => $grade,
             ];
         }
 
@@ -171,7 +180,8 @@ class SchoolYearMigrationService
         $school = $log->getSchool();
 
         if ($stepKey === 'students') {
-            $preview = $this->previewStudentMigration($school, $log->getSourcePeriod(), $log->getPassingGrade());
+            $grades  = $this->loadPassingGrades($log);
+            $preview = $this->previewStudentMigration($school, $log->getSourcePeriod(), $log->getPassingGrade(), $grades);
             $targetByOccurence = $this->getTargetSCPsByOccurence($school, $log->getTargetPeriod());
             $rows = [];
             foreach ($preview as $row) {
@@ -199,6 +209,8 @@ class SchoolYearMigrationService
                     'missingLink' => $config === null || $config->getNextOccurences()->isEmpty(),
                     'finalLevel'  => $config !== null && $config->isFinalLevel(),
                     'linkedIds'   => $config !== null ? array_map(fn(ClassOccurence $o) => $o->getId(), $config->getNextOccurences()->toArray()) : [],
+                    'grade'       => $row['grade'],
+                    'hasOverride' => $occurence !== null && array_key_exists($occurence->getId(), $grades),
                 ];
             }
             // Occurrences liées à l'année source de l'école : seules les classes
@@ -218,6 +230,65 @@ class SchoolYearMigrationService
         }
 
         return ['sourceCount' => $this->countSourceItems($school, $log->getSourcePeriod(), $stepKey)];
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // MOYENNE DE PASSAGE PAR CLASSE (étape Élèves)
+    // Deltas stockés sous la clé privée « _passing_grades » du stepsState
+    // (occId => moyenne) : les clés absentes retombent sur log.passingGrade.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Map « _passing_grades » : occId => moyenne de passage propre à la classe. */
+    private function loadPassingGrades(MigrationLog $log): array
+    {
+        return ($log->getStepsState() ?? [])['_passing_grades'] ?? [];
+    }
+
+    /** Définit (ou supprime avec null) la moyenne de passage individuelle d'une occurrence. */
+    public function setClassPassingGrade(MigrationLog $log, int $occId, ?float $grade): void
+    {
+        $state  = $log->getStepsState() ?? [];
+        $grades = $state['_passing_grades'] ?? [];
+        if ($grade === null) {
+            unset($grades[$occId]);
+        } else {
+            $grades[$occId] = $grade;
+        }
+        $state['_passing_grades'] = $grades;
+        $log->setStepsState($state);
+    }
+
+    /**
+     * Aperçu recalculé des lignes Élèves partageant une occurrence — réponse AJAX
+     * du champ « moyenne de passage » individuel (compteurs + détail par élève).
+     */
+    public function getClassGradePreview(MigrationLog $log, int $occId): array
+    {
+        $grades = $this->loadPassingGrades($log);
+        $rows   = [];
+        foreach ($this->previewStudentMigration($log->getSchool(), $log->getSourcePeriod(), $log->getPassingGrade(), $grades) as $row) {
+            $scp = $row['schoolClassPeriod'];
+            if ($scp->getClassOccurence()?->getId() !== $occId) {
+                continue;
+            }
+            $rows[] = [
+                'sourceSCPId'  => $scp->getId(),
+                'grade'        => $row['grade'],
+                'hasOverride'  => array_key_exists($occId, $grades),
+                'total'        => $row['total'],
+                'eligible'     => $row['eligible'],
+                'nonEligible'  => $row['nonEligible'],
+                'studentStats' => array_map(function (array $stat) {
+                    $student = $stat['student'];
+                    return [
+                        'name'     => $student->getUsername() ?? $student->getFullName(),
+                        'average'  => $stat['average'],
+                        'eligible' => $stat['eligible'],
+                    ];
+                }, $row['studentStats']),
+            ];
+        }
+        return $rows;
     }
 
     /**
@@ -254,7 +325,8 @@ class SchoolYearMigrationService
         // (sauf niveau final).
         if ($stepKey === 'students') {
             $missing = [];
-            foreach ($this->previewStudentMigration($school, $sourcePeriod, $log->getPassingGrade()) as $row) {
+            $grades  = $this->loadPassingGrades($log);
+            foreach ($this->previewStudentMigration($school, $sourcePeriod, $log->getPassingGrade(), $grades) as $row) {
                 if ($row['eligible'] > 0) {
                     $occurence = $row['schoolClassPeriod']->getClassOccurence();
                     $config    = $this->getSchoolConfig($school, $occurence);
@@ -583,6 +655,7 @@ class SchoolYearMigrationService
         $sourcePeriod = $log->getSourcePeriod();
         $targetPeriod = $log->getTargetPeriod();
         $passingGrade = $log->getPassingGrade();
+        $grades       = $this->loadPassingGrades($log);
 
         $promoted = 0; $repeated = 0; $skipped = 0; $existingCount = 0; $errors = 0;
         $studentClasses = [];
@@ -630,7 +703,8 @@ class SchoolYearMigrationService
 
             foreach ($sourceSCP->getStudentClasses() as $studentClass) {
                 $avg        = $this->calculateStudentAverage($studentClass, $sourceSCP);
-                $isEligible = $avg !== null && $avg >= $passingGrade;
+                $grade      = $occId !== null ? ($grades[$occId] ?? $passingGrade) : $passingGrade;
+                $isEligible = $avg !== null && $avg >= $grade;
 
                 if ($isEligible && $invalidMapping) {
                     $errors++; $skipped++;

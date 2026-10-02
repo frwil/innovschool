@@ -12,6 +12,7 @@ use App\Repository\SchoolPeriodRepository;
 use App\Service\SchoolYearMigrationService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
@@ -180,6 +181,44 @@ final class SchoolYearMigrationController extends AbstractController
         }
 
         return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
+    }
+
+    /**
+     * AJAX de l'étape Élèves : moyenne de passage individuelle d'une occurrence.
+     * Persiste le delta dans stepsState et renvoie les compteurs recalculés.
+     */
+    #[Route('/{id}/wizard/step/students/grade/{occId}', name: 'app_year_migration_wizard_students_grade', methods: ['POST'], requirements: ['occId' => '\d+'])]
+    public function wizardStudentsGrade(MigrationLog $log, int $occId, Request $request, SessionInterface $session): JsonResponse
+    {
+        if (!$this->isCsrfTokenValid('wizard_grade_' . $log->getId(), $request->request->get('_token'))) {
+            return $this->json(['ok' => false, 'message' => 'Jeton de sécurité invalide.'], 403);
+        }
+
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        if ($log->getStatus() !== 'in_progress') {
+            return $this->json(['ok' => false, 'message' => 'La migration n\'est plus modifiable.']);
+        }
+
+        $raw   = $request->request->get('grade');
+        $grade = ($raw === null || trim((string) $raw) === '') ? null : (float) $raw;
+
+        if ($grade !== null && ($grade < 0 || $grade > 20)) {
+            return $this->json(['ok' => false, 'message' => 'La moyenne de passage doit être comprise entre 0 et 20.']);
+        }
+
+        // Un delta égal à la note globale n'a pas besoin d'être persisté.
+        if ($grade !== null && $grade == $log->getPassingGrade()) {
+            $grade = null;
+        }
+
+        $this->migrationService->setClassPassingGrade($log, $occId, $grade);
+        $this->em->flush();
+
+        return $this->json(['ok' => true, 'rows' => $this->migrationService->getClassGradePreview($log, $occId)]);
     }
 
     #[Route('/{id}/wizard/step/{stepKey}/skip', name: 'app_year_migration_step_skip', methods: ['POST'], requirements: ['stepKey' => '[a-z_]+'])]

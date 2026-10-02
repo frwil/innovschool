@@ -58,7 +58,8 @@ class MigrationLog
      * État du wizard par étape (brouillon in_progress) : clé => {status, created, existing, errors, message}.
      * status : pending | done | failed | skipped. L'entrée « classes » porte en plus la map interne
      * « _class_map » (sourceId => targetId) et le niveau racine « _group_map » (oldId => newId) —
-     * clés privées jamais rendues par Twig.
+     * clés privées jamais rendues par Twig. Le niveau racine « _passing_grades » (occId => moyenne)
+     * porte les moyennes de passage individuelles de l'étape Élèves (clés absentes = note globale).
      */
     #[ORM\Column(type: 'json', nullable: true)]
     private ?array $stepsState = null;
