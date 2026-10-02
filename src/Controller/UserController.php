@@ -35,6 +35,7 @@ use App\Entity\SchoolClassPaymentModal;
 use App\Entity\SchoolClassAdmissionPayment;
 use App\Service\StringHelper;
 use App\Service\OperationLogger;
+use App\Service\AccessRightsService;
 use App\Entity\AdmissionReductions;
 
 #[Route('/users')]
@@ -383,14 +384,19 @@ final class UserController extends AbstractController
     }
 
     #[Route('/user/manage', name: 'app_user_manage')]
-    public function manage(EntityManagerInterface $entityManager): Response
+    public function manage(EntityManagerInterface $entityManager, AccessRightsService $accessRightsService): Response
     {
-        $this->denyAccessUnlessGranted('ROLE_SUPER_ADMIN');
+        // NB : un subject string de #[IsGranted] serait lu comme un nom
+        // d'argument de contrôleur (Symfony 6.4) → check en corps de méthode.
+        $this->denyAccessUnlessGranted('perm', 'users.view');
+
+        $actor = $this->getUser();
+        assert($actor instanceof User);
 
         // Récupérer les utilisateurs depuis la base de données
         $users = $entityManager->getRepository(User::class)->findAll();
 
-        if (in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (in_array('ROLE_SUPER_ADMIN', $actor->getRoles())) {
             // Récupérer les sections et les classes depuis la base de données
             $sections = $entityManager->getRepository(StudyLevel::class)->findAll();
             $classes = $entityManager->getRepository(SchoolClassPeriod::class)->findAll();
@@ -410,6 +416,7 @@ final class UserController extends AbstractController
             'users' => $users,
             'sections' => $sections,
             'classes' => $classes,
+            'assignable_roles' => $accessRightsService->getAssignableRoles($actor),
         ]);
     }
 

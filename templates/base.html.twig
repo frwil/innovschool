@@ -539,6 +539,14 @@
 							</a>
 						</li>
 						{% endif %}
+						{% if is_granted('perm', 'roles.view') %}
+						<li class="nav-item">
+							<a data-turbo="false" href="{{path('app_role_index')}}" class="nav-link">
+								<i class="fa fa-user-shield"></i>
+								<span>Rôles et permissions</span>
+							</a>
+						</li>
+						{% endif %}
 						{% if is_granted('ROLE_ADMIN')%}
 						<li class="nav-item sidebar-nav-item">
 							<a href="#" class="nav-link">

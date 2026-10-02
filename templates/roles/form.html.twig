@@ -1,0 +1,151 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}{{ is_new ? 'Nouveau rôle' : role.label }}{% endblock %}
+
+{% block header %}
+    <h1>{{ is_new ? 'Nouveau rôle' : 'Rôle « ' ~ role.label ~ ' »' }}</h1>
+{% endblock %}
+
+{% block body %}
+<div class="three">
+    <h1>{{ is_new ? 'Nouveau rôle' : 'Rôle « ' ~ role.label ~ ' »' }}</h1>
+</div>
+
+<a href="{{ path('app_role_index') }}" class="btn btn-outline-secondary mb-3">
+    <i class="fa fa-arrow-left"></i> Retour à la liste
+</a>
+
+{% if not is_new and not can_edit_matrix %}
+<div class="alert alert-info">
+    {% if role.locked %}
+        Ce rôle est géré automatiquement par l'application : sa matrice est en lecture seule.
+    {% elseif role.isSystem %}
+        Les rôles système ne peuvent être modifiés que par un super-administrateur.
+    {% else %}
+        Vous n'avez pas le droit de modifier ce rôle.
+    {% endif %}
+</div>
+{% endif %}
+
+{{ form_start(form) }}
+<div class="card mb-4">
+    <div class="card-header">Informations du rôle</div>
+    <div class="card-body">
+        {{ form_row(form.name) }}
+        {{ form_row(form.label) }}
+        {{ form_row(form.description) }}
+        {{ form_row(form.dataScope) }}
+    </div>
+</div>
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Permissions du rôle</span>
+        <label class="mb-0 small">
+            <input type="checkbox" id="perm-all-toggle"> Tout cocher / décocher
+        </label>
+    </div>
+    <div class="card-body p-0">
+        {% for category, permissions in permissions_by_category %}
+        <table class="table table-sm table-hover mb-0">
+            <thead class="thead-light">
+                <tr>
+                    <th style="width: 45%;">
+                        <label class="mb-0 small font-weight-normal">
+                            <input type="checkbox" class="perm-cat-toggle" data-category="{{ category }}"
+                                   {{ not can_edit_matrix ? 'disabled' }}>
+                            {{ category_labels[category] ?? category }}
+                        </label>
+                    </th>
+                    <th class="text-center" style="width: 15%;">Accordée</th>
+                    <th class="text-center" style="width: 15%;">Obligatoire</th>
+                    <th style="width: 25%;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for code, label in permissions %}
+                {% set state = matrix_state[code] ?? {'granted': false, 'mandatory': false, 'default': false} %}
+                <tr>
+                    <td>
+                        <span class="font-weight-bold">{{ label }}</span>
+                        <small class="text-muted d-block">{{ code }}</small>
+                    </td>
+                    <td class="text-center">
+                        <input type="checkbox" name="permissions[]" value="{{ code }}"
+                               class="perm-check perm-check-{{ category }}"
+                               {{ state.granted ? 'checked' }} {{ not can_edit_matrix ? 'disabled' }}>
+                    </td>
+                    <td class="text-center">
+                        <input type="checkbox" name="mandatory[]" value="{{ code }}"
+                               class="mandatory-check mandatory-check-{{ category }}"
+                               {{ state.mandatory ? 'checked' }}
+                               {{ (not state.granted or not can_edit_matrix) ? 'disabled' }}>
+                    </td>
+                    <td>
+                        {% if state.default %}
+                            <span class="badge badge-info" title="Restaure par « Réinitialiser aux valeurs par défaut »">défaut</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% endfor %}
+    </div>
+</div>
+
+{% if can_edit_matrix %}
+<button type="submit" class="btn btn-primary">
+    <i class="fa fa-save"></i> Enregistrer le rôle et ses permissions
+</button>
+{% endif %}
+{{ form_end(form) }}
+
+{% if not is_new and can_edit_matrix %}
+<div class="d-flex mt-3">
+    <form method="post" action="{{ path('app_role_save_defaults', {'id': role.id}) }}" class="mr-2">
+        <input type="hidden" name="_token" value="{{ csrf_token('role_defaults') }}">
+        <button type="submit" class="btn btn-outline-secondary"
+                title="L'état coché devient l'état restauré par la réinitialisation">
+            <i class="fa fa-bookmark"></i> Mémoriser l'état actuel comme valeurs par défaut
+        </button>
+    </form>
+    <form method="post" action="{{ path('app_role_reset_defaults', {'id': role.id}) }}"
+          onsubmit="return confirm('Réinitialiser les permissions du rôle aux valeurs par défaut ?');">
+        <input type="hidden" name="_token" value="{{ csrf_token('role_defaults') }}">
+        <button type="submit" class="btn btn-outline-warning">
+            <i class="fa fa-undo"></i> Réinitialiser aux valeurs par défaut
+        </button>
+    </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block javascripts %}
+{{ parent() }}
+<script>
+    $(document).ready(function () {
+        // Case « Obligatoire » seulement si « Accordée » est cochée.
+        $('.perm-check').on('change', function () {
+            var $row = $(this).closest('tr');
+            if (this.checked) {
+                $row.find('.mandatory-check').prop('disabled', false);
+            } else {
+                $row.find('.mandatory-check').prop('checked', false).prop('disabled', true);
+            }
+        });
+
+        // Sélection / désélection par catégorie.
+        $('.perm-cat-toggle').on('change', function () {
+            var cat = $(this).data('category');
+            $('.perm-check-' + cat).prop('checked', this.checked).trigger('change');
+        });
+
+        // Tout cocher / décocher.
+        $('#perm-all-toggle').on('change', function () {
+            $('.perm-cat-toggle').prop('checked', this.checked);
+            $('.perm-check').prop('checked', this.checked).trigger('change');
+        });
+    });
+</script>
+{% endblock %}

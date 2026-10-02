@@ -1,0 +1,97 @@
+{% extends 'base.up.html.twig' %}
+
+{% block title %}Rôles et permissions{% endblock %}
+
+{% block header %}
+    <h1>Rôles et permissions</h1>
+{% endblock %}
+
+{% block body %}
+<div class="three">
+    <h1>Rôles et permissions</h1>
+</div>
+
+{% set scope_labels = {
+    'none': 'Aucune restriction',
+    'own': 'Restreint à ses classes et matières',
+    'own_classes': 'Ses classes + toutes les matières (lecture seule hors charge)'
+} %}
+
+<div class="card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Rôles de l'application</span>
+        {% if is_granted('perm', 'roles.manage') %}
+            <a href="{{ path('app_role_new') }}" class="btn btn-success">
+                <i class="fa fa-plus"></i> Nouveau rôle
+            </a>
+        {% endif %}
+    </div>
+    <div class="card-body">
+        <table class="table table-striped">
+            <thead>
+                <tr>
+                    <th>Rôle</th>
+                    <th>Libellé</th>
+                    <th>Périmètre</th>
+                    <th>Permissions accordées</th>
+                    <th>Utilisateurs porteurs</th>
+                    <th>Statut</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td><code>{{ row.role.name }}</code></td>
+                    <td>{{ row.role.label }}</td>
+                    <td>{{ scope_labels[row.role.dataScope] ?? row.role.dataScope }}</td>
+                    <td>{{ row.granted }}</td>
+                    <td>
+                        {% if row.carriers > 0 %}
+                            <span class="badge badge-info">{{ row.carriers }}</span>
+                        {% else %}
+                            <span class="badge badge-light">0</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.role.locked %}
+                            <span class="badge badge-secondary">Verrouillé</span>
+                        {% elseif row.role.isSystem %}
+                            <span class="badge badge-primary">Système</span>
+                        {% else %}
+                            <span class="badge badge-light">Personnalisé</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if row.editable %}
+                            <a href="{{ path('app_role_edit', {'id': row.role.id}) }}" class="btn btn-sm btn-warning">
+                                <i class="fa fa-edit"></i> Modifier
+                            </a>
+                            {% if not row.role.isSystem %}
+                            <form method="post" action="{{ path('app_role_delete', {'id': row.role.id}) }}" class="d-inline"
+                                  onsubmit="return confirm('Supprimer le rôle « {{ row.role.name|e('js') }} » ?');">
+                                <input type="hidden" name="_token" value="{{ csrf_token('role_delete') }}">
+                                <button type="submit" class="btn btn-sm btn-danger">
+                                    <i class="fa fa-trash"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                        {% else %}
+                            <a href="{{ path('app_role_edit', {'id': row.role.id}) }}" class="btn btn-sm btn-outline-secondary">
+                                <i class="fa fa-eye"></i> Voir
+                            </a>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-center text-muted">
+                        Aucun rôle. Lancez <code>php bin/console app:sync-permissions</code>.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

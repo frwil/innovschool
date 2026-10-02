@@ -30,7 +30,7 @@
                     <td>{{ user.email }}</td>
                     <td>{{ user.roles|join(', ') }}</td>
                     <td>
-                        {% if is_granted('ROLE_EDIT_USER') or is_granted('ROLE_SUPER_ADMIN') %}
+                        {% if is_granted('perm', 'users.edit') %}
                             <a href="{{ path('app_user_manage_edit',{'id':user.id}) }}" class="btn btn-warning edit-user" data-id="{{ user.id }}">Modifier</a>
                         {% endif %}
                     </td>
@@ -45,9 +45,11 @@
         <li class="nav-item">
             <a class="nav-link active" id="base-tab" data-bs-toggle="tab" href="#base" role="tab" aria-controls="base" aria-selected="true">Base</a>
         </li>
+        {% if is_granted('perm', 'roles.assign') %}
         <li class="nav-item">
             <a class="nav-link" id="roles-tab" data-bs-toggle="tab" href="#roles" role="tab" aria-controls="roles" aria-selected="false">Rôles</a>
         </li>
+        {% endif %}
         <li class="nav-item">
             <a class="nav-link" id="others-tab" data-bs-toggle="tab" href="#others" role="tab" aria-controls="others" aria-selected="false">Autres</a>
         </li>
@@ -94,20 +96,24 @@
         </div>
 
         <!-- Onglet Rôles -->
+        {% if is_granted('perm', 'roles.assign') %}
         <div class="tab-pane fade" id="roles" role="tabpanel" aria-labelledby="roles-tab">
             <form id="roles-form" method="post">
                 <input type="hidden" id="user-id-roles" name="id">
+                <input type="hidden" name="_token" value="{{ csrf_token('roles_assign') }}">
                 <div class="form-group">
                     <label for="roles">Rôles</label>
                     <select id="roles" name="roles[]" class="form-control select2" multiple>
-                        <option value="ROLE_USER">Utilisateur</option>
-                        <option value="ROLE_ADMIN">Administrateur</option>
-                        <option value="ROLE_SUPER_ADMIN">Super Administrateur</option>
+                        {% for assignable_role in assignable_roles %}
+                            <option value="{{ assignable_role.name }}">{{ assignable_role.label }}</option>
+                        {% endfor %}
                     </select>
+                    <small class="form-text text-muted">Les rôles de profil (élève, enseignant, tuteur…) sont gérés automatiquement par l'application.</small>
                 </div>
                 <button type="submit" class="btn btn-primary mt-3">Enregistrer les rôles</button>
             </form>
         </div>
+        {% endif %}
 
         <!-- Onglet Autres -->
         <div class="tab-pane fade" id="others" role="tabpanel" aria-labelledby="others-tab">
@@ -137,8 +143,9 @@
     <button type="button" class="btn btn-secondary mt-3" id="cancel-edit">Annuler</button>
 </div>
 
-{% if is_granted('ROLE_ADD_USER') %}
-<a href="{{ path('app_user_add') }}" class="btn btn-success">Ajouter un utilisateur</a>
+{% if is_granted('perm', 'users.create') %}
+<a href="{{ path('app_student_index') }}" class="btn btn-success">Ajouter un élève</a>
+<a href="{{ path('app_teacher_index') }}" class="btn btn-success">Ajouter un enseignant</a>
 {% endif %}
 {% endblock %}
 
@@ -173,7 +180,19 @@
                         $('#email').val(data.email);
                         $('#phone').val(data.phone);
                         $('#address').val(data.address);
-                        $('#roles').val(data.roles).trigger('change');
+                        if ($('#roles').length && data.roles) {
+                            // ROLE_USER est implicite (toujours présent). Les rôles absents
+                            // de la liste (profils gérés automatiquement) sont ajoutés en
+                            // options pour ne pas être perdus à l'affichage.
+                            var currentRoles = data.roles.filter(function (r) { return r !== 'ROLE_USER'; });
+                            var $roles = $('#roles');
+                            currentRoles.forEach(function (r) {
+                                if ($roles.find('option[value="' + r + '"]').length === 0) {
+                                    $roles.append(new Option(r, r));
+                                }
+                            });
+                            $roles.val(currentRoles).trigger('change');
+                        }
                         // Préremplir les sections et classes si elles existent
                         $('#sections-classes-form').append('<input type="hidden" id="class_selected" value="' + data.classes + '">');
                         $('#sections').val(data.sections).trigger('change');
@@ -269,6 +288,30 @@
                     },
                     error: function () {
                         alert('Une erreur est survenue lors de l\'enregistrement.');
+                    }
+                });
+            });
+            // Soumission AJAX du formulaire d'attribution de rôles
+            $('#roles-form').on('submit', function (e) {
+                e.preventDefault();
+                $.ajax({
+                    url: '{{ path('app_role_assign') }}',
+                    method: 'POST',
+                    data: $(this).serialize(),
+                    success: function (data) {
+                        if (data.error) {
+                            alert(data.error);
+                        } else {
+                            alert(data.success || 'Rôles mis à jour avec succès.');
+                            location.reload();
+                        }
+                    },
+                    error: function (xhr) {
+                        var message = 'Une erreur est survenue lors de l\'enregistrement des rôles.';
+                        if (xhr.responseJSON && xhr.responseJSON.error) {
+                            message = xhr.responseJSON.error;
+                        }
+                        alert(message);
                     }
                 });
             });
