@@ -162,10 +162,11 @@ final class SchoolYearMigrationController extends AbstractController
             throw $this->createAccessDeniedException();
         }
 
-        $classMapping = $request->request->all('class_mapping');
+        $classMapping   = $request->request->all('class_mapping');
+        $studentMapping = $request->request->all('student_mapping');
 
         try {
-            $result = $this->migrationService->executeStep($log, $stepKey, $classMapping);
+            $result = $this->migrationService->executeStep($log, $stepKey, $classMapping, $studentMapping);
             $label  = SchoolYearMigrationService::STEPS[$stepKey] ?? $stepKey;
             if ($result['status'] === 'done') {
                 $this->addFlash('success', sprintf('Étape « %s » réussie : %s', $label, $result['message']));

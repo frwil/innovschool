@@ -62,9 +62,10 @@ class SchoolYearMigrationService
             foreach ($scp->getStudentClasses() as $studentClass) {
                 $avg  = $this->calculateStudentAverage($studentClass, $scp);
                 $stat = [
-                    'student'  => $studentClass->getStudent(),
-                    'average'  => $avg,
-                    'eligible' => $avg !== null && $avg >= $grade,
+                    'student'        => $studentClass->getStudent(),
+                    'studentClassId' => $studentClass->getId(),
+                    'average'        => $avg,
+                    'eligible'       => $avg !== null && $avg >= $grade,
                 ];
                 $stat['eligible'] ? $eligible[] = $stat : $nonEligible[] = $stat;
             }
@@ -281,9 +282,10 @@ class SchoolYearMigrationService
                 'studentStats' => array_map(function (array $stat) {
                     $student = $stat['student'];
                     return [
-                        'name'     => $student->getUsername() ?? $student->getFullName(),
-                        'average'  => $stat['average'],
-                        'eligible' => $stat['eligible'],
+                        'studentClassId' => $stat['studentClassId'],
+                        'name'           => $student->getUsername() ?? $student->getFullName(),
+                        'average'        => $stat['average'],
+                        'eligible'       => $stat['eligible'],
                     ];
                 }, $row['studentStats']),
             ];
@@ -298,7 +300,7 @@ class SchoolYearMigrationService
      * @param array<int, mixed> $classMapping mapping explicite classe source => classe cible (étape classes/students)
      * @return array{status: string, created: int, existing: int, errors: int, message: string}
      */
-    public function executeStep(MigrationLog $log, string $stepKey, array $classMapping = []): array
+    public function executeStep(MigrationLog $log, string $stepKey, array $classMapping = [], array $studentMapping = []): array
     {
         // Gardes avant transaction (anti double-clic / rejeu)
         if ($log->getStatus() !== 'in_progress') {
@@ -322,21 +324,50 @@ class SchoolYearMigrationService
 
         // Garde liens de succession : toute occurrence source ayant au moins un élève
         // éligible doit avoir ses classes suivantes configurées POUR CETTE ÉCOLE
-        // (sauf niveau final).
+        // (sauf niveau final). Classe à plusieurs classes suivantes : chaque élève
+        // promu doit en plus avoir un choix individuel valide.
         if ($stepKey === 'students') {
-            $missing = [];
-            $grades  = $this->loadPassingGrades($log);
+            $grades            = $this->loadPassingGrades($log);
+            $targetByOccurence = $this->getTargetSCPsByOccurence($school, $targetPeriod);
+            $missing   = [];
+            $unchosen  = [];
             foreach ($this->previewStudentMigration($school, $sourcePeriod, $log->getPassingGrade(), $grades) as $row) {
-                if ($row['eligible'] > 0) {
-                    $occurence = $row['schoolClassPeriod']->getClassOccurence();
-                    $config    = $this->getSchoolConfig($school, $occurence);
-                    if ($occurence !== null && ($config === null || (!$config->isFinalLevel() && $config->getNextOccurences()->isEmpty()))) {
-                        $missing[] = $occurence->getName();
+                $occurence = $row['schoolClassPeriod']->getClassOccurence();
+                if ($occurence === null || $row['eligible'] === 0) {
+                    continue;
+                }
+                $config = $this->getSchoolConfig($school, $occurence);
+                if ($config === null || (!$config->isFinalLevel() && $config->getNextOccurences()->isEmpty())) {
+                    $missing[] = $occurence->getName();
+                    continue;
+                }
+                if ($config->isFinalLevel()) {
+                    continue;
+                }
+                // Nombre de candidats réels (occurrences suivantes présentes dans la période cible).
+                $candidateCount = 0;
+                foreach ($config->getNextOccurences() as $nextOccurence) {
+                    $candidateCount += count($targetByOccurence[$nextOccurence->getId()] ?? []);
+                }
+                if ($candidateCount <= 1) {
+                    continue;
+                }
+                foreach ($row['studentStats'] as $stat) {
+                    if (!$stat['eligible']) {
+                        continue;
+                    }
+                    $mapped = $studentMapping[$stat['studentClassId']] ?? null;
+                    if (!$this->resolveExplicitTarget($school, $targetPeriod, $mapped)) {
+                        $student = $stat['student'];
+                        $unchosen[] = ($student->getFullName() ?? $student->getUsername()) . ' (' . $row['className'] . ')';
                     }
                 }
             }
             if ($missing) {
                 throw new \LogicException('Configurez les classes suivantes pour : ' . implode(', ', array_unique($missing)));
+            }
+            if ($unchosen) {
+                throw new \LogicException('Choisissez la classe cible des élèves suivants : ' . implode(', ', $unchosen));
             }
         }
 
@@ -372,7 +403,7 @@ class SchoolYearMigrationService
                     [, $entities] = $this->clonePaymentModals($school, $sourcePeriod, $targetPeriod, $this->loadClassMap($log));
                     break;
                 case 'students':
-                    $studentResult = $this->runStudentsStep($log, $classMapping);
+                    $studentResult = $this->runStudentsStep($log, $classMapping, $studentMapping);
                     break;
             }
 
@@ -409,10 +440,12 @@ class SchoolYearMigrationService
                 }
                 $stats = $log->getStudentStats();
                 $log->setStudentStats([
-                    'promoted' => ($stats['promoted'] ?? 0) + $studentResult['promoted'],
-                    'repeated' => ($stats['repeated'] ?? 0) + $studentResult['repeated'],
-                    'skipped'  => ($stats['skipped'] ?? 0) + $studentResult['skipped'],
-                    'existing' => ($stats['existing'] ?? 0) + $studentResult['existing'],
+                    'promoted'        => ($stats['promoted'] ?? 0) + $studentResult['promoted'],
+                    'repeated'        => ($stats['repeated'] ?? 0) + $studentResult['repeated'],
+                    'skipped'         => ($stats['skipped'] ?? 0) + $studentResult['skipped'],
+                    'existing'        => ($stats['existing'] ?? 0) + $studentResult['existing'],
+                    // Détail des non affectés (nom, classe source, moyenne, raison) pour la page de résultat.
+                    'skippedStudents' => array_merge($stats['skippedStudents'] ?? [], $studentResult['skippedStudents']),
                 ]);
                 $this->setStepStatus($log, $stepKey, 'done', [
                     'created'  => $studentResult['created'],
@@ -645,11 +678,12 @@ class SchoolYearMigrationService
 
     /**
      * ÉTAPE ÉLÈVES : inscrit chaque élève dans sa classe cible.
-     * Promus : mapping explicite du formulaire prioritaire, sinon l'occurrence suivante
-     * configurée sur l'occurrence source (exactement une → automatique ; plusieurs ou
-     * aucune → non affecté). Redoublants : classe de même occurrence (inchangé).
+     * Promus : choix individuel de l'élève prioritaire (classes à plusieurs suivantes),
+     * sinon mapping explicite du formulaire, sinon l'occurrence suivante configurée sur
+     * l'occurrence source (exactement une → automatique ; plusieurs ou aucune → non affecté).
+     * Redoublants : classe de même occurrence (inchangé).
      */
-    private function runStudentsStep(MigrationLog $log, array $classMapping): array
+    private function runStudentsStep(MigrationLog $log, array $classMapping, array $studentMapping = []): array
     {
         $school       = $log->getSchool();
         $sourcePeriod = $log->getSourcePeriod();
@@ -659,6 +693,7 @@ class SchoolYearMigrationService
 
         $promoted = 0; $repeated = 0; $skipped = 0; $existingCount = 0; $errors = 0;
         $studentClasses = [];
+        $skippedStudents = [];
 
         $sourceClasses     = $this->em->getRepository(SchoolClassPeriod::class)->findBy([
             'school' => $school, 'period' => $sourcePeriod,
@@ -667,8 +702,12 @@ class SchoolYearMigrationService
         $targetByOccurence = $this->getTargetSCPsByOccurence($school, $targetPeriod);
 
         foreach ($sourceClasses as $sourceSCP) {
-            $sourceId = $sourceSCP->getId();
-            $occId    = $sourceSCP->getClassOccurence()?->getId();
+            $sourceId   = $sourceSCP->getId();
+            $occurence  = $sourceSCP->getClassOccurence();
+            $occId      = $occurence?->getId();
+            $sourceName = $occurence?->getName() ?? '—';
+            $config     = $occurence !== null ? $this->getSchoolConfig($school, $occurence) : null;
+            $finalClass = $config !== null && $config->isFinalLevel();
 
             // Mapping explicite valide → prioritaire ; invalide (hors période cible) →
             // signalé, l'élève reste non affecté.
@@ -683,17 +722,11 @@ class SchoolYearMigrationService
             // sur l'occurrence source. Exactement une occurrence suivante → affectation
             // automatique ; plusieurs ou aucune → les promus restent non affectés
             // (choix explicite requis / niveau final).
-            if (!$invalidMapping && $promotedTarget === null) {
-                $occurence = $sourceSCP->getClassOccurence();
+            if (!$invalidMapping && $promotedTarget === null && $config !== null) {
                 $candidates = [];
-                if ($occurence !== null) {
-                    $config = $this->getSchoolConfig($school, $occurence);
-                    if ($config !== null) {
-                        foreach ($config->getNextOccurences() as $nextOccurence) {
-                            foreach ($targetByOccurence[$nextOccurence->getId()] ?? [] as $targetSCP) {
-                                $candidates[] = $targetSCP;
-                            }
-                        }
+                foreach ($config->getNextOccurences() as $nextOccurence) {
+                    foreach ($targetByOccurence[$nextOccurence->getId()] ?? [] as $targetSCP) {
+                        $candidates[] = $targetSCP;
                     }
                 }
                 if (count($candidates) === 1) { $promotedTarget = $candidates[0]; }
@@ -706,31 +739,59 @@ class SchoolYearMigrationService
                 $grade      = $occId !== null ? ($grades[$occId] ?? $passingGrade) : $passingGrade;
                 $isEligible = $avg !== null && $avg >= $grade;
 
-                if ($isEligible && $invalidMapping) {
+                // Choix individuel (classes à plusieurs suivantes) : prioritaire sur le reste.
+                $studentChoiceId      = $studentMapping[$studentClass->getId()] ?? null;
+                $studentChoiceTarget  = null;
+                $invalidStudentChoice = false;
+                if (!empty($studentChoiceId)) {
+                    $studentChoiceTarget = $this->resolveExplicitTarget($school, $targetPeriod, $studentChoiceId);
+                    if ($studentChoiceTarget === null) { $invalidStudentChoice = true; }
+                }
+
+                $student = $studentClass->getStudent();
+                $name    = $student->getFullName() ?? $student->getUsername();
+
+                if ($isEligible && $invalidStudentChoice) {
                     $errors++; $skipped++;
-                } elseif ($isEligible && $promotedTarget) {
-                    $sc = $this->enrollStudent($studentClass->getStudent(), $promotedTarget);
+                    $skippedStudents[] = ['name' => $name, 'className' => $sourceName, 'average' => $avg, 'reason' => 'Classe cible invalide.'];
+                } elseif ($isEligible && $studentChoiceTarget) {
+                    $sc = $this->enrollStudent($student, $studentChoiceTarget);
                     if ($sc) { $studentClasses[] = $sc; $promoted++; }
                     else { $existingCount++; } // déjà inscrit dans la classe cible
+                } elseif ($isEligible && $invalidMapping) {
+                    $errors++; $skipped++;
+                    $skippedStudents[] = ['name' => $name, 'className' => $sourceName, 'average' => $avg, 'reason' => 'Classe cible invalide.'];
+                } elseif ($isEligible && $promotedTarget) {
+                    $sc = $this->enrollStudent($student, $promotedTarget);
+                    if ($sc) { $studentClasses[] = $sc; $promoted++; }
+                    else { $existingCount++; }
                 } elseif (!$isEligible && $repeaterTarget) {
-                    $sc = $this->enrollStudent($studentClass->getStudent(), $repeaterTarget);
+                    $sc = $this->enrollStudent($student, $repeaterTarget);
                     if ($sc) { $studentClasses[] = $sc; $repeated++; }
                     else { $existingCount++; }
                 } else {
                     $skipped++;
+                    $reason = match (true) {
+                        $isEligible && $finalClass => 'Classe terminale : l\'élève quitte l\'établissement.',
+                        $isEligible               => 'Aucune classe cible définie pour la classe source.',
+                        $avg === null             => 'Moyenne indisponible (aucune évaluation).',
+                        default                   => 'Aucune classe équivalente pour les redoublants.',
+                    };
+                    $skippedStudents[] = ['name' => $name, 'className' => $sourceName, 'average' => $avg, 'reason' => $reason];
                 }
             }
         }
 
         return [
-            'created'        => count($studentClasses),
-            'existing'       => $existingCount,
-            'errors'         => $errors,
-            'promoted'       => $promoted,
-            'repeated'       => $repeated,
-            'skipped'        => $skipped,
-            'message'        => sprintf('%d inscrit(s), %d déjà inscrit(s), %d non affecté(s).', count($studentClasses), $existingCount, $skipped),
-            'studentClasses' => $studentClasses,
+            'created'         => count($studentClasses),
+            'existing'        => $existingCount,
+            'errors'          => $errors,
+            'promoted'        => $promoted,
+            'repeated'        => $repeated,
+            'skipped'         => $skipped,
+            'message'         => sprintf('%d inscrit(s), %d déjà inscrit(s), %d non affecté(s).', count($studentClasses), $existingCount, $skipped),
+            'studentClasses'  => $studentClasses,
+            'skippedStudents' => $skippedStudents,
         ];
     }
 

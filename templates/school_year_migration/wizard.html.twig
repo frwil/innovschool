@@ -192,6 +192,9 @@
                                             <div class="form-text">
                                                 Aucune classe suivante dans la période cible : les promus seront comptés non affectés.
                                             </div>
+                                        {% elseif row.candidates|length > 1 %}
+                                            <span class="badge bg-warning text-dark"><i class="ti ti-users me-1"></i>Choix par élève requis</span>
+                                            <div class="form-text">Sélectionnez la classe cible de chaque élève promu dans le détail ci-dessous.</div>
                                         {% else %}
                                             <select name="class_mapping[{{ row.sourceSCPId }}]" class="form-select form-select-sm">
                                                 <option value="">— Choisir la classe suivante —</option>
@@ -202,9 +205,6 @@
                                                     </option>
                                                 {% endfor %}
                                             </select>
-                                            {% if row.candidates|length > 1 %}
-                                                <span class="badge bg-warning text-dark mt-1"><i class="ti ti-alert-triangle me-1"></i>Choix requis</span>
-                                            {% endif %}
                                         {% endif %}
                                         {% if row.occId %}
                                         <button type="button" class="btn btn-sm btn-outline-secondary ms-1"
@@ -223,24 +223,31 @@
                                         <a class="text-decoration-none small" data-bs-toggle="collapse"
                                            href="#wizard-students-{{ row.sourceSCPId }}">
                                             <i class="ti ti-chevron-down me-1"></i>
-                                            Voir le détail des {{ row.preview.total }} élèves
+                                            {% if row.candidates|length > 1 %}
+                                                Choisir la classe cible de chaque élève
+                                            {% else %}
+                                                Voir le détail des {{ row.preview.total }} élèves
+                                            {% endif %}
                                         </a>
-                                        <div class="collapse mt-2" id="wizard-students-{{ row.sourceSCPId }}">
+                                        <div class="collapse mt-2{% if row.candidates|length > 1 %} show{% endif %}" id="wizard-students-{{ row.sourceSCPId }}">
                                             <table class="table table-sm mb-0">
                                                 <thead>
                                                     <tr>
                                                         <th>Élève</th>
                                                         <th class="text-center">Moyenne</th>
                                                         <th class="text-center">Statut</th>
+                                                        {% if row.candidates|length > 1 %}
+                                                        <th class="text-center">Classe cible</th>
+                                                        {% endif %}
                                                     </tr>
                                                 </thead>
                                                 <tbody id="wizard-students-body-{{ row.sourceSCPId }}">
                                                     {% for stat in row.preview.studentStats %}
-                                                    <tr>
+                                                    <tr data-student-class-id="{{ stat.studentClassId }}">
                                                         <td>
                                                             {{ stat.student.firstName ?? '' }} {{ stat.student.lastName ?? stat.student.username }}
                                                         </td>
-                                                        <td class="text-center">
+                                                        <td class="text-center wizard-avg">
                                                             {% if stat.average is not null %}
                                                                 <strong class="{{ stat.eligible ? 'text-success' : 'text-danger' }}">
                                                                     {{ stat.average|number_format(2, ',') }}/20
@@ -249,13 +256,25 @@
                                                                 <span class="text-muted">—</span>
                                                             {% endif %}
                                                         </td>
-                                                        <td class="text-center">
+                                                        <td class="text-center wizard-status">
                                                             {% if stat.eligible %}
                                                                 <span class="badge bg-success">Promu</span>
                                                             {% else %}
                                                                 <span class="badge bg-danger">Redoublant</span>
                                                             {% endif %}
                                                         </td>
+                                                        {% if row.candidates|length > 1 %}
+                                                        <td class="text-center" style="min-width: 170px;">
+                                                            <select name="student_mapping[{{ stat.studentClassId }}]"
+                                                                    class="form-select form-select-sm wizard-student-target"
+                                                                    {% if not stat.eligible %}disabled{% endif %}>
+                                                                <option value="">— Choisir —</option>
+                                                                {% for targetId, targetName in row.candidates %}
+                                                                <option value="{{ targetId }}">{{ targetName }}</option>
+                                                                {% endfor %}
+                                                            </select>
+                                                        </td>
+                                                        {% endif %}
                                                     </tr>
                                                     {% endfor %}
                                                 </tbody>
@@ -592,15 +611,10 @@
         return;
     }
 
-    function escapeHtml(value) {
-        var div = document.createElement('div');
-        div.textContent = value;
-        return div.innerHTML;
-    }
-
-    // Met à jour compteurs, badge « spécifique », valeur du champ et détail des élèves.
-    // Si l'éligibilité franchit zéro, l'affichage de la colonne cible change de nature
-    // (choix de classe / tiret) : on recharge la page pour rester cohérent.
+    // Met à jour compteurs, badge « spécifique », valeur du champ et détail des élèves
+    // (mise à jour chirurgicale : les selects individuels des élèves sont conservés).
+    // Si l'éligibilité d'une classe franchit zéro, l'affichage de la colonne cible
+    // change de nature (choix de classe / tiret) : on recharge la page pour rester cohérent.
     function applyGradeUpdate(data) {
         var crossedZero = false;
         (data.rows || []).forEach(function (row) {
@@ -628,18 +642,30 @@
 
             var detailBody = document.getElementById('wizard-students-body-' + row.sourceSCPId);
             if (detailBody) {
-                detailBody.innerHTML = row.studentStats.map(function (stat) {
-                    var average = stat.average !== null
-                        ? '<strong class="' + (stat.eligible ? 'text-success' : 'text-danger') + '">' +
-                          stat.average.toFixed(2).replace('.', ',') + '/20</strong>'
-                        : '<span class="text-muted">—</span>';
-                    var status = stat.eligible
-                        ? '<span class="badge bg-success">Promu</span>'
-                        : '<span class="badge bg-danger">Redoublant</span>';
-                    return '<tr><td>' + escapeHtml(stat.name) + '</td>' +
-                           '<td class="text-center">' + average + '</td>' +
-                           '<td class="text-center">' + status + '</td></tr>';
-                }).join('');
+                row.studentStats.forEach(function (stat) {
+                    var tr = detailBody.querySelector('tr[data-student-class-id="' + stat.studentClassId + '"]');
+                    if (!tr) { return; }
+
+                    var avgCell = tr.querySelector('.wizard-avg');
+                    if (avgCell) {
+                        avgCell.innerHTML = stat.average !== null
+                            ? '<strong class="' + (stat.eligible ? 'text-success' : 'text-danger') + '">' +
+                              stat.average.toFixed(2).replace('.', ',') + '/20</strong>'
+                            : '<span class="text-muted">—</span>';
+                    }
+                    var statusCell = tr.querySelector('.wizard-status');
+                    if (statusCell) {
+                        statusCell.innerHTML = stat.eligible
+                            ? '<span class="badge bg-success">Promu</span>'
+                            : '<span class="badge bg-danger">Redoublant</span>';
+                    }
+                    var targetSelect = tr.querySelector('.wizard-student-target');
+                    if (targetSelect) {
+                        // Redoublant : la valeur reste mais est ignorée à l'exécution ;
+                        // elle est retrouvée si l'élève redevient promu.
+                        targetSelect.disabled = !stat.eligible;
+                    }
+                });
             }
         });
         if (crossedZero) {

@@ -50,7 +50,7 @@ class MigrationLog
     #[ORM\Column(type: 'json')]
     private array $configSummary = [];
 
-    /** Résumé élèves (promus, redoublants, ignorés) */
+    /** Résumé élèves (promus, redoublants, ignorés) ; « skippedStudents » liste les non-affectés : {name, className, average, reason} */
     #[ORM\Column(type: 'json')]
     private array $studentStats = [];
 

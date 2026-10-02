@@ -77,7 +77,7 @@
                     <div class="col">
                         <div class="display-6 fw-bold text-secondary">{{ studentStats.skipped }}</div>
                         <div class="text-muted">Non affecté(s)</div>
-                        <div class="text-muted small">Classe cible non définie</div>
+                        <div class="text-muted small">Sortants ou cible non définie</div>
                     </div>
                 </div>
             </div>
@@ -100,12 +100,51 @@
         </div>
         {% endif %}
 
+        {% set skippedStudents = studentStats.skippedStudents|default([]) %}
         {% if studentStats.skipped > 0 %}
         <div class="alert alert-warning">
             <i class="ti ti-alert-circle me-2"></i>
-            <strong>{{ studentStats.skipped }} élève(s)</strong> n'ont pas été affectés car aucune classe cible
-            n'était définie pour leur classe source. Vous pouvez les inscrire manuellement.
+            <strong>{{ studentStats.skipped }} élève(s)</strong> n'ont pas été affectés : élèves en classe
+            terminale d'une chaîne (sortants) ou sans classe cible définie. Vous pouvez les inscrire
+            manuellement.
         </div>
+        {% if skippedStudents is not empty %}
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="ti ti-list me-2"></i>Élèves non affectés</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-striped mb-0">
+                        <thead>
+                            <tr>
+                                <th>Élève</th>
+                                <th>Classe source</th>
+                                <th class="text-center">Moyenne</th>
+                                <th>Raison</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for student in skippedStudents %}
+                            <tr>
+                                <td>{{ student.name }}</td>
+                                <td>{{ student.className }}</td>
+                                <td class="text-center">
+                                    {% if (student.average ?? null) is not null %}
+                                        {{ student.average|number_format(2, ',', ' ') }}/20
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ student.reason }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        {% endif %}
         {% endif %}
 
         <div class="d-flex gap-2 flex-wrap">
