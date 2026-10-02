@@ -32,7 +32,7 @@ class MigrationLog
     #[ORM\Column(type: 'json')]
     private array $options = [];
 
-    /** IDs de tout ce qui a été créé : subjectGroups, schoolClassPeriods, schoolClassSubjects, classSubjectModules, paymentModals, studentClasses */
+    /** IDs de tout ce qui a été créé : subjectGroups, schoolClassPeriods, schoolClassSubjects, classSubjectModules, paymentModals, studentClasses, admissionPayments (1ers versements à 0 €) */
     #[ORM\Column(type: 'json')]
     private array $createdIds = [];
 
@@ -50,7 +50,7 @@ class MigrationLog
     #[ORM\Column(type: 'json')]
     private array $configSummary = [];
 
-    /** Résumé élèves (promus, redoublants, ignorés) ; « skippedStudents » liste les non-affectés : {name, className, average, reason} */
+    /** Résumé élèves (promus, redoublants, ignorés, 1ers versements à 0 €) ; « skippedStudents » liste les non-affectés : {name, className, average, reason} ; « noModalPayments » compte les élèves sans modalité « base » */
     #[ORM\Column(type: 'json')]
     private array $studentStats = [];
 

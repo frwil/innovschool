@@ -84,6 +84,7 @@
                 <li>{{ log.createdIds.classSubjectModules|length }} module(s) d'évaluation</li>
                 <li>{{ log.createdIds.paymentModals|length }} modalité(s) de paiement</li>
                 <li>{{ log.createdIds.studentClasses|length }} inscription(s) élève</li>
+                <li>{{ log.createdIds.admissionPayments|length }} premier(s) versement(s) à 0 €</li>
             </ul>
             <form method="POST" action="{{ path('app_year_migration_cancel', {id: log.id}) }}"
                   onsubmit="return confirm('Confirmer l\'annulation complète ? Cette action est irréversible.')">
@@ -114,7 +115,15 @@
 
     <div class="alert alert-warning">
         <i class="ti ti-alert-triangle me-2"></i>
-        <strong>{{ state.evaluationCount }} note(s) déjà saisie(s)</strong>
+        <strong>
+            {%- if (state.evaluationCount ?? 0) > 0 -%}
+                {{ state.evaluationCount }} note(s) déjà saisie(s)
+                {%- if (state.modifiedPaymentCount ?? 0) > 0 %} et {% endif -%}
+            {%- endif -%}
+            {%- if (state.modifiedPaymentCount ?? 0) > 0 -%}
+                {{ state.modifiedPaymentCount }} versement(s) modifié(s)
+            {%- endif -%}
+        </strong>
         pour {{ state.lockedIds|length }} élève(s).
         L'annulation complète est <strong>bloquée</strong>.
         Seule la <strong>correction partielle</strong> est disponible.

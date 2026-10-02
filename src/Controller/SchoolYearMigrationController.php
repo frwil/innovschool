@@ -441,12 +441,16 @@ final class SchoolYearMigrationController extends AbstractController
 
         try {
             $applied = $this->migrationService->applyCorrection($log, $newPassingGrade, $classMapping);
-            $this->addFlash('success', sprintf(
+            $message = sprintf(
                 'Correction appliquée : %d promu(s), %d rétrogradé(s), %d ajouté(s).',
                 $applied['promoted'],
                 $applied['demoted'],
                 $applied['added']
-            ));
+            );
+            if (($applied['payments'] ?? 0) > 0) {
+                $message .= sprintf(' %d premier(s) versement(s) recréé(s).', $applied['payments']);
+            }
+            $this->addFlash('success', $message);
         } catch (\Exception $e) {
             $this->addFlash('danger', 'Erreur lors de la correction : ' . $e->getMessage());
         }

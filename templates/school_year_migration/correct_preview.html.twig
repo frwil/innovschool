@@ -20,7 +20,7 @@
         <div class="card-header bg-danger text-white">
             <h6 class="mb-0">
                 <i class="ti ti-lock me-2"></i>
-                {{ changes.locked|length }} élève(s) verrouillé(s) — notes déjà saisies
+                {{ changes.locked|length }} élève(s) verrouillé(s) — notes ou versements
             </h6>
         </div>
         <div class="card-body p-0">
@@ -35,7 +35,7 @@
                     <td>{{ item.average ?? '—' }}</td>
                     <td><span class="badge bg-secondary">{{ item.wasStatus }}</span></td>
                     <td><span class="badge bg-secondary">{{ item.nowStatus }}</span></td>
-                    <td><span class="badge bg-danger"><i class="ti ti-lock me-1"></i>Notes saisies</span></td>
+                    <td><span class="badge bg-danger"><i class="ti ti-lock me-1"></i>{{ item.reason|default('notes') == 'payments' ? 'Versement modifié' : 'Notes saisies' }}</span></td>
                 </tr>
                 {% endfor %}
                 </tbody>

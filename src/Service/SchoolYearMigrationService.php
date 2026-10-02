@@ -8,6 +8,7 @@ use App\Entity\ClassSubjectModule;
 use App\Entity\Evaluation;
 use App\Entity\MigrationLog;
 use App\Entity\School;
+use App\Entity\SchoolClassAdmissionPayment;
 use App\Entity\SchoolClassPaymentModal;
 use App\Entity\SchoolClassPeriod;
 use App\Entity\SchoolClassSubject;
@@ -121,7 +122,7 @@ class SchoolYearMigrationService
             ->setOptions($options)
             ->setExecutedBy($executedBy)
             ->setStatus('in_progress')
-            // Les 6 clés toujours initialisées (manage.html.twig et checkMigrationState les lisent)
+            // Les 7 clés toujours initialisées (manage.html.twig et checkMigrationState les lisent)
             ->setCreatedIds([
                 'subjectGroups'       => [],
                 'schoolClassPeriods'  => [],
@@ -129,6 +130,7 @@ class SchoolYearMigrationService
                 'classSubjectModules' => [],
                 'paymentModals'       => [],
                 'studentClasses'      => [],
+                'admissionPayments'   => [],
             ]);
 
         $stepsState = [];
@@ -438,12 +440,18 @@ class SchoolYearMigrationService
                 foreach ($studentResult['studentClasses'] as $sc) {
                     $createdIds['studentClasses'][] = $sc->getId();
                 }
+                foreach ($studentResult['payments'] as $payment) {
+                    $createdIds['admissionPayments'][] = $payment->getId();
+                }
                 $stats = $log->getStudentStats();
                 $log->setStudentStats([
                     'promoted'        => ($stats['promoted'] ?? 0) + $studentResult['promoted'],
                     'repeated'        => ($stats['repeated'] ?? 0) + $studentResult['repeated'],
                     'skipped'         => ($stats['skipped'] ?? 0) + $studentResult['skipped'],
                     'existing'        => ($stats['existing'] ?? 0) + $studentResult['existing'],
+                    // 1ers versements à 0 € créés (et élèves sans modalité « base »).
+                    'payments'        => ($stats['payments'] ?? 0) + $studentResult['paymentsCount'],
+                    'noModalPayments' => ($stats['noModalPayments'] ?? 0) + $studentResult['noModalPayments'],
                     // Détail des non affectés (nom, classe source, moyenne, raison) pour la page de résultat.
                     'skippedStudents' => array_merge($stats['skippedStudents'] ?? [], $studentResult['skippedStudents']),
                 ]);
@@ -677,7 +685,10 @@ class SchoolYearMigrationService
     }
 
     /**
-     * ÉTAPE ÉLÈVES : inscrit chaque élève dans sa classe cible.
+     * ÉTAPE ÉLÈVES : inscrit chaque élève dans sa classe cible, puis crée son
+     * 1er versement à 0 € (SchoolClassAdmissionPayment rattaché à la modalité
+     * « base » de priorité minimale de la classe cible — aucune modalité « base » :
+     * pas de versement, compté dans noModalPayments).
      * Promus : choix individuel de l'élève prioritaire (classes à plusieurs suivantes),
      * sinon mapping explicite du formulaire, sinon l'occurrence suivante configurée sur
      * l'occurrence source (exactement une → automatique ; plusieurs ou aucune → non affecté).
@@ -694,6 +705,8 @@ class SchoolYearMigrationService
         $promoted = 0; $repeated = 0; $skipped = 0; $existingCount = 0; $errors = 0;
         $studentClasses = [];
         $skippedStudents = [];
+        $payments        = [];
+        $noModalPayments = 0;
 
         $sourceClasses     = $this->em->getRepository(SchoolClassPeriod::class)->findBy([
             'school' => $school, 'period' => $sourcePeriod,
@@ -756,18 +769,18 @@ class SchoolYearMigrationService
                     $skippedStudents[] = ['name' => $name, 'className' => $sourceName, 'average' => $avg, 'reason' => 'Classe cible invalide.'];
                 } elseif ($isEligible && $studentChoiceTarget) {
                     $sc = $this->enrollStudent($student, $studentChoiceTarget);
-                    if ($sc) { $studentClasses[] = $sc; $promoted++; }
+                    if ($sc) { $studentClasses[] = $sc; $promoted++; $this->createFirstPayment($student, $studentChoiceTarget, $payments, $noModalPayments); }
                     else { $existingCount++; } // déjà inscrit dans la classe cible
                 } elseif ($isEligible && $invalidMapping) {
                     $errors++; $skipped++;
                     $skippedStudents[] = ['name' => $name, 'className' => $sourceName, 'average' => $avg, 'reason' => 'Classe cible invalide.'];
                 } elseif ($isEligible && $promotedTarget) {
                     $sc = $this->enrollStudent($student, $promotedTarget);
-                    if ($sc) { $studentClasses[] = $sc; $promoted++; }
+                    if ($sc) { $studentClasses[] = $sc; $promoted++; $this->createFirstPayment($student, $promotedTarget, $payments, $noModalPayments); }
                     else { $existingCount++; }
                 } elseif (!$isEligible && $repeaterTarget) {
                     $sc = $this->enrollStudent($student, $repeaterTarget);
-                    if ($sc) { $studentClasses[] = $sc; $repeated++; }
+                    if ($sc) { $studentClasses[] = $sc; $repeated++; $this->createFirstPayment($student, $repeaterTarget, $payments, $noModalPayments); }
                     else { $existingCount++; }
                 } else {
                     $skipped++;
@@ -789,9 +802,19 @@ class SchoolYearMigrationService
             'promoted'        => $promoted,
             'repeated'        => $repeated,
             'skipped'         => $skipped,
-            'message'         => sprintf('%d inscrit(s), %d déjà inscrit(s), %d non affecté(s).', count($studentClasses), $existingCount, $skipped),
+            'message'         => sprintf(
+                '%d inscrit(s), %d déjà inscrit(s), %d non affecté(s), %d premier(s) versement(s) à 0 €%s.',
+                count($studentClasses),
+                $existingCount,
+                $skipped,
+                count($payments),
+                $noModalPayments > 0 ? sprintf(' (%d élève(s) sans modalité « base »)', $noModalPayments) : ''
+            ),
             'studentClasses'  => $studentClasses,
             'skippedStudents' => $skippedStudents,
+            'payments'        => $payments,
+            'paymentsCount'   => count($payments),
+            'noModalPayments' => $noModalPayments,
         ];
     }
 
@@ -802,8 +825,11 @@ class SchoolYearMigrationService
     public function checkMigrationState(MigrationLog $log): array
     {
         $studentClassIds  = $log->getCreatedIds()['studentClasses'] ?? [];
+        $paymentIds       = $log->getCreatedIds()['admissionPayments'] ?? [];
         $evaluationCount  = 0;
+        $modifiedPaymentCount = 0;
         $lockedIds        = [];
+        $paymentLockedIds = [];
         $unlockableIds    = [];
 
         foreach ($studentClassIds as $scId) {
@@ -819,15 +845,35 @@ class SchoolYearMigrationService
             }
         }
 
-        $canCancel = $evaluationCount === 0;
+        // 1ers versements modifiés (montant ≠ 0) : les supprimer à l'annulation
+        // détruirait de la donnée financière réelle → verrou, comme les notes.
+        if ($paymentIds) {
+            $createdScSet = array_flip($studentClassIds);
+            foreach ($paymentIds as $paymentId) {
+                $payment = $this->em->getRepository(SchoolClassAdmissionPayment::class)->find($paymentId);
+                if (!$payment || $payment->getPaymentAmount() === 0) { continue; }
+                $modifiedPaymentCount++;
+                $sc = $this->findStudentClassInTarget($payment->getStudent(), $log->getTargetPeriod(), $createdScSet);
+                if ($sc && !in_array($sc->getId(), $lockedIds, true)) {
+                    $lockedIds[]        = $sc->getId();
+                    $paymentLockedIds[] = $sc->getId();
+                }
+            }
+        }
+
+        $canCancel = $evaluationCount === 0 && $modifiedPaymentCount === 0;
+        // Un élève verrouillé par un versement modifié n'est pas modifiable non plus.
+        $unlockableIds = array_values(array_diff($unlockableIds, $paymentLockedIds));
 
         return [
-            'canCancel'        => $canCancel,
-            'canCorrect'       => !$canCancel,   // correction partielle si notes saisies
-            'evaluationCount'  => $evaluationCount,
-            'lockedIds'        => $lockedIds,     // élèves avec notes → intouchables
-            'unlockableIds'    => $unlockableIds, // élèves sans notes → modifiables
-            'totalStudents'    => count($studentClassIds),
+            'canCancel'           => $canCancel,
+            'canCorrect'          => !$canCancel,   // correction partielle si notes saisies ou versements modifiés
+            'evaluationCount'     => $evaluationCount,
+            'modifiedPaymentCount'=> $modifiedPaymentCount,
+            'lockedIds'           => $lockedIds,     // élèves avec notes ou versements modifiés → intouchables
+            'paymentLockedIds'    => $paymentLockedIds,
+            'unlockableIds'       => $unlockableIds, // élèves sans notes → modifiables
+            'totalStudents'       => count($studentClassIds),
         ];
     }
 
@@ -848,6 +894,7 @@ class SchoolYearMigrationService
 
         try {
             // Ordre : enfants avant parents pour respecter les FK
+            $this->deleteByIds(SchoolClassAdmissionPayment::class, $ids['admissionPayments'] ?? []);
             $this->deleteByIds(StudentClass::class,           $ids['studentClasses']      ?? []);
             $this->deleteByIds(ClassSubjectModule::class,     $ids['classSubjectModules'] ?? []);
             $this->deleteByIds(SchoolClassSubject::class,     $ids['schoolClassSubjects'] ?? []);
@@ -885,6 +932,7 @@ class SchoolYearMigrationService
         $createdScIds      = array_flip($log->getCreatedIds()['studentClasses'] ?? []);
         $state             = $this->checkMigrationState($log);
         $lockedSet         = array_flip($state['lockedIds']);
+        $paymentLockedSet  = array_flip($state['paymentLockedIds'] ?? []);
 
         $sourceClasses = $this->em->getRepository(SchoolClassPeriod::class)->findBy([
             'school' => $school, 'period' => $sourcePeriod,
@@ -916,6 +964,7 @@ class SchoolYearMigrationService
                         'average'    => $avg,
                         'wasStatus'  => $wasEligible ? 'promu' : 'redoublant',
                         'nowStatus'  => $nowEligible ? 'promu' : 'redoublant',
+                        'reason'     => isset($paymentLockedSet[$targetSC->getId()]) ? 'payments' : 'notes',
                     ];
                     continue;
                 }
@@ -960,10 +1009,25 @@ class SchoolYearMigrationService
 
         try {
             $preview       = $this->previewCorrection($log, $newPassingGrade);
-            $applied       = ['demoted' => 0, 'promoted' => 0, 'added' => 0];
+            $applied       = ['demoted' => 0, 'promoted' => 0, 'added' => 0, 'payments' => 0];
             $createdIds    = $log->getCreatedIds();
             $newStudentClasses = []; // inscriptions créées pendant la correction (IDs collectés après flush)
             $repeaterTargetMap = $this->buildRepeaterTargetMap($school, $targetPeriod);
+
+            // 1ers versements créés par la migration : suivis pour être déplacés avec
+            // l'élève (supprimés sur l'ancienne classe, recréés à 0 € sur la nouvelle).
+            $createdPayments = array_filter($createdIds['admissionPayments'] ?? [], fn ($id) => is_int($id) && $id > 0);
+            $newPayments     = [];
+            $noModal         = 0;
+            $moveCreatedPayments = function (\App\Entity\User $student, SchoolClassPeriod $oldSCP) use (&$createdPayments): void {
+                foreach ($createdPayments as $key => $payId) {
+                    $payment = $this->em->getRepository(SchoolClassAdmissionPayment::class)->find($payId);
+                    if ($payment && $payment->getStudent() === $student && $payment->getSchoolClass() === $oldSCP) {
+                        $this->em->remove($payment);
+                        unset($createdPayments[$key]);
+                    }
+                }
+            };
 
             // Classe cible d'une promotion : mapping explicite validé, sinon classe de même
             // occurrence dans la période cible (BUG1 : retrouve les classes auto-créées par la migration).
@@ -977,12 +1041,17 @@ class SchoolYearMigrationService
             // Rétrograder les promus sans notes → les déplacer vers la classe redoublant
             foreach ($preview['toDemote'] as $item) {
                 if ($item['targetSC'] && $item['repeaterSCP']) {
+                    $moveCreatedPayments($item['student'], $item['targetSC']->getSchoolClassPeriod());
                     $this->em->remove($item['targetSC']);
                     $key = array_search($item['targetSC']->getId(), $createdIds['studentClasses']);
                     if ($key !== false) { unset($createdIds['studentClasses'][$key]); }
 
                     $newSC = $this->enrollStudent($item['student'], $item['repeaterSCP']);
-                    if ($newSC) { $newStudentClasses[] = $newSC; $applied['demoted']++; }
+                    if ($newSC) {
+                        $newStudentClasses[] = $newSC;
+                        $applied['demoted']++;
+                        $this->createFirstPayment($item['student'], $item['repeaterSCP'], $newPayments, $noModal);
+                    }
                 }
             }
 
@@ -991,12 +1060,17 @@ class SchoolYearMigrationService
                 $newTargetSCP = $resolvePromotionTarget($item['sourceSCP']);
 
                 if ($item['targetSC'] && $newTargetSCP) {
+                    $moveCreatedPayments($item['student'], $item['targetSC']->getSchoolClassPeriod());
                     $this->em->remove($item['targetSC']);
                     $key = array_search($item['targetSC']->getId(), $createdIds['studentClasses']);
                     if ($key !== false) { unset($createdIds['studentClasses'][$key]); }
 
                     $newSC = $this->enrollStudent($item['student'], $newTargetSCP);
-                    if ($newSC) { $newStudentClasses[] = $newSC; $applied['promoted']++; }
+                    if ($newSC) {
+                        $newStudentClasses[] = $newSC;
+                        $applied['promoted']++;
+                        $this->createFirstPayment($item['student'], $newTargetSCP, $newPayments, $noModal);
+                    }
                 }
             }
 
@@ -1006,7 +1080,11 @@ class SchoolYearMigrationService
 
                 if ($newTargetSCP) {
                     $newSC = $this->enrollStudent($item['student'], $newTargetSCP);
-                    if ($newSC) { $newStudentClasses[] = $newSC; $applied['added']++; }
+                    if ($newSC) {
+                        $newStudentClasses[] = $newSC;
+                        $applied['added']++;
+                        $this->createFirstPayment($item['student'], $newTargetSCP, $newPayments, $noModal);
+                    }
                 }
             }
 
@@ -1021,6 +1099,16 @@ class SchoolYearMigrationService
                 $createdIds['studentClasses'],
                 fn($id) => is_int($id) && $id > 0
             )));
+
+            // IDs des 1ers versements recréés collectés après flush, liste nettoyée des supprimés.
+            foreach ($newPayments as $p) {
+                $createdPayments[] = $p->getId();
+            }
+            $createdIds['admissionPayments'] = array_values(array_unique(array_filter(
+                $createdPayments,
+                fn($id) => is_int($id) && $id > 0
+            )));
+            $applied['payments'] = count($newPayments);
 
             $log->setPassingGrade($newPassingGrade)
                 ->setCreatedIds($createdIds)
@@ -1453,6 +1541,58 @@ class SchoolYearMigrationService
         $sc->setStudent($student)->setSchoolClassPeriod($targetSCP);
         $this->em->persist($sc);
         return $sc;
+    }
+
+    /** @var array<int, ?SchoolClassPaymentModal> première modalité par classe cible (mémo par exécution) */
+    private array $firstBaseModalCache = [];
+
+    /**
+     * 1er versement à 0 € d'un élève nouvellement inscrit : rattaché à la
+     * modalité « base » de priorité minimale de la classe cible. Classe sans
+     * modalité « base » : aucun versement créé (compteur noModalPayments incrémenté).
+     */
+    private function createFirstPayment(\App\Entity\User $student, SchoolClassPeriod $targetSCP, array &$payments, int &$noModalPayments): void
+    {
+        $modal = $this->getFirstBasePaymentModal($targetSCP);
+        if ($modal === null) {
+            $noModalPayments++;
+            return;
+        }
+
+        $payment = new SchoolClassAdmissionPayment();
+        $payment->setStudent($student)
+            ->setPaymentDate(new \DateTime())
+            ->setPaymentAmount(0)
+            ->setSchoolClass($targetSCP)
+            ->setSchoolPeriod($targetSCP->getPeriod())
+            ->setSchool($targetSCP->getSchool())
+            ->setPaymentModal($modal)
+            ->setModalType($modal->getModalType() ?? 'base');
+        $this->em->persist($payment);
+        $payments[] = $payment;
+    }
+
+    /** Modalité « base » de priorité minimale d'une classe (puis id minimal) ; null si aucune. */
+    private function getFirstBasePaymentModal(SchoolClassPeriod $scp): ?SchoolClassPaymentModal
+    {
+        $scpId = $scp->getId();
+        if (array_key_exists($scpId, $this->firstBaseModalCache)) {
+            return $this->firstBaseModalCache[$scpId];
+        }
+
+        $candidates = [];
+        foreach ($scp->getPaymentModals() as $modal) {
+            if ($modal->getModalType() === 'base') {
+                $candidates[] = $modal;
+            }
+        }
+        if (empty($candidates)) {
+            return $this->firstBaseModalCache[$scpId] = null;
+        }
+        usort($candidates, fn (SchoolClassPaymentModal $a, SchoolClassPaymentModal $b) =>
+            [$a->getModalPriority(), $a->getId()] <=> [$b->getModalPriority(), $b->getId()]);
+
+        return $this->firstBaseModalCache[$scpId] = $candidates[0];
     }
 
     private function deleteByIds(string $entityClass, array $ids): void

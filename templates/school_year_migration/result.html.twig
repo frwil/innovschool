@@ -79,7 +79,19 @@
                         <div class="text-muted">Non affecté(s)</div>
                         <div class="text-muted small">Sortants ou cible non définie</div>
                     </div>
+                    <div class="col">
+                        <div class="display-6 fw-bold text-primary">{{ studentStats.payments ?? 0 }}</div>
+                        <div class="text-muted">1er(s) versement(s)</div>
+                        <div class="text-muted small">Créé(s) à 0 €</div>
+                    </div>
                 </div>
+                {% if (studentStats.noModalPayments ?? 0) > 0 %}
+                <div class="alert alert-info mt-3 mb-0">
+                    <i class="ti ti-info-circle me-2"></i>
+                    <strong>{{ studentStats.noModalPayments }} élève(s)</strong> inscrit(s) dans une classe sans
+                    modalité « base » : aucun 1er versement n'a pu être créé.
+                </div>
+                {% endif %}
             </div>
         </div>
 
