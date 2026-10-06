@@ -41,6 +41,7 @@ final class ReportController extends AbstractController
     #[Route('/report', name: 'app_report')]
     public function adminIndex(): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'reports.view');
         return $this->render('report/index.html.twig', [
             'controller_name' => 'ReportController',
         ]);
@@ -49,6 +50,7 @@ final class ReportController extends AbstractController
     #[Route('/report-school', name: 'app_report_school')]
     public function schoolIndex(ReportService $reportService): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'reports.view');
         return $this->render('report/index.html.twig', [
             'report' => $reportService,
         ]);
@@ -57,6 +59,7 @@ final class ReportController extends AbstractController
     #[Route('/report-sections', name: 'app_report_school_sections')]
     public function schoolSections(SchoolSectionReportService $reportService): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'reports.view');
         /** @var \App\Entity\User */
         $user = $this->getUser();
         $reportService->build($this->currentSchool);
@@ -69,6 +72,7 @@ final class ReportController extends AbstractController
     #[Route('/school-global-report', name: 'app_report_school_global_report')]
     public function globalReport(Request $request, SchoolReportService $reportService): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'reports.view');
         /** @var \App\Entity\User */
         $user = $this->getUser();
         $filterDto = new SchoolGlobalReportFilterDto();
@@ -130,6 +134,7 @@ final class ReportController extends AbstractController
     #[Route('/report-school-classes', name: 'app_report_school_classes')]
     public function schoolClassPeriods(SchoolClassReportService $reportService, Request $request): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'reports.view');
         /** @var \App\Entity\User */
         $user = $this->getUser();
         $schoolClassPeriod = (new SchoolClassPeriod())

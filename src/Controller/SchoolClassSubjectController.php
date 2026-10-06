@@ -49,6 +49,8 @@ final class SchoolClassSubjectController extends AbstractController
         StringHelper $stringHelper,
         SessionInterface $session
     ): Response {
+        $this->denyAccessUnlessGranted('perm', $request->isMethod('POST') ? 'subjects.create' : 'subjects.view');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $entityManager->getRepository(School::class)->find($session->get('school_id'));
@@ -118,6 +120,8 @@ final class SchoolClassSubjectController extends AbstractController
     #[Route('/study/{id}/manage', name: 'app_study_manage', methods: ['GET'])]
     public function manageStudySubject(SessionInterface $session, StudySubject $subject, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'subjects.view');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -158,6 +162,8 @@ final class SchoolClassSubjectController extends AbstractController
         \App\Service\OperationLogger $operationLogger,
         SessionInterface $session
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'subjects.edit');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -213,6 +219,8 @@ final class SchoolClassSubjectController extends AbstractController
         SessionInterface $session,
         \App\Service\OperationLogger $operationLogger // <-- Ajout du paramètre manquant
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'subjects.delete');
+
         if ($this->isCsrfTokenValid('delete' . $subject->getId(), $request->request->get('_token'))) {
             $this->session = $session;
             $this->entityManager = $entityManager;
@@ -257,6 +265,10 @@ final class SchoolClassSubjectController extends AbstractController
         EntityManagerInterface $entityManager,
         \App\Service\OperationLogger $operationLogger
     ): Response {
+        if (!$this->isGranted('perm', 'subjects.assign')) {
+            return $this->json(['status' => 'error', 'message' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $entityManager->getRepository(School::class)->find($session->get('school_id'));
@@ -424,6 +436,10 @@ final class SchoolClassSubjectController extends AbstractController
         SessionInterface $session,
         \Doctrine\Persistence\ManagerRegistry $doctrine
     ): Response {
+        if (!$this->isGranted('perm', 'subjects.create')) {
+            return $this->json(['status' => 'error', 'message' => 'Accès refusé'], 403);
+        }
+
         if ($request->isMethod('POST')) {
             $name = $request->request->get('name');
         } else {
@@ -496,6 +512,10 @@ final class SchoolClassSubjectController extends AbstractController
         \App\Service\OperationLogger $operationLogger,
         SessionInterface $session
     ): Response {
+        if (!$this->isGranted('perm', 'subjects.assign')) {
+            return $this->json(['status' => 'error', 'message' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -566,6 +586,10 @@ final class SchoolClassSubjectController extends AbstractController
         \App\Service\OperationLogger $operationLogger,
         SessionInterface $session
     ): Response {
+        if (!$this->isGranted('perm', 'subjects.assign')) {
+            return $this->json(['status' => 'error', 'message' => 'Accès refusé'], 403);
+        }
+
         if ($this->isCsrfTokenValid('delete' . $affectation->getId(), $request->request->get('_token'))) {
             $this->session = $session;
             $this->entityManager = $entityManager;
@@ -624,6 +648,10 @@ final class SchoolClassSubjectController extends AbstractController
         StringHelper $stringHelper,
         \Doctrine\Persistence\ManagerRegistry $doctrine
     ): Response {
+        if (!$this->isGranted('perm', 'subjects.create')) {
+            return $this->json(['status' => 'error', 'message' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -696,6 +724,8 @@ final class SchoolClassSubjectController extends AbstractController
     #[Route('/study/manage-group', name: 'app_study_manage_group', methods: ['GET'])]
     public function manageStudySubjectGroup(SessionInterface $session, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'subjects.view');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -718,6 +748,10 @@ final class SchoolClassSubjectController extends AbstractController
         \App\Service\OperationLogger $operationLogger,
         SessionInterface $session
     ): Response {
+        if (!$this->isGranted('perm', 'subjects.edit')) {
+            return $this->json(['status' => 'error', 'message' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -793,6 +827,10 @@ final class SchoolClassSubjectController extends AbstractController
         SessionInterface $session,
         \Doctrine\Persistence\ManagerRegistry $doctrine
     ): Response {
+        if (!$this->isGranted('perm', 'subjects.delete')) {
+            return $this->json(['status' => 'error', 'message' => 'Accès refusé'], 403);
+        }
+
         if ($this->isCsrfTokenValid('delete' . $subjectGroup->getId(), $request->request->get('_token'))) {
             $id = $subjectGroup->getId();
             $desc = $subjectGroup->getDescription();
@@ -910,6 +948,10 @@ final class SchoolClassSubjectController extends AbstractController
         \App\Service\OperationLogger $operationLogger,
         \Doctrine\Persistence\ManagerRegistry $doctrine
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'subjects.assign')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $classId = $request->request->get('classId');
         $groupId = $request->request->get('groupId');
         $token = $request->request->get('_token');

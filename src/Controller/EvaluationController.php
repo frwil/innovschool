@@ -73,6 +73,7 @@ class EvaluationController extends AbstractController
     #[Route('/presences', name: 'app_presence_index')]
     public function presenceIndex(Request $request, StudentClassRepository $studentClassRepo, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'presence.view');
         $this->entityManager = $entityManager;
         $sections = $this->entityManager->getRepository(StudyLevel::class)->findAll();
         return $this->render('evaluation/presence.index.html.twig', [
@@ -114,6 +115,9 @@ class EvaluationController extends AbstractController
     #[Route('/ajax/presence-students-by-slot', name: 'app_presence_students_by_slot')]
     public function presenceStudentsBySlot(Request $request, StudentClassRepository $studentClassRepo, StudentClassTimetablePresenceRepository $presenceRepo): JsonResponse
     {
+        if (!$this->isGranted('perm', 'presence.view')) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
         $classId = $request->query->get('classId');
         $slotId = $request->query->get('slotId');
         $datePresence = $request->query->get('datePresence');
@@ -186,6 +190,9 @@ class EvaluationController extends AbstractController
     #[Route('/ajax/presence-lock', name: 'app_presence_lock', methods: ['POST'])]
     public function presenceLock(Request $request, StudentClassTimetablePresenceRepository $presenceRepo, StudentClassRepository $studentClassRepo, TimetableSlotRepository $slotRepo): JsonResponse
     {
+        if (!$this->isGranted('perm', 'presence.lock')) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
         $classId = $request->request->get('classId');
         $slotId = $request->request->get('slotId');
         $datePresence = $request->request->get('datePresence');
@@ -216,6 +223,9 @@ class EvaluationController extends AbstractController
     #[Route('/ajax/presence-update-status', name: 'app_presence_update_status', methods: ['POST'])]
     public function presenceUpdateStatus(Request $request, EntityManagerInterface $em, StudentClassTimetablePresenceRepository $presenceRepo, StudentClassRepository $studentClassRepo, TimetableSlotRepository $slotRepo): JsonResponse
     {
+        if (!$this->isGranted('perm', 'presence.save')) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
         $presenceId = $request->request->get('presenceId');
         $studentClassId = $request->request->get('studentClassId');
         $slotId = $request->request->get('slotId');
@@ -304,7 +314,9 @@ class EvaluationController extends AbstractController
         EntityManagerInterface $entityManager
     ): Response {
 
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        // NB : un subject string de #[IsGranted] serait lu comme un nom
+        // d'argument de contrôleur (Symfony 6.4) → check en corps de méthode.
+        if (!$this->isGranted('perm', 'evaluations.view')) {
             return $this->redirectToRoute('app_homepage');
         }
 
@@ -389,7 +401,7 @@ class EvaluationController extends AbstractController
     #[Route('/add-module', name: 'app_add_module', methods: ['POST'])]
     public function addModule(Request $request, SubjectsModulesRepository $moduleRepo, EntityManagerInterface $entityManager, SessionInterface $session, \Doctrine\Persistence\ManagerRegistry $doctrine, SluggerInterface $slugger): JsonResponse
     {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.create')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $this->session = $session;
@@ -453,7 +465,7 @@ class EvaluationController extends AbstractController
     #[Route('/create-module', name: 'app_map_module', methods: ['POST'])]
     public function mapModule(SessionInterface $session, Request $request, SubjectsModulesRepository $subjectsModulesRepo, EntityManagerInterface $entityManager, SchoolPeriodRepository $periodRepo, ClassSubjectModuleRepository $classSubjectModuleRepo): JsonResponse
     {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.create')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $this->session = $session;
@@ -656,7 +668,7 @@ class EvaluationController extends AbstractController
         OperationLogger $operationLogger, // Injection du service
         SessionInterface $session
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.create')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $this->session = $session;
@@ -811,17 +823,25 @@ class EvaluationController extends AbstractController
         $section = $sectionRepo->find($sectionId);
         $class = $classRepo->find($classId);
         $evaluationFrame = $frameRepo->find($evaluationFrameId);
-        $evaluationTime = $timeRepo->find($evaluationTimeId[0]);
-        $subject = $classSubjectModuleRepo->find($subjectId);
-        $studentClass = $studentClassRepo->findBy(['schoolClassPeriod' => $class]);
-        $studentClassIds = [];
-        foreach ($studentClass as $sc) {
-            $studentClassIds[] = $sc->getId();
-        }
-        $evaluations = $evaluationRepo->findBy(['student' => $studentClassIds]);
-        $evaluationsTimeIds = [];
-        foreach ($evaluations as $evaluation) {
-            $evaluationsTimeIds[] = $evaluation->getTime()->getId();
+        $subject = $subjectId ? $this->entityManager->getRepository(StudySubject::class)->find((int) $subjectId) : null;
+
+        // Sous-périodes choisies par l'utilisateur : c'est la sélection qui pilote
+        // le bordereau, pas les notes (une nouvelle année n'en a aucune). Les
+        // valeurs peuvent être des ids simples ou groupés par virgule ("3,4").
+        $evaluationT = [];
+        if ($evaluationTimeId) {
+            $timeIds = [];
+            foreach ($evaluationTimeId as $value) {
+                foreach (explode(',', (string) $value) as $id) {
+                    $id = trim($id);
+                    if ($id !== '') {
+                        $timeIds[(int) $id] = true;
+                    }
+                }
+            }
+            if ($timeIds) {
+                $evaluationT = $timeRepo->findBy(['id' => array_keys($timeIds)], ['id' => 'ASC']);
+            }
         }
 
         // Récupérer les élèves de la classe
@@ -834,40 +854,26 @@ class EvaluationController extends AbstractController
 
         // Récupérer les modules associés à la matière choisie
         $classSubjectModules = [];
-        if ($subjectId) {
+        if ($subject) {
             $modules = $classSubjectModuleRepo->findBy(['class' => $class, 'subject' => $subject, 'period' => $period, 'school' => $this->currentSchool]);
             foreach ($modules as $module) {
-                $subjectModule = $module->getSubject();
-                if (!isset($classSubjectModules[$subjectModule->getId()])) {
-                    $classSubjectModules[$subjectModule->getId()] = [
-                        'name' => $subjectModule->getName(),
+                if (!isset($classSubjectModules[$subject->getId()])) {
+                    $classSubjectModules[$subject->getId()] = [
+                        'name' => $subject->getName(),
                         'modules' => [],
                     ];
                 }
-                $classSubjectModules[$subjectModule->getId()]['modules'][] = $module;
+                $classSubjectModules[$subject->getId()]['modules'][] = $module;
             }
         }
 
-        $evaluationTimes = $timeRepo->findBy(['evaluationFrame' => $evaluationFrame]);
-        $evaluationT = [];
-        $ids = [];
-        foreach ($evaluationTimes as $time) {
-            foreach ($time->getEvaluations() as $evals) {
-                if (in_array($evals->getTime()->getId(), $evaluationsTimeIds)) {
-                    // Vérifier si l'évaluation n'existe pas déjà pour cette période et ce module
-                    if (!in_array($time->getId(), $ids)) {
-                        $ids[] = $time->getId();
-                        $evaluationT[] = $time;
-                    }
-                }
-            }
-        }
+        // Grille élève × sous-période × module : les notes existantes s'affichent,
+        // les autres cellules restent vides (un bordereau ne crée pas de notes).
         $evaluations = [];
-        //dd($evaluationT);
         $moduleLen = 0;
         foreach ($students as $student) {
             foreach ($evaluationT as $time) {
-                foreach ($classSubjectModules as $subjectId => $subjectData) {
+                foreach ($classSubjectModules as $subjectData) {
                     if ($moduleLen == 0) $moduleLen = count($subjectData['modules']);
                     foreach ($subjectData['modules'] as $module) {
                         $evaluation = $evaluationRepo->findOneBy([
@@ -891,9 +897,8 @@ class EvaluationController extends AbstractController
             'students' => $students,
             'classSubjectModules' => $classSubjectModules,
             'school' => $this->currentSchool,
-            'evaluationTimes' => $evaluationTimes,
             'evaluations' => $evaluations,
-            'selectedSubject' => $subject, // ID de la matière choisie
+            'selectedSubject' => $subject, // StudySubject choisie
             'moduleLen' => $moduleLen,
         ]);
     }
@@ -960,15 +965,27 @@ class EvaluationController extends AbstractController
         }
 
         if ($isAnnual) {
-            // Mode Annuel : récupérer toutes les sous-périodes groupées par frame
+            // Mode Annuel : toutes les sous-périodes de l'année.
+            // « Inclure les notes » : sous-périodes réellement notées ; sinon
+            // (ou aucune note saisie), la configuration des évaluations de la
+            // période pilote la grille — un bordereau sans notes doit s'afficher.
             $this->bulletinContextService->initializeFromSession();
-            $groupedFrames = $this->bulletinDataService->getAllTimesGroupedByFrame((int)$classId, $this->bulletinContextService);
-
             $evaluationTimes = [];
-            foreach ($groupedFrames as $frameData) {
-                foreach ($frameData['times'] as $time) {
-                    $evaluationTimes[] = $time;
+            if ($includeNotes) {
+                $groupedFrames = $this->bulletinDataService->getAllTimesGroupedByFrame((int)$classId, $this->bulletinContextService);
+                foreach ($groupedFrames as $frameData) {
+                    foreach ($frameData['times'] as $time) {
+                        $evaluationTimes[] = $time;
+                    }
                 }
+            }
+            if (empty($evaluationTimes)) {
+                $configRows = $evaluationRepo->findEvaluationPeriodsByClass((int)$classId, $this->currentSchool->getId(), $period->getId());
+                $timeIds = [];
+                foreach ($configRows as $row) {
+                    $timeIds[] = (int) $row['evaluationTimeId'];
+                }
+                $evaluationTimes = $timeIds ? $timeRepo->findBy(['id' => $timeIds], ['id' => 'ASC']) : [];
             }
             $evaluationFrame = null;
             $evaluationTimeType = null;
@@ -1206,9 +1223,9 @@ class EvaluationController extends AbstractController
             }
             $cumulativeData['finalClassAverage'] = !empty($finalClassAverages) ? array_sum($finalClassAverages) / count($finalClassAverages) : 0;
         } else {
-            // Pour une seule période
-            $timeId = $evaluationTimes[0]->getId();
-            if (isset($periodData[$timeId])) {
+            // Pour une seule période (sans sous-période, rien à remplir)
+            $timeId = empty($evaluationTimes) ? null : $evaluationTimes[0]->getId();
+            if ($timeId !== null && isset($periodData[$timeId])) {
                 // Initialiser les données pour tous les élèves
                 foreach ($allStudents as $student) {
                     $studentId = $student->getId();
@@ -1535,7 +1552,7 @@ class EvaluationController extends AbstractController
         EntityManagerInterface $entityManager,
         ManagerRegistry $doctrine
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.delete')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         // Récupérer l'évaluation par son ID
@@ -1596,7 +1613,7 @@ class EvaluationController extends AbstractController
         EntityManagerInterface $entityManager,
         ManagerRegistry $doctrine
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.save')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         // Récupérer l'évaluation par son ID
@@ -1683,7 +1700,7 @@ class EvaluationController extends AbstractController
         SessionInterface $session,
         ManagerRegistry $doctrine
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.delete')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
 
@@ -1771,7 +1788,7 @@ class EvaluationController extends AbstractController
         SessionInterface $session,
         ManagerRegistry $doctrine
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.edit')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $this->session = $session;
@@ -2068,6 +2085,9 @@ class EvaluationController extends AbstractController
         SessionInterface $session,
         ManagerRegistry $doctrine
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'evaluations.save')) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -2214,6 +2234,9 @@ class EvaluationController extends AbstractController
         SessionInterface $session,
         EntityManagerInterface $entityManager
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'evaluations.view')) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
 
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -2301,7 +2324,7 @@ class EvaluationController extends AbstractController
         SessionInterface $session,
         ManagerRegistry $doctrine
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.templates')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $name = $request->request->get('name');
@@ -2427,7 +2450,7 @@ class EvaluationController extends AbstractController
         Request $request,
         EntityManagerInterface $entityManager
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.templates')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $templateId = $request->request->get('templateId');
@@ -2531,7 +2554,7 @@ class EvaluationController extends AbstractController
         EntityManagerInterface $entityManager,
         SessionInterface $session
     ): Response {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.edit')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $this->session = $session;
@@ -2593,7 +2616,7 @@ class EvaluationController extends AbstractController
         SessionInterface $session,
         ManagerRegistry $doctrine
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.delete')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $this->session = $session;
@@ -2657,7 +2680,7 @@ class EvaluationController extends AbstractController
         EntityManagerInterface $entityManager,
         ManagerRegistry $doctrine
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.templates')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $bareme = $entityManager->getRepository(\App\Entity\EvaluationAppreciationBareme::class)->find($id);
@@ -2741,7 +2764,7 @@ class EvaluationController extends AbstractController
         SessionInterface $session,
         ManagerRegistry $doctrine
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.report_card')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $this->session = $session;
@@ -2822,6 +2845,9 @@ class EvaluationController extends AbstractController
         SessionInterface $session,
         ManagerRegistry $doctrine
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'evaluations.report_card')) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -2907,7 +2933,7 @@ class EvaluationController extends AbstractController
         SessionInterface $session,
         ManagerRegistry $doctrine
     ): JsonResponse {
-        if (!in_array('ROLE_ADMIN', $this->getUser()->getRoles()) && !in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
+        if (!$this->isGranted('perm', 'evaluations.report_card')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $this->session = $session;
@@ -3047,6 +3073,9 @@ class EvaluationController extends AbstractController
         SessionInterface $session,
         ManagerRegistry $doctrine
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'presence.save')) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(\App\Entity\School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(\App\Entity\SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -3200,6 +3229,9 @@ class EvaluationController extends AbstractController
         SchoolClassSubjectRepository $schoolClassSubjectRepo,
         ManagerRegistry $doctrine
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'evaluations.cancel')) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
         $id = $request->request->get('id');
         $token = $request->request->get('_token');
 
@@ -3265,6 +3297,9 @@ class EvaluationController extends AbstractController
         SchoolClassSubjectRepository $schoolClassSubjectRepo,
         ManagerRegistry $doctrine
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'evaluations.cancel')) {
+            return new JsonResponse(['error' => 'Unauthorized'], 403);
+        }
         $id = $request->request->get('id');
         $token = $request->request->get('_token');
 

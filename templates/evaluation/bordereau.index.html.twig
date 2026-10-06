@@ -28,10 +28,14 @@
 						<!-- Champ pour les classes -->
 						<div class="mb-3">
 							<label for="classId" class="form-label">Classe</label>
-							<select id="classId" name="classId" class="form-select select2" required>
-								<option value="">Sélectionnez une classe</option>
-								<!-- Options dynamiques chargées via JavaScript -->
-							</select>
+							<div class="position-relative">
+								<select id="classId" name="classId" class="form-select select2" required>
+									<option value="">Sélectionnez une classe</option>
+									<!-- Options dynamiques chargées via JavaScript -->
+								</select>
+								<span id="classId-spinner" class="spinner-border spinner-border-sm text-primary"
+									role="status" style="display:none; position:absolute; top:50%; right:12px; margin-top:-8px; z-index:5;"></span>
+							</div>
 						</div>
 					</div>
 
@@ -65,20 +69,28 @@
 						<!-- Champ pour la sous-période d'évaluation -->
 						<div class="mb-3">
 							<label for="evaluationTimeId" class="form-label">Sous-périodes d'évaluation</label>
-							<select id="evaluationTimeId" name="evaluationTimeId[]" class="form-select select2" multiple
-								required>
-								<option value="">Sélectionnez une ou plusieurs sous-périodes</option>
-								<!-- Options dynamiques chargées via JavaScript -->
-							</select>
+							<div class="position-relative">
+								<select id="evaluationTimeId" name="evaluationTimeId[]" class="form-select select2" multiple
+									required>
+									<option value="">Sélectionnez une ou plusieurs sous-périodes</option>
+									<!-- Options dynamiques chargées via JavaScript -->
+								</select>
+								<span id="evaluationTimeId-spinner" class="spinner-border spinner-border-sm text-primary"
+									role="status" style="display:none; position:absolute; top:50%; right:12px; margin-top:-8px; z-index:5;"></span>
+							</div>
 						</div>
 
 						<!-- Champ pour les matières -->
 						<div class="mb-3">
 							<label for="subjectId" class="form-label">Matière</label>
-							<select id="subjectId" name="subjectId" class="form-select select2" required>
-								<option value="">Sélectionnez une matière</option>
-								<!-- Options dynamiques chargées via JavaScript -->
-							</select>
+							<div class="position-relative">
+								<select id="subjectId" name="subjectId" class="form-select select2" required>
+									<option value="">Sélectionnez une matière</option>
+									<!-- Options dynamiques chargées via JavaScript -->
+								</select>
+								<span id="subjectId-spinner" class="spinner-border spinner-border-sm text-primary"
+									role="status" style="display:none; position:absolute; top:50%; right:12px; margin-top:-8px; z-index:5;"></span>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -110,6 +122,28 @@
 <hr>
 
 <script>
+	// Affiche/masque le spinner d'un select pendant un chargement AJAX et le
+	// désactive (select2 compris) tant que les options ne sont pas arrivées.
+	function setSelectLoading(selectId, isLoading) {
+		const select = $('#' + selectId);
+		const spinner = $('#' + selectId + '-spinner');
+		if (isLoading) {
+			spinner.show();
+			if (select.hasClass('select2-hidden-accessible')) {
+				select.select2('enable', false);
+			} else {
+				select.prop('disabled', true);
+			}
+		} else {
+			spinner.hide();
+			if (select.hasClass('select2-hidden-accessible')) {
+				select.select2('enable', true);
+			} else {
+				select.prop('disabled', false);
+			}
+		}
+	}
+
 	$(document).ready(function () {
 		$('#sectionId').on('change', function () {
 			const sectionId = $(this).val();
@@ -120,6 +154,7 @@
 			classSelect.append(new Option('Sélectionnez une classe', ''));
 
 			if (sectionId) {
+				setSelectLoading('classId', true);
 				$.ajax({
 					url: '{{ path("app_classes_by_section") }}',
 					method: 'GET',
@@ -130,9 +165,11 @@
 						data.forEach(function (classItem) {
 							classSelect.append(new Option(classItem.name, classItem.id));
 						});
+						setSelectLoading('classId', false);
 					},
 					error: function () {
 						alert('Une erreur est survenue lors du chargement des classes.');
+						setSelectLoading('classId', false);
 					}
 				});
 			}
@@ -147,6 +184,7 @@
 			subjectSelect.append(new Option('Sélectionnez une matière', ''));
 
 			if (classId) {
+				setSelectLoading('subjectId', true);
 				$.ajax({
 					url: '{{ path("app_subjects_by_class") }}',
 					method: 'GET',
@@ -157,9 +195,11 @@
 						data.forEach(function (subjectItem) {
 							subjectSelect.append(new Option(subjectItem.name, subjectItem.id));
 						});
+						setSelectLoading('subjectId', false);
 					},
 					error: function () {
 						alert('Une erreur est survenue lors du chargement des matières.');
+						setSelectLoading('subjectId', false);
 					}
 				});
 			}
@@ -204,7 +244,7 @@
 			const timeSelect = $('#evaluationTimeId');
 			timeSelect.empty();
 			timeSelect.append(new Option('Chargement...', ''));
-			timeSelect.prop('disabled', true);
+			setSelectLoading('evaluationTimeId', true);
 			
 			$.ajax({
 				url: '{{ path("app_times_by_frame_and_type") }}',
@@ -216,13 +256,13 @@
 					data.forEach(function (timeItem) {
 						timeSelect.append(new Option(timeItem.name, timeItem.id));
 					});
-					timeSelect.prop('disabled', false);
+					setSelectLoading('evaluationTimeId', false);
 				},
 				error: function () {
 					alert('Une erreur est survenue lors du chargement des sous-périodes.');
 					timeSelect.empty();
 					timeSelect.append(new Option('Sélectionnez une ou plusieurs sous-périodes', ''));
-					timeSelect.prop('disabled', false);
+					setSelectLoading('evaluationTimeId', false);
 				}
 			});
 		}

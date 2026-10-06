@@ -48,6 +48,8 @@ final class SchoolController extends AbstractController
         \App\Repository\AppLicenseRepository $appLicenseRepo
     ): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'schools.view');
+
         $schools= $schoolRepository->findAll();
         $schoolsIds= [];
         foreach ($schools as $school) {
@@ -73,6 +75,8 @@ final class SchoolController extends AbstractController
         OperationLogger $operationLogger,
         SessionInterface $session
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'schools.create');
+
         $school = new School();
 
         $this->session = $session;
@@ -157,6 +161,8 @@ final class SchoolController extends AbstractController
     #[Route('/{id}/edit', name: 'app_school_edit', methods: ['GET', 'POST'])]
     public function edit(Request $request, School $school, EntityManagerInterface $entityManager,ImageOptimizer $imageOptimizer, \App\Service\OperationLogger $operationLogger,SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'schools.edit');
+
         $this->session=$session;
         $this->entityManager=$entityManager;
         $this->currentPeriod=$this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -230,6 +236,8 @@ final class SchoolController extends AbstractController
         OperationLogger $operationLogger // <-- Ajoute ceci
     ): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'schools.delete');
+
         if ($this->isCsrfTokenValid('delete' . $school->getId(), $request->getPayload()->getString('_token'))) {
             $schoolId = $school->getId();
             $schoolName = $school->getName();

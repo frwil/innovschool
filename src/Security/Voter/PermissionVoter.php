@@ -5,6 +5,7 @@ namespace App\Security\Voter;
 use App\Entity\User;
 use App\Repository\PermissionRepository;
 use App\Repository\RoleRepository;
+use Doctrine\DBAL\Exception\TableNotFoundException;
 use Symfony\Component\Security\Core\Authentication\Token\TokenInterface;
 use Symfony\Component\Security\Core\Authorization\Voter\Voter;
 
@@ -12,8 +13,9 @@ use Symfony\Component\Security\Core\Authorization\Voter\Voter;
  * Voter « perm » : autorise une action si l'utilisateur porte un rôle qui a
  * la permission (subject = code, ex. users.view). ROLE_SUPER_ADMIN passe
  * systématiquement. Filet anti-lockout : si aucune ligne de rôle n'existe
- * en base (sync pas encore joué, ex. seconde machine), ROLE_ADMIN conserve
- * l'accès total (comportement hérité).
+ * en base (sync pas encore joué, ex. seconde machine) ou si les tables
+ * access_* manquent encore (schema:update pas encore joué), ROLE_ADMIN
+ * conserve l'accès total (comportement hérité).
  */
 class PermissionVoter extends Voter
 {
@@ -60,11 +62,17 @@ class PermissionVoter extends Voter
      */
     private function resolvePermissionNames(array $roleNames): array
     {
-        // Filet anti-lockout : seed pas encore joué → ROLE_ADMIN garde tout.
-        if ($this->roleRepository->count([]) === 0) {
+        try {
+            // Filet anti-lockout : seed pas encore joué → ROLE_ADMIN garde tout.
+            if ($this->roleRepository->count([]) === 0) {
+                return in_array('ROLE_ADMIN', $roleNames, true) ? ['*'] : [];
+            }
+
+            return $this->permissionRepository->findNamesByRoleNames($roleNames);
+        } catch (TableNotFoundException) {
+            // Tables access_* absentes (seconde machine avant schema:update) :
+            // même filet anti-lockout, l'app reste utilisable jusqu'au sync.
             return in_array('ROLE_ADMIN', $roleNames, true) ? ['*'] : [];
         }
-
-        return $this->permissionRepository->findNamesByRoleNames($roleNames);
     }
 }

@@ -40,6 +40,10 @@ class TimeTableController extends AbstractController
     #[Route('/', name: 'app_timetable_index')]
     public function index(SessionInterface $session, TimetableRepository $timetableRepository, EntityManagerInterface $entityManager): Response
     {
+        // NB : un subject string de #[IsGranted] serait lu comme un nom
+        // d'argument de contrôleur (Symfony 6.4) → check en corps de méthode.
+        $this->denyAccessUnlessGranted('perm', 'timetable.view');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -81,6 +85,8 @@ class TimeTableController extends AbstractController
     #[Route('/{id}/show', name: 'app_timetable_show')]
     public function show(SessionInterface $session, User $teacher, SchoolClassSubjectRepository $schoolClassRepo, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'timetable.view');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -113,6 +119,8 @@ class TimeTableController extends AbstractController
         SessionInterface $session,
         OperationLogger $operationLogger // <-- Inject the operationLogger service here
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'timetable.manage');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -178,6 +186,8 @@ class TimeTableController extends AbstractController
         SchoolPeriodRepository $periodRepo,
         OperationLogger $operationLogger
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'timetable.manage');
+
         if ($request->isMethod('POST')) {
             // Hydrate $timetable avec les données du formulaire (à adapter selon ton formulaire)
             // Exemple :
@@ -234,6 +244,8 @@ class TimeTableController extends AbstractController
         EntityManagerInterface $em,
         OperationLogger $operationLogger
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'timetable.manage');
+
         if ($this->isCsrfTokenValid('delete_timetable_' . $timetable->getId(), $request->request->get('_token'))) {
             $em->remove($timetable);
             try{
@@ -265,6 +277,8 @@ class TimeTableController extends AbstractController
         SchoolClassPeriodRepository $classRepo,
         SchoolClassSubjectRepository $subjectRepo
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'timetable.manage');
+
         $timetableId = $request->request->get('timetableId');
         $classId = $request->request->get('classId');
 
@@ -321,6 +335,10 @@ class TimeTableController extends AbstractController
         SessionInterface $session,
         \Doctrine\Persistence\ManagerRegistry $doctrine
     ): Response {
+        if (!$this->isGranted('perm', 'timetable.manage')) {
+            return $this->json(['success' => false, 'message' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->entityManager = $em;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -424,6 +442,10 @@ class TimeTableController extends AbstractController
         int $id,
         OperationLogger $operationLogger
     ): Response {
+        if (!$this->isGranted('perm', 'timetable.manage')) {
+            return $this->json(['success' => false, 'message' => 'Accès refusé'], 403);
+        }
+
         $token = $request->request->get('_token');
         $slot = $em->getRepository(\App\Entity\TimetableSlot::class)->find($id);
 
@@ -478,6 +500,8 @@ class TimeTableController extends AbstractController
     #[Route('/timetable/teacher', name: 'app_timetable_per_teacher')]
     public function perTeacher(SessionInterface $session, EntityManagerInterface $entityManager, UserRepository $userRepo): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'timetable.view');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -509,6 +533,10 @@ class TimeTableController extends AbstractController
     #[Route('/get-teachers-by-class/{id}', name: 'app_get_teachers_by_class', methods: ['GET'])]
     public function getTeachersByClass(int $id, EntityManagerInterface $em): \Symfony\Component\HttpFoundation\JsonResponse
     {
+        if (!$this->isGranted('perm', 'timetable.view')) {
+            return $this->json(['error' => 'Accès refusé'], 403);
+        }
+
         // On suppose que SchoolClassSubject relie SchoolClassPeriod à Teacher
         $subjects = $em->getRepository(\App\Entity\SchoolClassSubject::class)->findBy(['schoolClassPeriod' => $id]);
         $teachers = [];
@@ -530,6 +558,8 @@ class TimeTableController extends AbstractController
     #[Route('/show-per-teacher/{id}', name: 'app_timetable_show_per_teacher', methods: ['GET'])]
     public function showPerTeacher(int $id, SessionInterface $session, EntityManagerInterface $em): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'timetable.view');
+
         $this->session = $session;
         $this->entityManager = $em;
         $this->currentSchool = $this->entityManager->getRepository(\App\Entity\School::class)->find($this->session->get('school_id'));
@@ -589,6 +619,8 @@ class TimeTableController extends AbstractController
     #[Route('/per-class', name: 'app_timetable_per_class', methods: ['GET'])]
     public function perClass(EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'timetable.view');
+
         $this->entityManager = $entityManager;
         $studyLevels = $this->entityManager->getRepository(\App\Entity\StudyLevel::class)->findAll();
         $user= $this->getUser();
@@ -608,6 +640,8 @@ class TimeTableController extends AbstractController
     #[Route('/class-grid/{id}', name: 'app_timetable_class_grid', methods: ['GET'])]
     public function classGrid(int $id, EntityManagerInterface $em): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'timetable.view');
+
         // Récupérer la classe (SchoolClassPeriod)
         $classPeriod = $em->getRepository(\App\Entity\SchoolClassPeriod::class)->find($id);
         if (!$classPeriod) {

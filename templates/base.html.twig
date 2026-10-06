@@ -331,21 +331,26 @@
 								<span>Tableau de bord</span>
 							</a>
 						</li>
-						{% if is_granted('ROLE_ADMIN') %}
+						{% if is_granted('perm', 'classes.view') or is_granted('perm', 'subjects.view') or is_granted('perm', 'users.view') %}
 						<li class="nav-item sidebar-nav-item">
 							<a href="#" class="nav-link">
 								<i class="fa fa-sliders-h"></i>
 								<span>Configurations (base)</span>
 							</a>
 							<ul class="nav sub-group-menu">
+								{% if is_granted('perm', 'classes.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{path('app_school_class_index')}}" class="nav-link">
 										<i class="fas fa-angle-right"></i>Classes</a>
 								</li>
+								{% endif %}
+								{% if is_granted('perm', 'subjects.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{path('app_study_show')}}" class="nav-link">
 										<i class="fas fa-angle-right"></i>Matières</a>
 								</li>
+								{% endif %}
+								{% if is_granted('perm', 'users.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{path('app_student_index')}}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
@@ -358,18 +363,19 @@
 										Enseignants
 									</a>
 								</li>
+								{% endif %}
 
 							</ul>
 						</li>
 						{% endif %}
-						{% if module_manager.isEnabled('admission') %}
+						{% if module_manager.isEnabled('admission') and (is_granted('perm', 'admission.view') or is_granted('perm', 'admission.reports') or is_granted('perm', 'admission.finance') or is_granted('perm', 'payments.view')) %}
 						<li class="nav-item sidebar-nav-item">
 							<a href="#" class="nav-link">
 								<i class="fa fa-cash-register"></i>
 								<span>Admissions</span>
 							</a>
 							<ul class="nav sub-group-menu">
-								{% if is_granted('ROLE_ADMIN') %}
+								{% if is_granted('perm', 'payments.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_school_class_payment_modals') }}"
 										class="nav-link">
@@ -384,6 +390,7 @@
 												</a>
 											</li> -->
 								{% endif %}
+								{% if is_granted('perm', 'admission.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_student_inscription') }}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
@@ -396,6 +403,8 @@
 										<span>Admission Étudiant</span>
 									</a>
 								</li>
+								{% endif %}
+								{% if is_granted('perm', 'admission.finance') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_admission_finance_report') }}"
 										class="nav-link">
@@ -403,46 +412,53 @@
 										<span>Rapport Financier</span>
 									</a>
 								</li>
-
+								{% endif %}
+								{% if is_granted('perm', 'admission.reports') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_admission_reports') }}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
 										<span>Rapports d'admission</span>
 									</a>
 								</li>
+								{% endif %}
 							</ul>
 						</li>
 						{% endif %}
-						{% if module_manager.isEnabled('registration_card') %}
+						{% if module_manager.isEnabled('registration_card') and (is_granted('perm', 'registration_card.view') or is_granted('perm', 'registration_card.configure')) %}
 						<li class="nav-item sidebar-nav-item">
 							<a href="#" class="nav-link">
 								<i class="fa fa-address-card"></i>
 								<span>Cartes Scolaire</span>
 							</a>
 							<ul class="nav sub-group-menu">
+								{% if is_granted('perm', 'registration_card.configure') %}
 								<li class="nav-item">
-									{% if is_granted('ROLE_ADMIN') %}
 									<a data-turbo="false" href="{{ path('app_registration_card_configuration') }}"
 										class="nav-link">
 										<i class="fas fa-angle-right"></i>
 										<span>Configuration</span>
 									</a>
-									{% endif %}
+								</li>
+								{% endif %}
+								{% if is_granted('perm', 'registration_card.view') %}
+								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_registration_card') }}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
 										<span>Cartes scolaires</span>
 									</a>
 								</li>
+								{% endif %}
 							</ul>
 						</li>
 						{% endif %}
+						{% if is_granted('perm', 'evaluations.view') or is_granted('perm', 'evaluations.save') or is_granted('perm', 'presence.view') or is_granted('perm', 'discipline.view') or is_granted('perm', 'bulletins.view') %}
 						<li class="nav-item sidebar-nav-item">
 							<a href="#" class="nav-link">
 								<i class="fa fa-graduation-cap"></i>
 								<span>Evaluations</span>
 							</a>
 							<ul class="nav sub-group-menu">
-								{% if is_granted('ROLE_ADMIN') %}
+								{% if is_granted('perm', 'evaluations.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_evaluation') }}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
@@ -450,6 +466,7 @@
 									</a>
 								</li>
 								{% endif %}
+								{% if is_granted('perm', 'evaluations.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_evaluation_bordereau') }}"
 										class="nav-link">
@@ -457,45 +474,57 @@
 										<span>Bordereaux</span>
 									</a>
 								</li>
+								{% endif %}
+								{% if is_granted('perm', 'evaluations.save') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_saisie_notes') }}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
 										<span>Saisie des notes</span>
 									</a>
 								</li>
+								{% endif %}
+								{% if is_granted('perm', 'presence.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_presence_index') }}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
 										<span>Présences/Absences</span>
 									</a>
 								</li>
+								{% endif %}
+								{% if is_granted('perm', 'discipline.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_discipline_index') }}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
 										<span>Discipline</span>
 									</a>
 								</li>
+								{% endif %}
+								{% if is_granted('perm', 'bulletins.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_bulletins') }}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
 										<span>Bulletins</span>
 									</a>
 								</li>
+								{% endif %}
 							</ul>
 						</li>
-						{% if is_granted('ROLE_ADMIN') and module_manager.isEnabled('timetable') %}
+						{% endif %}
+						{% if is_granted('perm', 'timetable.view') and module_manager.isEnabled('timetable') %}
 						<li class="nav-item sidebar-nav-item">
 							<a href="#" class="nav-link">
 								<i class="fa fa-table"></i>
 								<span>Emploi du Temps</span>
 							</a>
 							<ul class="nav sub-group-menu">
+								{% if is_granted('perm', 'timetable.manage') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_timetable_index') }}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
 										<span>Configuration</span>
 									</a>
 								</li>
+								{% endif %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_timetable_per_teacher') }}"
 										class="nav-link">
@@ -512,7 +541,7 @@
 							</ul>
 						</li>
 						{% endif %}
-						{% if is_granted('ROLE_SUPER_ADMIN')%}
+						{% if is_granted('perm', 'users.view') %}
 						<li class="nav-item">
 							<a data-turbo="false" href="{{path('app_user_index_admins', {'role': 'admin'})}}"
 								class="nav-link">
@@ -520,18 +549,24 @@
 								<span>Administrateurs</span>
 							</a>
 						</li>
+						{% endif %}
+						{% if is_granted('perm', 'periods.view') %}
 						<li class="nav-item">
 							<a data-turbo="false" href="{{path('app_school_period_index')}}" class="nav-link">
 								<i class="fa fa-calendar-day"></i>
 								<span>Périodes scolaires</span>
 							</a>
 						</li>
+						{% endif %}
+						{% if is_granted('perm', 'year_migration.view') %}
 						<li class="nav-item">
 							<a data-turbo="false" href="{{path('app_year_migration_index')}}" class="nav-link">
 								<i class="fa fa-graduation-cap"></i>
 								<span>Migration annuelle</span>
 							</a>
 						</li>
+						{% endif %}
+						{% if is_granted('perm', 'schools.view') %}
 						<li class="nav-item">
 							<a data-turbo="false" href="{{path('app_school_index')}}" class="nav-link">
 								<i class="fa fa-cogs"></i>
@@ -547,40 +582,44 @@
 							</a>
 						</li>
 						{% endif %}
-						{% if is_granted('ROLE_ADMIN')%}
+						{% if is_granted('perm', 'update.view') or is_granted('perm', 'modules.manage') %}
 						<li class="nav-item sidebar-nav-item">
 							<a href="#" class="nav-link">
 								<i class="fa fa-wrench"></i>
 								<span>Paramêtres</span>
 							</a>
 							<ul class="nav sub-group-menu">
+								{% if is_granted('perm', 'update.view') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{path('app_update_index')}}" class="nav-link">
 										<i class="fas fa-angle-right"></i>Mise à jour</a>
 								</li>
+								{% endif %}
+								{% if is_granted('perm', 'modules.manage') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{path('app_module_index')}}" class="nav-link">
 										<i class="fas fa-angle-right"></i>Modules</a>
 								</li>
+								{% endif %}
 							</ul>
 						</li>
 						{% endif %}
+						{% if is_granted('perm', 'users.view') %}
 						<li class="nav-item sidebar-nav-item">
 							<a href="#" class="nav-link">
 								<i class="flaticon-user"></i>
 								<span>Utilisateurs</span>
 							</a>
 							<ul class="nav sub-group-menu">
-								{% if is_granted('ROLE_VIEW_USER') or is_granted('ROLE_ADMIN') %}
 								<li class="nav-item">
 									<a data-turbo="false" href="{{ path('app_user_manage') }}" class="nav-link">
 										<i class="fas fa-angle-right"></i>
 										<span>Gérer les utilisateurs</span>
 									</a>
 								</li>
-								{% endif %}
 							</ul>
 						</li>
+						{% endif %}
 
 					</ul>
 				</div>

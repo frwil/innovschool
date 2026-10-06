@@ -39,6 +39,10 @@ class BulletinController extends AbstractController
     #[Route('/bulletins', name: 'app_bulletins')]
     public function index(): Response
     {
+        // NB : un subject string de #[IsGranted] serait lu comme un nom
+        // d'argument de contrôleur (Symfony 6.4) → check en corps de méthode.
+        $this->denyAccessUnlessGranted('perm', 'bulletins.view');
+
         // Logique simplifiée - à adapter selon vos besoins
         $sections = $this->dataService->getSections($this->getUser());
         $templates = $this->dataService->getTemplates();
@@ -52,6 +56,10 @@ class BulletinController extends AbstractController
     #[Route('/get-school-evaluation-frames', name: 'app_get_school_evaluation_frames', methods: ['GET'])]
     public function getSchoolEvaluationFrames(): JsonResponse
     {
+        if (!$this->isGranted('perm', 'bulletins.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         try {
             $frames = $this->dataService->getEvaluationFrames();
             return new JsonResponse($frames);
@@ -63,6 +71,10 @@ class BulletinController extends AbstractController
     #[Route('/get-school-evaluation-times', name: 'app_get_school_evaluation_times', methods: ['GET'])]
     public function getSchoolEvaluationTimes(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'bulletins.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         try {
             $classId = (int)$request->query->get('classId');
             $times = $this->dataService->getEvaluationTimes($classId, $this->contextService);
@@ -77,6 +89,10 @@ class BulletinController extends AbstractController
     #[Route('/get-students-by-class', name: 'app_get_students_by_class', methods: ['GET'])]
     public function getStudentsByClass(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'bulletins.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         try {
             $classId = (int)$request->query->get('classId');
             $students = $this->dataService->getStudentsByClass($classId);
@@ -91,6 +107,8 @@ class BulletinController extends AbstractController
     #[Route('/bulletin/individual', name: 'app_bulletin_frame', methods: ['GET'])]
     public function showBulletin(Request $request): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'bulletins.view');
+
         try {
             $dto = BulletinRequestDTO::fromRequest($request);
 
@@ -128,6 +146,8 @@ class BulletinController extends AbstractController
     #[Route('/bulletin/pdf/individual', name: 'app_bulletin_pdf_individual', methods: ['GET'])]
     public function generateIndividualPdf(Request $request): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'bulletins.view');
+
         try {
             $dto = BulletinRequestDTO::fromRequest($request);
             $result = $this->generationService->generateIndividualBulletin($dto, $this->contextService);
@@ -157,6 +177,10 @@ class BulletinController extends AbstractController
     #[Route('/bulletin/pdf/all-chunked-async', name: 'app_bulletin_pdf_all_chunked_async', methods: ['POST'])]
     public function generateAllPdfChunkedAsync(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'bulletins.generate')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         try {
             ini_set('max_execution_time', 1200); // Augmente le temps d'exécution pour les gros fichiers
             ini_set('memory_limit', '4096M');
@@ -203,6 +227,10 @@ class BulletinController extends AbstractController
     #[Route('/get-evaluation-progress', name: 'app_get_evaluation_progress', methods: ['GET'])]
     public function getEvaluationProgress(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'bulletins.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         try {
             $dto = ProgressQueryDTO::fromRequest($request);
             $progress = $this->dataService->calculateEvaluationProgress($dto, $this->contextService);
@@ -217,6 +245,10 @@ class BulletinController extends AbstractController
     #[Route('/get-student-evaluation-progress', name: 'app_get_student_evaluation_progress', methods: ['GET'])]
     public function getStudentEvaluationProgress(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'bulletins.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         try {
             $dto = ProgressQueryDTO::fromRequest($request);
             $progress = $this->dataService->calculateEvaluationProgress($dto, $this->contextService);
@@ -231,6 +263,10 @@ class BulletinController extends AbstractController
     #[Route('/get-students-progress', name: 'app_get_students_progress', methods: ['GET'])]
     public function getStudentsProgress(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'bulletins.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         try {
             $dto = ProgressQueryDTO::fromRequest($request);
             $progress = $this->dataService->getStudentsProgress($dto, $this->contextService);
@@ -245,6 +281,10 @@ class BulletinController extends AbstractController
     #[Route('/bulletins/progress/{taskId}', name: 'app_bulletin_progress', methods: ['GET'])]
     public function getBulletinProgress(string $taskId): JsonResponse
     {
+        if (!$this->isGranted('perm', 'bulletins.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         try {
             $progress = $this->progressService->getProgress($taskId);
             return new JsonResponse(['status' => 'success', 'progress' => $progress]);
@@ -256,6 +296,10 @@ class BulletinController extends AbstractController
     #[Route('/bulletin/pdf/status/{taskId}', name: 'app_bulletin_pdf_status', methods: ['GET'])]
     public function getPdfGenerationStatus(string $taskId): JsonResponse
     {
+        if (!$this->isGranted('perm', 'bulletins.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         try {
             $status = $this->progressService->getPdfTaskStatus($taskId);
             return new JsonResponse($status);
@@ -267,6 +311,8 @@ class BulletinController extends AbstractController
     #[Route('/bulletin/pdf/download', name: 'app_bulletin_pdf_download', methods: ['GET'])]
     public function downloadGeneratedPdf(Request $request): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'bulletins.view');
+
         try {
 
             $fileUrl = $request->query->get('fileUrl');
@@ -294,6 +340,10 @@ class BulletinController extends AbstractController
     #[Route('/bulletins/generate-all-async', name: 'app_generate_all_bulletins_async', methods: ['POST'])]
     public function generateAllBulletinsAsync(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'bulletins.generate')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         // Rediriger vers la nouvelle méthode
         return $this->generateAllPdfChunkedAsync($request);
     }
@@ -301,6 +351,8 @@ class BulletinController extends AbstractController
     #[Route('/bulletin/pdf/all-chunked', name: 'app_bulletin_pdf_all_chunked', methods: ['GET'])]
     public function generateAllPdfChunked(Request $request): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'bulletins.generate');
+
         try {
             ini_set('max_execution_time', 1200); // Augmente le temps d'exécution pour les gros fichiers
             ini_set('memory_limit', '4096M');

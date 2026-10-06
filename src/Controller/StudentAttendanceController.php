@@ -40,6 +40,10 @@ final class StudentAttendanceController extends AbstractController
         EntityManagerInterface $entityManager,
         SessionInterface $session
     ): Response {
+        // NB : un subject string de #[IsGranted] serait lu comme un nom
+        // d'argument de contrôleur (Symfony 6.4) → check en corps de méthode.
+        $this->denyAccessUnlessGranted('perm', 'presence.view');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -88,6 +92,8 @@ final class StudentAttendanceController extends AbstractController
         EntityManagerInterface $entityManager,
         OperationLogger $operationLogger
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'presence.save');
+
         /** @var \App\Entity\User */
         $currentUser = $this->getUser();
         $school = $this->currentSchool;
@@ -183,6 +189,8 @@ final class StudentAttendanceController extends AbstractController
     #[Route('/new', name: 'app_student_attendance_new', methods: ['GET', 'POST'])]
     public function new(Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'presence.save');
+
         $studentAttendance = new StudentAttendance();
         $form = $this->createForm(StudentAttendanceType::class, $studentAttendance);
         $form->handleRequest($request);
@@ -208,6 +216,8 @@ final class StudentAttendanceController extends AbstractController
     #[Route('/{id}', name: 'app_student_attendance_show', methods: ['GET'])]
     public function show(StudentAttendance $studentAttendance): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'presence.view');
+
         return $this->render('student_attendance/show.html.twig', [
             'student_attendance' => $studentAttendance,
         ]);
@@ -216,6 +226,8 @@ final class StudentAttendanceController extends AbstractController
     #[Route('/{id}/edit', name: 'app_student_attendance_edit', methods: ['GET', 'POST'])]
     public function edit(Request $request, StudentAttendance $studentAttendance, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'presence.save');
+
         $form = $this->createForm(StudentAttendanceType::class, $studentAttendance);
         $form->handleRequest($request);
 
@@ -234,6 +246,8 @@ final class StudentAttendanceController extends AbstractController
     #[Route('/{id}', name: 'app_student_attendance_delete', methods: ['POST'])]
     public function delete(Request $request, StudentAttendance $studentAttendance, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'presence.delete');
+
         if ($this->isCsrfTokenValid('delete' . $studentAttendance->getId(), $request->getPayload()->getString('_token'))) {
             $entityManager->remove($studentAttendance);
             $entityManager->flush();

@@ -102,7 +102,7 @@ final class RoleController extends AbstractController
     public function edit(Role $role, Request $request): Response
     {
         // Consultation : roles.view ou roles.manage ; l'édition (POST) est
-        // vérifiée plus bas par canEditRole (rôles verrouillés = lecture seule).
+        // vérifiée par canEditRole (rôles verrouillés : superadmin seulement).
         if (!$this->isGranted('perm', 'roles.view') && !$this->isGranted('perm', 'roles.manage')) {
             throw $this->createAccessDeniedException('Vous n\'êtes pas autorisé à consulter les rôles.');
         }

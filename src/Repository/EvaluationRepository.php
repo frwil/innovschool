@@ -84,40 +84,44 @@ class EvaluationRepository extends ServiceEntityRepository
     {
         $conn = $this->getEntityManager()->getConnection();
 
+        // Liste les périodes/sous-périodes d'évaluation de la période en cours :
+        // 1. celles CONFIGURÉES pour la période (school_evaluation) — sinon une
+        //    nouvelle année n'aurait rien à afficher avant la première note ;
+        // 2. si la période n'a aucune configuration, retomber sur les
+        //    sous-périodes réellement utilisées par l'école (au moins une note
+        //    saisie, toutes années confondues) — cas des écoles qui ne
+        //    re-créent pas la config chaque année.
+        // Les notes elles-mêmes sont créées à la volée à l'ouverture de la grille.
         $sql = "
-            SELECT 
-                co.name AS className,
+            SELECT
+                NULL AS className,
                 sct.name AS evaluationTimeName,
                 sef.name AS evaluationFrameName,
                 sct.id AS evaluationTimeId,
                 sef.id AS evaluationFrameId,
-                sc.id AS classId
-            FROM 
-                school_class_period sc
-            LEFT JOIN 
-                student_class stc ON stc.school_class_period_id = sc.id
-            LEFT JOIN 
-                evaluation ev ON ev.student_id = stc.id
-            LEFT JOIN 
-                school_evaluation_time sct ON sct.id = ev.time_id
-            LEFT JOIN 
-                school_evaluation_frame sef ON sef.id = sct.evaluation_frame_id
+                NULL AS classId
+            FROM
+                school_evaluation_time sct
             LEFT JOIN
-                class_occurence co ON co.id = sc.class_occurence_id
-            WHERE 
-                sc.school_id = :schoolId
-                AND sc.period_id = :periodId
-                AND sct.id IS NOT NULL
-                AND sc.id = :classId
-            GROUP BY 
+                school_evaluation_frame sef ON sef.id = sct.evaluation_frame_id
+            WHERE
+                EXISTS (
+                    SELECT 1 FROM school_evaluation se
+                    WHERE se.time_id = sct.id AND se.period_id = :periodId
+                )
+                OR (
+                    NOT EXISTS (SELECT 1 FROM school_evaluation se2 WHERE se2.period_id = :periodId)
+                    AND EXISTS (SELECT 1 FROM evaluation ev WHERE ev.time_id = sct.id)
+                )
+            GROUP BY
                 sct.id
+            ORDER BY
+                sef.id ASC, sct.id ASC
         ";
 
         $stmt = $conn->prepare($sql);
         $resultSet = $stmt->executeQuery([
-            'schoolId' => $schoolId,
             'periodId' => $periodId,
-            'classId' => $classId,
         ]);
 
         return $resultSet->fetchAllAssociative();

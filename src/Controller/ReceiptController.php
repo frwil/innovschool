@@ -50,6 +50,7 @@ class ReceiptController extends AbstractController
     #[Route('/receipt', name: 'generate_receipt', methods: ['GET'])]
     public function generateReceipt(SessionInterface $session,Request $request, NumberToWords $numberToWords,EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'payments.view');
 
         $this->session = $session;
         $this->entityManager = $entityManager;

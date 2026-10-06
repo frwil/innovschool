@@ -12,7 +12,8 @@ use Symfony\Component\Console\Style\SymfonyStyle;
  * Synchronise le catalogue (permissions + ensembles système) vers la base.
  * Idempotent : relançable à volonté (app:sync-permissions, app:pinstall).
  * - Permissions : upsert ; les absentes du catalogue sont supprimées (CASCADE).
- * - Profils (PROFILE_ROLES) : écrasement conforme au catalogue (verrouillés).
+ * - Profils (PROFILE_ROLES) : créés/initialisés selon le catalogue, puis
+ *   éditables par un superadmin (plus d'écrasement au sync suivant).
  * - Fantômes legacy : créés une fois, verrouillés.
  * - ROLE_ADMIN : seed « tout sauf superadmin » puis ajouts seuls, jamais de retrait.
  * - ROLE_SUPER_ADMIN : aucune ligne (bypass du voter).
@@ -82,7 +83,8 @@ class PermissionSyncService
             $deletedPermissions++;
         }
 
-        // 3. Profils : écrasement conforme au catalogue
+        // 3. Profils : créés/initialisés selon le catalogue ; ensuite leur
+        // matrice est éditable par un superadmin (le sync ne l'écrase plus).
         foreach (PermissionCatalog::PROFILE_ROLES as $roleName) {
             $set = $this->catalog->getSystemRoleSet($roleName);
             if (null === $set) {
@@ -95,9 +97,9 @@ class PermissionSyncService
                     $this->entityManager->persist($role);
                 }
                 $rolesByName[$roleName] = $role;
+                $role->setLabel($set['label'])->setDataScope($set['dataScope'])->setIsSystem(true)->setLocked(true);
+                $roleChanges += $this->applySet($role, $permissionsByName, $set, $dryRun);
             }
-            $role->setLabel($set['label'])->setDataScope($set['dataScope'])->setIsSystem(true)->setLocked(true);
-            $roleChanges += $this->applySet($role, $permissionsByName, $set, $dryRun);
         }
 
         // 4. Fantômes legacy : créés une fois, jamais écrasés

@@ -53,6 +53,13 @@ final class SchoolClassPeriodController extends AbstractController
         OperationLogger $operationLogger,
         SessionInterface $session
     ): Response {
+        if (!$this->isGranted('perm', 'classes.create')) {
+            if ($request->isMethod('POST')) {
+                return $this->json(['status' => 'error', 'message' => 'Accès refusé'], 403);
+            }
+            throw $this->createAccessDeniedException('Accès refusé.');
+        }
+
         if ($request->isMethod('POST')) {
             $numberingType = $request->request->get('numbering_type');
             $classe = $entityManager->getRepository(Classe::class)->find($request->request->get('section_category'));
@@ -272,6 +279,8 @@ final class SchoolClassPeriodController extends AbstractController
     #[Route('/', name: 'app_school_class_index', methods: ['GET'])]
     public function index(SessionInterface $session, ClasseRepository $classeRepo, SchoolClassPeriodRepository $schoolClassPeriodRepo, SchoolPeriodRepository $periodRepo, StudyLevelRepository $sectionRepo): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'classes.view');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -310,6 +319,10 @@ final class SchoolClassPeriodController extends AbstractController
     #[Route('/classes/by-section', name: 'app_classes_by_section')]
     public function getClassesBySection(SessionInterface $session, Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'classes.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $sectionId = $request->query->get('sectionId');
         $sectionCategories = $entityManager->getRepository(Classe::class)->findBy(['studyLevel' => $sectionId]);
         $classOccurences = $entityManager->getRepository(ClassOccurence::class)->findBy(['classe' => $sectionCategories]);
@@ -356,6 +369,10 @@ final class SchoolClassPeriodController extends AbstractController
     #[Route('/generic-classes/by-section', name: 'app_generic_classes_by_section')]
     public function getGenericClassesBySection(Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager, SessionInterface $session): JsonResponse
     {
+        if (!$this->isGranted('perm', 'classes.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $sectionId = $request->query->get('sectionId');
         $classes = $entityManager->getRepository(Classe::class)->findBy(['studyLevel' => $sectionId]);
         $this->session = $session;
@@ -417,6 +434,10 @@ final class SchoolClassPeriodController extends AbstractController
     #[Route('/classes/by-section-with-students', name: 'app_classes_by_section_with_students')]
     public function getClassesBySectionWithStudents(SessionInterface $session, Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'classes.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $sectionId = $request->query->get('sectionId');
         $sectionCategories = $entityManager->getRepository(Classe::class)->findBy(['studyLevel' => $sectionId]);
         $sectionCategories = array_map(function ($classe) {
@@ -459,6 +480,10 @@ final class SchoolClassPeriodController extends AbstractController
     #[Route('/section/{id}/categories', name: 'get_section_categories', methods: ['GET'])]
     public function getSectionCategories(StudyLevel $section): JsonResponse
     {
+        if (!$this->isGranted('perm', 'classes.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $categories = $section->getClasses(); // ou adapte selon ta relation
         $data = [];
         foreach ($categories as $category) {
@@ -473,6 +498,8 @@ final class SchoolClassPeriodController extends AbstractController
     #[Route('/{id}', name: 'app_school_class_show', methods: ['GET'])]
     public function show(SessionInterface $session, Classe $class, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'classes.view');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -501,6 +528,8 @@ final class SchoolClassPeriodController extends AbstractController
     #[Route('/{id}/edit', name: 'app_school_class_edit', methods: ['GET', 'POST'])]
     public function edit(SessionInterface $session, Request $request, SchoolClassPeriod $class, EntityManagerInterface $entityManager, SluggerInterface $slugger, OperationLogger $operationLogger, \Doctrine\Persistence\ManagerRegistry $doctrine): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'classes.edit');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -614,6 +643,8 @@ final class SchoolClassPeriodController extends AbstractController
         SessionInterface $session,
         \Doctrine\Persistence\ManagerRegistry $doctrine
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'classes.delete');
+
         if ($this->isCsrfTokenValid('delete' . $class->getId(), $request->request->get('_token'))) {
             $className = $class->getClassOccurence()->getName();
             $this->entityManager = $entityManager;
@@ -687,6 +718,8 @@ final class SchoolClassPeriodController extends AbstractController
         SessionInterface $session,
         ManagerRegistry $doctrine
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'classes.edit');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -755,6 +788,10 @@ final class SchoolClassPeriodController extends AbstractController
         ManagerRegistry $doctrine,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'classes.edit')) {
+            return new JsonResponse(['ok' => false, 'message' => 'Accès refusé'], 403);
+        }
+
         if (!$this->isCsrfTokenValid('occ_next_' . $occurence->getId(), $request->request->get('_token'))) {
             return new JsonResponse(['ok' => false, 'message' => 'Jeton de sécurité invalide.'], 403);
         }
@@ -841,6 +878,10 @@ final class SchoolClassPeriodController extends AbstractController
         StringHelper $stringHelper,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'classes.create')) {
+            return new JsonResponse(['status' => 'error', 'message' => 'Accès refusé'], 403);
+        }
+
         $name = $request->request->get('name');
         $sectionId = $request->request->get('section');
         $section = $entityManager->getRepository(StudyLevel::class)->find($sectionId);
@@ -908,6 +949,8 @@ final class SchoolClassPeriodController extends AbstractController
     #[Route('/import/excel', name: 'app_class_import_excel', methods: ['POST'])]
     public function importClassesExcel(SessionInterface $session, Request $request, EntityManagerInterface $entityManager, SluggerInterface $slugger, OperationLogger $operationLogger, ManagerRegistry $doctrine): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'classes.import');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1068,6 +1111,8 @@ final class SchoolClassPeriodController extends AbstractController
     #[Route('/import/json', name: 'app_class_import_json', methods: ['POST'])]
     public function importClassesJson(Request $request, EntityManagerInterface $entityManager, SluggerInterface $slugger, OperationLogger $operationLogger, ManagerRegistry $doctrine): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'classes.import');
+
         /** @var UploadedFile $file */
         $file = $request->files->get('importFile');
         if (!$file) {
@@ -1138,6 +1183,9 @@ final class SchoolClassPeriodController extends AbstractController
         EntityManagerInterface $entityManager,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'classes.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
 
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -1174,6 +1222,9 @@ final class SchoolClassPeriodController extends AbstractController
         OperationLogger $operationLogger,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'classes.assign_subjects')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
 
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -1223,6 +1274,10 @@ final class SchoolClassPeriodController extends AbstractController
         OperationLogger $operationLogger,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'classes.assign_subjects')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1306,6 +1361,8 @@ final class SchoolClassPeriodController extends AbstractController
         Classe $classe,
         EntityManagerInterface $entityManager
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'classes.delete');
+
         if ($this->isCsrfTokenValid('delete' . $classe->getId(), $request->request->get('_token'))) {
             try {
                 $entityManager->remove($classe);

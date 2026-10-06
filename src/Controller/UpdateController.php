@@ -19,18 +19,27 @@ final class UpdateController extends AbstractController
     #[Route('/update', name: 'app_update_index')]
     public function update(): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'update.view');
+
         return $this->render('update/update.html.twig', []);
     }
 
     #[Route('/update-check', name: 'app_update_check')]
     public function checkUpdate(UpdateService $updateService): Response
     {
+        if (!$this->isGranted('perm', 'update.view')) {
+            return $this->json(['error' => 'Accès refusé'], Response::HTTP_FORBIDDEN);
+        }
+
         return $this->json($updateService->checkForUpdate());
     }
 
     #[Route('/update-core', name: 'app_update_update_core')]
     public function updateCore(KernelInterface $kernel, UpdateService $updateService, ParameterBagInterface $params): Response
     {
+        $this->denyAccessUnlessGranted('ROLE_SUPER_ADMIN');
+        $this->denyAccessUnlessGranted('perm', 'system.update');
+
         $projectDir = $kernel->getProjectDir();
         $zipUrl = $params->get('app_update_zip_url');
         $zipPath = $projectDir . '/var/core.zip';

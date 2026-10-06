@@ -39,11 +39,15 @@ final class SchoolClassSubjectGroupController extends AbstractController
         // Add the OperationLoggerInterface as a dependency
         OperationLogger $operationLogger,
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'subjects.view');
+
         $form = null;
         $user = $this->getUser();
         $school = $schoolClassPeriod->getSchool();
 
         if($request->query->get('section_subjet_group_id') && $request->query->get('school_class_id')){
+            $this->denyAccessUnlessGranted('perm', 'subjects.create');
+
             /** @var SectionCategorySubjectGroup */
             $sObjectGroup = $entityManager->getRepository(SectionCategorySubjectGroup::class)->find($request->query->get('section_subjet_group_id'));
             $schoolClassSubjectGroup = (new SchoolClassSubjectGroup())
@@ -93,6 +97,8 @@ final class SchoolClassSubjectGroupController extends AbstractController
     #[Route('/new/{id}/school-class', name: 'app_school_class_subject_group_new', methods: ['GET', 'POST'])]
     public function new(SchoolClassPeriod $schoolClassPeriod,Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'subjects.create');
+
         $user = $this->getUser();
         $school = $schoolClassPeriod->getSchool();
         $schoolClassSubjectGroup = (new SchoolClassSubjectGroup())
@@ -117,6 +123,8 @@ final class SchoolClassSubjectGroupController extends AbstractController
     #[Route('/{id}', name: 'app_school_class_subject_group_show', methods: ['GET'])]
     public function show(SchoolClassSubjectGroup $schoolClassSubjectGroup): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'subjects.view');
+
         return $this->render('school_class_subject_group/show.html.twig', [
             'school_class_subject_group' => $schoolClassSubjectGroup,
         ]);
@@ -125,6 +133,8 @@ final class SchoolClassSubjectGroupController extends AbstractController
     #[Route('/{id}/edit', name: 'app_school_class_subject_group_edit', methods: ['GET', 'POST'])]
     public function edit(Request $request, SchoolClassSubjectGroup $schoolClassSubjectGroup, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'subjects.edit');
+
         $form = $this->createForm(SchoolClassSubjectGroupType::class, $schoolClassSubjectGroup);
         $form->handleRequest($request);
 
@@ -143,6 +153,8 @@ final class SchoolClassSubjectGroupController extends AbstractController
     #[Route('/{id}', name: 'app_school_class_subject_group_delete', methods: ['POST'])]
     public function delete(Request $request, SchoolClassSubjectGroup $schoolClassSubjectGroup, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'subjects.delete');
+
         if ($this->isCsrfTokenValid('delete' . $schoolClassSubjectGroup->getId(), $request->getPayload()->getString('_token'))) {
             $entityManager->remove($schoolClassSubjectGroup);
             $entityManager->flush();

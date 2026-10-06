@@ -27,6 +27,8 @@ class LicenceController extends AbstractController
     #[Route('', name: 'app_licence_index', methods: ['GET'])]
     public function index(SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'licence.view');
+
         $school   = $this->getSchool($session);
         $license  = $school ? $this->licenseRepo->findOneBy(['school' => $school, 'enabled' => true]) : null;
 
@@ -44,6 +46,8 @@ class LicenceController extends AbstractController
     #[Route('/renew', name: 'app_renew_license', methods: ['POST'])]
     public function renewLicense(Request $request, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'licence.renew');
+
         if (!$this->isCsrfTokenValid('renew_license', $request->request->get('_token'))) {
             $this->addFlash('danger', 'Token CSRF invalide.');
             return $this->redirectToRoute('app_licence_index');
@@ -72,6 +76,8 @@ class LicenceController extends AbstractController
     #[Route('/payment/add', name: 'app_licence_add_payment', methods: ['POST'])]
     public function addPayment(Request $request, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'licence.payments');
+
         if (!$this->isCsrfTokenValid('add_payment', $request->request->get('_token'))) {
             $this->addFlash('danger', 'Token CSRF invalide.');
             return $this->redirectToRoute('app_licence_index');

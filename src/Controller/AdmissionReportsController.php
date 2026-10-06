@@ -57,6 +57,7 @@ class AdmissionReportsController extends AbstractController
     #[Route('/reports', name: 'app_admission_reports')]
     public function index(SessionInterface $session, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'admission.reports');
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -80,6 +81,9 @@ class AdmissionReportsController extends AbstractController
     #[Route('/reports/generate', name: 'app_generate_admission_report', methods: ['POST', 'GET'])]
     public function generateReport(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'admission.reports')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
 
 
         //récupérer les modalités de paiement en fonction du type de méthode GET ou POST
@@ -131,6 +135,7 @@ class AdmissionReportsController extends AbstractController
     #[Route('/reports/pdf', name: 'app_generate_pdf_report', methods: ['GET'])]
     public function generatePdfReport(Request $request, AdmissionReportService $admissionReportService): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'admission.reports');
         $classId = $request->query->get('classId');
         $modalities = explode(',', $request->query->get('modalities'));
         $paymentStatus = $request->query->get('paymentStatus');
@@ -226,6 +231,7 @@ class AdmissionReportsController extends AbstractController
     #[Route('/reports/excel', name: 'app_generate_excel_report', methods: ['GET'])]
     public function generateExcelReport(Request $request, AdmissionReportService $admissionReportService, SchoolClassPaymentModalRepository $repository): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'admission.reports');
         $classId = $request->query->get('classId');
         $modalities = explode(',', $request->query->get('modalities'));
         $paymentStatus = $request->query->get('paymentStatus');
@@ -375,6 +381,9 @@ class AdmissionReportsController extends AbstractController
     #[Route('/sections', name: 'app_get_sections', methods: ['GET'])]
     public function getSections(SessionInterface $session, StudyLevelRepository $sectionRepository, SchoolPeriodRepository $schoolPeriodRepository): JsonResponse
     {
+        if (!$this->isGranted('perm', 'admission.reports')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -422,6 +431,9 @@ class AdmissionReportsController extends AbstractController
     #[Route('/modalities/by-class', name: 'app_modalities_by_class', methods: ['GET'])]
     public function getModalitiesByClass(SessionInterface $session, Request $request, SchoolClassPaymentModalRepository $repository, SchoolPeriodRepository $schoolPeriodRepository): JsonResponse
     {
+        if (!$this->isGranted('perm', 'admission.reports')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -448,6 +460,7 @@ class AdmissionReportsController extends AbstractController
     #[Route('/transferts', name: 'app_admission_transferts', methods: ['GET', 'POST'])]
     public function admissionTransferts(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'admission.transfer');
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -472,6 +485,9 @@ class AdmissionReportsController extends AbstractController
     #[Route('/students/by-class', name: 'app_students_by_class', methods: ['GET'])]
     public function getStudentsByClass(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'admission.transfer')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $classOccurenceId = $request->query->get('classOccurenceId');
         if (!$classOccurenceId) {
             return new JsonResponse(['error' => 'Classe non spécifiée.'], 400);
@@ -518,6 +534,9 @@ class AdmissionReportsController extends AbstractController
     #[Route('/classes/destinations', name: 'app_classes_destinations', methods: ['GET'])]
     public function getDestinationClasses(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'admission.transfer')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -553,6 +572,9 @@ class AdmissionReportsController extends AbstractController
     #[Route('/students/transfer-mass', name: 'app_transfer_students_mass', methods: ['POST'])]
     public function transferStudentsMass(SessionInterface $session, Request $request, EntityManagerInterface $entityManager, OperationLogger $operationLogger): JsonResponse
     {
+        if (!$this->isGranted('perm', 'admission.transfer')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -631,6 +653,7 @@ class AdmissionReportsController extends AbstractController
     #[Route('/inscription', name: 'app_student_inscription')]
     public function studentInscription(Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'admission.view');
 
         $this->entityManager= $entityManager;
         // Récupérer les niveaux d'étude disponibles
@@ -653,6 +676,9 @@ class AdmissionReportsController extends AbstractController
     #[Route('/students/list', name: 'app_students_list', methods: ['GET'])]
     public function studentsList(SessionInterface $session, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'admission.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -690,6 +716,7 @@ class AdmissionReportsController extends AbstractController
     #[Route('/registered-students-list', name: 'print_students_list', methods: ['GET'])]
     public function printStudentsList(Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'admission.view');
         // Récupérer les niveaux d'étude disponibles
         $studyLevels = $entityManager->getRepository(\App\Entity\StudyLevel::class)->findAll();
         return $this->render('admission/print_students_list.html.twig', [
@@ -700,6 +727,7 @@ class AdmissionReportsController extends AbstractController
     #[Route('/print-students-list', name: 'app_print_students_list', methods: ['GET'])]
     public function getStudentsList(Request $request, EntityManagerInterface $entityManager,SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'admission.view');
         $levelId = $request->query->get('studyLevel');
         $classId = $request->query->get('classSelect');
         $format = $request->query->get('format', 'html');
@@ -726,6 +754,7 @@ class AdmissionReportsController extends AbstractController
     #[Route('/print-students-list/pdf', name: 'app_print_students_list_pdf', methods: ['GET'])]
     public function getStudentsListPdf(Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'admission.view');
         $levelId = $request->query->get('studyLevel');
         $classId = $request->query->get('classSelect');
         if (!$levelId || !$classId) {
@@ -750,6 +779,7 @@ class AdmissionReportsController extends AbstractController
     #[Route('/admission/finance-report', name: 'app_admission_finance_report')]
     public function financeReport(SessionInterface $session, Request $request, EntityManagerInterface $em): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'admission.finance');
         $this->session = $session;
         $this->entityManager = $em;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -785,6 +815,7 @@ class AdmissionReportsController extends AbstractController
     #[Route('/finance-report/export-excel', name: 'app_admission_finance_report_export_excel', methods: ['GET'])]
     public function financeReportExportExcel(SessionInterface $session, Request $request, EntityManagerInterface $em, SchoolClassPaymentModalRepository $repository): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'admission.finance');
         $this->session = $session;
         $this->entityManager = $em;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));

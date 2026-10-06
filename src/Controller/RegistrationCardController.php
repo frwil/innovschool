@@ -85,6 +85,8 @@ class RegistrationCardController extends AbstractController
     #[Route('', name: 'app_registration_card', methods: ['GET'])]
     public function index(SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'registration_card.view');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -115,6 +117,10 @@ class RegistrationCardController extends AbstractController
     #[Route('/classes/{sectionId}', name: 'app_registration_card_classes', methods: ['GET'])]
     public function getClassesBySection(SessionInterface $session,Request $request, SchoolSectionRepository $schoolSectionRepository, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'registration_card.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -188,6 +194,10 @@ class RegistrationCardController extends AbstractController
     #[Route('/students/{classId}', name: 'app_registration_card_students', methods: ['GET'])]
     public function getStudentsByClass(SessionInterface $session,Request $request, UserRepository $userRepository): JsonResponse
     {
+        if (!$this->isGranted('perm', 'registration_card.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -233,6 +243,8 @@ class RegistrationCardController extends AbstractController
     #[Route('/print/{matricule}', name: 'app_registration_card_print', methods: ['GET'])]
     public function printCard(Request $request,SessionInterface $session,string $matricule, UserRepository $userRepository): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'registration_card.print');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -377,6 +389,8 @@ class RegistrationCardController extends AbstractController
     #[Route('/configuration', name: 'app_registration_card_configuration', methods: ['GET', 'POST'])]
     public function configureCard(SessionInterface $session,Request $request): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'registration_card.configure');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -519,6 +533,10 @@ class RegistrationCardController extends AbstractController
     #[Route('/upload-photo', name: 'app_registration_card_upload_photo', methods: ['POST'])]
     public function uploadPhoto(Request $request,SessionInterface $session,EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'registration_card.upload')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -598,6 +616,10 @@ class RegistrationCardController extends AbstractController
     #[Route('/import-json', name: 'app_registration_card_import_json', methods: ['POST'])]
     public function importJson(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'registration_card.import')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $data = json_decode($request->getContent(), true);
 
         if (!$data || !is_array($data)) {
@@ -698,6 +720,8 @@ class RegistrationCardController extends AbstractController
     #[Route('/print-all', name: 'app_registration_card_print_all', methods: ['GET'])]
     public function printAllCards(SessionInterface $session,Request $request): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'registration_card.print');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));

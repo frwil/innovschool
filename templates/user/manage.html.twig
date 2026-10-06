@@ -102,12 +102,21 @@
                 <input type="hidden" id="user-id-roles" name="id">
                 <input type="hidden" name="_token" value="{{ csrf_token('roles_assign') }}">
                 <div class="form-group">
-                    <label for="roles">Rôles</label>
-                    <select id="roles" name="roles[]" class="form-control select2" multiple>
+                    <label for="roles-switches" class="form-label">Rôles</label>
+                    <div id="roles-switches">
                         {% for assignable_role in assignable_roles %}
-                            <option value="{{ assignable_role.name }}">{{ assignable_role.label }}</option>
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch"
+                                   id="role-switch-{{ loop.index }}" name="roles[]"
+                                   value="{{ assignable_role.name }}">
+                            <label class="form-check-label" for="role-switch-{{ loop.index }}">
+                                {{ assignable_role.label }}
+                                <small class="text-muted">({{ assignable_role.name }})</small>
+                            </label>
+                        </div>
                         {% endfor %}
-                    </select>
+                    </div>
+                    <div id="roles-locked"></div>
                     <small class="form-text text-muted">Les rôles de profil (élève, enseignant, tuteur…) sont gérés automatiquement par l'application.</small>
                 </div>
                 <button type="submit" class="btn btn-primary mt-3">Enregistrer les rôles</button>
@@ -144,8 +153,10 @@
 </div>
 
 {% if is_granted('perm', 'users.create') %}
-<a href="{{ path('app_student_index') }}" class="btn btn-success">Ajouter un élève</a>
-<a href="{{ path('app_teacher_index') }}" class="btn btn-success">Ajouter un enseignant</a>
+<div class="d-flex gap-2 mt-4 mb-3">
+    <a href="{{ path('app_student_index') }}" class="btn btn-success">Ajouter un élève</a>
+    <a href="{{ path('app_teacher_index') }}" class="btn btn-success">Ajouter un enseignant</a>
+</div>
 {% endif %}
 {% endblock %}
 
@@ -168,9 +179,18 @@
             // Charger les données utilisateur via AJAX
             $('.edit-user').on('click', function (e) {
                 e.preventDefault();
-                const userId = $(this).data('id');
+                const $btn = $(this);
+                if ($btn.prop('disabled')) {
+                    return; // requête déjà en cours
+                }
+                const userId = $btn.data('id');
                 const url = `/users/user/${userId}/manage`;
+                // État de chargement : spinner + bouton désactivé
+                const original = $btn.html();
+                $btn.prop('disabled', true)
+                    .html('<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Chargement…');
                 $.get(url, function (data) {
+                    $btn.prop('disabled', false).html(original);
                     if (data.error) {
                         alert(data.error);
                     } else {
@@ -180,19 +200,30 @@
                         $('#email').val(data.email);
                         $('#phone').val(data.phone);
                         $('#address').val(data.address);
-                        if ($('#roles').length && data.roles) {
-                            // ROLE_USER est implicite (toujours présent). Les rôles absents
-                            // de la liste (profils gérés automatiquement) sont ajoutés en
-                            // options pour ne pas être perdus à l'affichage.
+                        if ($('#roles-switches').length && data.roles) {
+                            // ROLE_USER est implicite (toujours présent) : pas de switch.
                             var currentRoles = data.roles.filter(function (r) { return r !== 'ROLE_USER'; });
-                            var $roles = $('#roles');
+                            // Formulaire réutilisé d'un utilisateur à l'autre : on repart de zéro.
+                            $('#roles-switches input').prop('checked', false);
+                            $('#roles-locked').empty();
                             currentRoles.forEach(function (r) {
-                                if ($roles.find('option[value="' + r + '"]').length === 0) {
-                                    $roles.append(new Option(r, r));
+                                var $sw = $('#roles-switches input[value="' + r + '"]');
+                                if ($sw.length) {
+                                    $sw.prop('checked', true);
+                                } else {
+                                    // Rôle non assignable (profil géré automatiquement) :
+                                    // affiché allumé mais verrouillé, conservé à l'enregistrement.
+                                    $('#roles-locked').append(
+                                        '<div class="form-check form-switch">' +
+                                        '<input class="form-check-input" type="checkbox" role="switch" checked disabled>' +
+                                        '<label class="form-check-label">' + r +
+                                        ' <small class="text-muted">(géré automatiquement)</small></label>' +
+                                        '</div>'
+                                    );
                                 }
                             });
-                            $roles.val(currentRoles).trigger('change');
                         }
+                        $('#user-id-roles').val(data.id);
                         // Préremplir les sections et classes si elles existent
                         $('#sections-classes-form').append('<input type="hidden" id="class_selected" value="' + data.classes + '">');
                         $('#sections').val(data.sections).trigger('change');
@@ -201,6 +232,10 @@
                         $('#form-container').show();
                         $('#datatable-container').hide();
                     }
+                }).fail(function () {
+                    // Erreur réseau ou 500 : on rend le bouton cliquable pour retenter.
+                    $btn.prop('disabled', false).html(original);
+                    alert('Erreur lors du chargement des informations de l\'utilisateur. Réessayez.');
                 });
             });
             // Charger les classes dynamiquement en fonction des sections sélectionnées

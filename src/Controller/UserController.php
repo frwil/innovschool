@@ -62,6 +62,8 @@ final class UserController extends AbstractController
         Request $request,
         SessionInterface $session
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'users.view');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -95,6 +97,8 @@ final class UserController extends AbstractController
         string $role,
         UserRepository $userRepository
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'users.view');
+
         /** @var \App\Entity\User */
         $currentUser = $this->getUser();
         $savedRole = UserRoleEnum::getRole($role);
@@ -109,6 +113,10 @@ final class UserController extends AbstractController
     #[Route('/student/new', name: 'app_student_new', methods: ['POST'])]
     public function new(SessionInterface $session, Request $request, EntityManagerInterface $entityManager, OperationLogger $operationLogger): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.create')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -289,6 +297,8 @@ final class UserController extends AbstractController
     #[Route('/user/{id}/show', name: 'app_user_show_by_id', methods: ['GET'])]
     public function showById(SessionInterface $session, User $user, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'users.view');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -321,6 +331,8 @@ final class UserController extends AbstractController
     #[Route('/{id}/edit', name: 'app_user_edit', methods: ['GET', 'POST'])]
     public function edit(Request $request, User $user, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'users.edit');
+
         $form = $this->createForm(UserType::class, $user);
         $form->handleRequest($request);
 
@@ -335,6 +347,8 @@ final class UserController extends AbstractController
     #[Route('/{id}', name: 'app_user_delete', methods: ['POST'])]
     public function delete(Request $request, User $user, EntityManagerInterface $entityManager, OperationLogger $operationLogger, SessionInterface $session, \Doctrine\Persistence\ManagerRegistry $doctrine): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'users.delete');
+
         $user_role = in_array('ROLE_STUDENT', $user->getRoles()) ? 'student' : (in_array('ROLE_TEACHER', $user->getRoles()) ? 'teacher' : 'admin');
         if ($this->isCsrfTokenValid('delete' . $user->getId(), $request->getPayload()->getString('_token'))) {
             $session = $session;
@@ -423,6 +437,10 @@ final class UserController extends AbstractController
     #[Route('/user/{id}/manage', name: 'app_user_manage_edit', methods: ['GET', 'POST'])]
     public function manageEdit(int $id, Request $request, EntityManagerInterface $entityManager, OperationLogger $operationLogger,SessionInterface $session): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.edit')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -574,6 +592,10 @@ final class UserController extends AbstractController
     #[Route('/user/get-classes', name: 'app_get_classes', methods: ['POST'])]
     public function getClasses(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $sectionIds = $request->request->all('sections');
         $this->session = $session;
         $this->currentPeriod = $entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -612,6 +634,10 @@ final class UserController extends AbstractController
     #[Route('/user/save-configuration', name: 'app_user_save_configuration', methods: ['POST'])]
     public function saveUserConfiguration(Request $request, EntityManagerInterface $entityManager, OperationLogger $operationLogger): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.edit')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         // Décoder le contenu JSON de la requête
         $data = json_decode($request->getContent(), true);
 
@@ -685,6 +711,10 @@ final class UserController extends AbstractController
     #[Route('/parent/search', name: 'app_parent_search')]
     public function searchParent(Request $request, EntityManagerInterface $em): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $phone = $request->query->get('phone');
         $parents = $em->getRepository(User::class)->createQueryBuilder('u')
             ->where('u.phone LIKE :phone')
@@ -724,6 +754,8 @@ final class UserController extends AbstractController
     #[Route('/user/{id}/reset-password', name: 'app_user_reset_password', methods: ['POST'])]
     public function resetPassword(User $user, EntityManagerInterface $entityManager, UserPasswordHasherInterface $passwordHasher, OperationLogger $operationLogger): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'users.reset_password');
+
         // Nouveau mot de passe temporaire (exemple : 111111)
         $newPassword = '111111';
         $user->setPassword($passwordHasher->hashPassword($user, $newPassword));
@@ -810,6 +842,8 @@ final class UserController extends AbstractController
     #[Route('/teacher', name: 'app_teacher_index')]
     public function teacherIndex(SessionInterface $session, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'users.view');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -837,6 +871,10 @@ final class UserController extends AbstractController
     #[Route('/teacher/new', name: 'app_teacher_new', methods: ['POST'])]
     public function teacherNew(SessionInterface $session, Request $request, EntityManagerInterface $entityManager, UserPasswordHasherInterface $passwordHasher, OperationLogger $operationLogger): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.create')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $lastName = $request->request->get('lastName');
         $phone = $request->request->get('phone');
         $gender = $request->request->get('gender');
@@ -908,6 +946,8 @@ final class UserController extends AbstractController
     #[Route('/student/export', name: 'app_student_export', methods: ['POST'])]
     public function exportStudents(SessionInterface $session, EntityManagerInterface $entityManager, Request $request): StreamedResponse
     {
+        $this->denyAccessUnlessGranted('perm', 'users.export');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -1005,6 +1045,8 @@ final class UserController extends AbstractController
     #[Route('/teacher/export', name: 'app_teacher_export', methods: ['POST'])]
     public function exportTeachers(Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'users.export');
+
         $format = $request->request->get('exportFormat', 'csv');
         $teachers = $entityManager->getRepository(User::class)
             ->createQueryBuilder('u')
@@ -1076,6 +1118,8 @@ final class UserController extends AbstractController
     #[Route('/student/import/excel', name: 'app_student_import_excel', methods: ['POST'])]
     public function importStudentsExcel(SessionInterface $session, Request $request, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'users.import');
+
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -1207,6 +1251,8 @@ final class UserController extends AbstractController
     #[Route('/student/import/json', name: 'app_student_import_json', methods: ['POST'])]
     public function importStudentsJson(SessionInterface $session, Request $request, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'users.import');
+
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1289,6 +1335,10 @@ final class UserController extends AbstractController
     #[Route('/student/check', name: 'app_student_check', methods: ['GET'])]
     public function checkStudent(Request $request, EntityManagerInterface $em): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $fullName = $request->query->get('fullName');
         if (!$fullName) {
             return new JsonResponse(['exists' => false]);
@@ -1342,6 +1392,10 @@ final class UserController extends AbstractController
     #[Route('/study-levels/list', name: 'app_study_levels_list', methods: ['GET'])]
     public function studyLevelsList(EntityManagerInterface $em): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $levels = $em->getRepository(\App\Entity\StudyLevel::class)->findAll();
         $result = [];
         foreach ($levels as $level) {
@@ -1356,6 +1410,10 @@ final class UserController extends AbstractController
     #[Route('/classes/by-level', name: 'app_classes_by_level', methods: ['GET'])]
     public function classesByLevel(SessionInterface $session, Request $request, EntityManagerInterface $em): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $levelId = $request->query->get('level');
         if (!$levelId) {
             return new JsonResponse([]);
@@ -1389,6 +1447,10 @@ final class UserController extends AbstractController
     #[Route('/class/payment-modals', name: 'app_class_payment_modals', methods: ['GET'])]
     public function classPaymentModals(Request $request, EntityManagerInterface $em): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $classId = $request->query->get('classId');
         if (!$classId) {
             return new JsonResponse([]);
@@ -1417,6 +1479,10 @@ final class UserController extends AbstractController
     #[Route('/student/register', name: 'app_student_register', methods: ['POST'])]
     public function registerStudent(Request $request, EntityManagerInterface $em, SessionInterface $session, StringHelper $stringHelper, OperationLogger $operationLogger): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.create')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $data = $request->request;
         $this->session = $session;
         $this->currentSchool = $em->getRepository(School::class)->find($this->session->get('school_id'));
@@ -1888,6 +1954,10 @@ final class UserController extends AbstractController
     #[Route('/student/similar-names', name: 'app_student_similar_names', methods: ['GET'])]
     public function getSimilarStudentNames(Request $request, EntityManagerInterface $em, \App\Service\StudentNameSimilarityService $similarityService): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $input = trim($request->query->get('name', ''));
         if (mb_strlen($input) < 5) {
             return $this->json([]);
@@ -1909,6 +1979,10 @@ final class UserController extends AbstractController
         OperationLogger $operationLogger
     ): JsonResponse
     {
+        if (!$this->isGranted('perm', 'users.edit')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
         $userId = $request->request->get('id');
         $username = $request->request->get('username');
         $fullname = $request->request->get('fullname');

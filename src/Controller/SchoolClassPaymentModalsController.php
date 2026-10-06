@@ -85,6 +85,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/reject-admission-reduction', name: 'app_reject_admission_reduction', methods: ['POST'])]
     public function rejectAdmissionReduction(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.validate')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $id = $request->request->get('id');
         if (!$id) {
             return new JsonResponse(['error' => 'ID de réduction manquant.'], 400);
@@ -126,6 +129,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/approve-admission-reduction', name: 'app_approve_admission_reduction', methods: ['POST'])]
     public function approveAdmissionReduction(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.validate')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $id = $request->request->get('id');
         if (!$id) {
             return new JsonResponse(['error' => 'ID de réduction manquant.'], 400);
@@ -171,6 +177,7 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/classes/payment', name: 'app_classes_payment_modals')]
     public function payment(): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'payments.view');
         return $this->render('school_class_payment_modals/index.html.twig', [
             'controller_name' => 'SchoolClassPaymentModalsController',
         ]);
@@ -184,6 +191,7 @@ class SchoolClassPaymentModalsController extends AbstractController
         SessionInterface $session,
         EntityManagerInterface $entityManager
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'payments.view');
 
         $this->session = $session;
         $this->entityManager=$entityManager;
@@ -226,6 +234,7 @@ class SchoolClassPaymentModalsController extends AbstractController
         SessionInterface $session,
         EntityManagerInterface $entityManager
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'admission.view');
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -256,6 +265,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/payment-modals/data', name: 'app_payment_modals_data')]
     public function getPaymentModalsData(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -298,6 +310,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/classes/by-section', name: 'app_classes_by_section')]
     public function getClassesBySection(SessionInterface $session, Request $request, ClasseRepository $classeRepository, ClassOccurenceRepository $classOccurenceRepository, SchoolClassPeriodRepository $schoolClassRepository, SchoolPeriodRepository $schoolPeriodRepository): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -331,6 +346,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/add-payment-modal', name: 'app_add_payment_modal', methods: ['POST'])]
     public function addPaymentModal(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.create')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -421,6 +439,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/delete-payment-modal', name: 'app_delete_payment_modal', methods: ['POST'])]
     public function deletePaymentModal(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.delete')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         //dd($request);
         $id = $request->request->get('id');
         $paymentModal = $this->entityManager->getRepository(SchoolClassPaymentModal::class)->find($id);
@@ -442,6 +463,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/get-payment-modal', name: 'app_get_payment_modal', methods: ['GET'])]
     public function getPaymentModal(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $id = $request->query->get('id');
         $paymentModal = $this->paymentModalsRepository->find($id);
 
@@ -462,6 +486,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/update-payment-modal', name: 'app_update_payment_modal', methods: ['POST'])]
     public function updatePaymentModal(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.edit')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $id = $request->request->get('id');
         $paymentModal = $this->paymentModalsRepository->find($id);
 
@@ -495,6 +522,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/students-data', name: 'app_students_data', methods: ['GET'])]
     public function getStudentsData(SessionInterface $session, Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -524,6 +554,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/optional-modals', name: 'app_optional_modals', methods: ['GET'])]
     public function getOptionalModals(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -627,6 +660,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/principales-modals', name: 'app_principales_modals', methods: ['GET'])]
     public function getPrincipalesModals(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $studentId = $request->query->get('studentId');
         $classId = $request->query->get('classId');
 
@@ -678,6 +714,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/save-principales-payment', name: 'app_save_principales_payment', methods: ['POST'])]
     public function savePrincipalesPayment(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.save')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -789,6 +828,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/save-secondaires-payment', name: 'app_save_secondaires_payment', methods: ['POST'])]
     public function saveSecondairesPayment(SessionInterface $session, Request $request, OperationLogger $logger, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.save')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -915,6 +957,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/payment-history', name: 'app_payment_history', methods: ['GET'])]
     public function getPaymentHistory(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $studentId = $request->query->get('studentId');
 
         // Récupérer l'élève
@@ -940,6 +985,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/payment-summary', name: 'app_payment_summary', methods: ['GET'])]
     public function getPaymentSummary(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1075,6 +1123,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/save-configuration', name: 'app_save_configuration', methods: ['POST'])]
     public function saveConfiguration(Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.save')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $studentId = $request->request->get('studentId');
         $classId = $request->request->get('classId');
         $selectedModalities = $request->request->all('modalities');
@@ -1128,6 +1179,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/toggle-subscription', name: 'app_toggle_subscription', methods: ['POST'])]
     public function toggleSubscription(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.save')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1214,6 +1268,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/available-priorities', name: 'app_get_available_priorities', methods: ['GET'])]
     public function getAvailablePriorities(SessionInterface $session, Request $request, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->entityManager = $entityManager;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -1257,6 +1314,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/subscriptions/load', name: 'app_load_subscriptions', methods: ['GET'])]
     public function loadSubscriptions(SessionInterface $session, Request $request, ModalitiesSubscriptionsRepository $subscriptionsRepository, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1302,6 +1362,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         EntityManagerInterface $entityManager,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1359,6 +1422,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         OperationLogger $logger,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.save')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1475,6 +1541,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         ModalitiesSubscriptionsRepository $subscriptionsRepository,
         OperationLogger $logger
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.cancel')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $subscriptionId = $request->request->get('subscriptionId');
         $cancelType = $request->request->get('cancelType'); // "partial" ou "definitive"
 
@@ -1553,6 +1622,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         OperationLogger $logger,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.create')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1658,6 +1730,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         EntityManagerInterface $entityManager,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1702,6 +1777,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         EntityManagerInterface $entityManager,
         OperationLogger $logger
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.delete')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         try {
             // Supprimer la réduction
             $entityManager->remove($reduction);
@@ -1750,6 +1828,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/modalities/all', name: 'app_load_all_modalities', methods: ['GET'])]
     public function loadAllModalities(SessionInterface $session, Request $request, SchoolClassPaymentModalRepository $modalitiesRepository, EntityManagerInterface $entityManager): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -1781,6 +1862,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         EntityManagerInterface $entityManager,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.validate')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
 
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -1853,6 +1937,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         EntityManagerInterface $entityManager,
         OperationLogger $logger
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.edit')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $reductionModalId = $request->request->get('reductionModalId');
         $reductionAmount = (float) $request->request->get('reductionAmount');
 
@@ -1914,6 +2001,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/batch-payment', name: 'app_batch_payment', methods: ['POST'])]
     public function batchPayment(SessionInterface $session, Request $request, EntityManagerInterface $entityManager, OperationLogger $logger): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.save')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -2076,6 +2166,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         Request $request,
         SchoolClassPaymentModalRepository $paymentModalsRepository
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         // Récupérer les modalités de type "transport"
         $transportModals = $paymentModalsRepository->findBy(['modalType' => 'transport']);
 
@@ -2108,6 +2201,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         OperationLogger $logger,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.create')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -2201,6 +2297,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         OperationLogger $logger,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.delete')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
 
         $this->session = $session;
         $this->entityManager = $entityManager;
@@ -2267,6 +2366,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     public function getTransportModal(
         SchoolClassPaymentModal $transportModal
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         return new JsonResponse([
             'id' => $transportModal->getId(),
             'label' => str_replace(')', '', str_replace('Transport - (', '', $transportModal->getLabel())),
@@ -2285,6 +2387,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         OperationLogger $logger,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.edit')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
 
         $this->session = $session;
         $this->entityManager = $entityManager;
@@ -2362,6 +2467,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         OperationLogger $logger,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.save')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -2488,6 +2596,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         EntityManagerInterface $entityManager,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -2535,6 +2646,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         SchoolClassPaymentModalRepository $modalitiesRepository,
         ModalitiesSubscriptionsRepository $subscriptionsRepository
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $studentId = $request->query->get('studentId');
         $classId = $request->query->get('classId');
 
@@ -2577,6 +2691,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         EntityManagerInterface $entityManager,
         OperationLogger $logger
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.cancel')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $subscriptionId = $request->request->get('subscriptionId');
 
         // Validation des données
@@ -2645,6 +2762,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         EntityManagerInterface $entityManager,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -2682,6 +2802,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/payment/cancel', name: 'app_cancel_payment', methods: ['POST'])]
     public function cancelPayment(Request $request, EntityManagerInterface $entityManager, OperationLogger $logger): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.cancel')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $paymentId = $request->request->get('paymentId');
 
         // Validation des données
@@ -2735,6 +2858,7 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/student/payments', name: 'app_student_payments', methods: ['GET'])]
     public function getStudentPayments(SessionInterface $session, Request $request): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'payments.view');
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -2803,6 +2927,9 @@ class SchoolClassPaymentModalsController extends AbstractController
         OperationLogger $logger,
         SessionInterface $session
     ): JsonResponse {
+        if (!$this->isGranted('perm', 'payments.save')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
@@ -2898,6 +3025,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/pending-admission-reductions', name: 'app_pending_admission_reductions_ajax', methods: ['GET'])]
     public function getPendingAdmissionReductionsAjax(SessionInterface $session, EntityManagerInterface $entityManager,Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $this->session=$session;
         $this->entityManager=$entityManager;
         $this->currentSchool=$this->entityManager->getRepository(School::class)->find($session->get('school_id'));
@@ -2936,6 +3066,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/paiement/info', name: 'app_get_payment_info', methods: ['GET'])]
     public function getPaymentInfo(EntityManagerInterface $em, \Symfony\Component\HttpFoundation\Request $request): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $paymentId = $request->query->get('id');
         $payment = $em->getRepository(\App\Entity\SchoolClassAdmissionPayment::class)->find($paymentId);
         if (!$payment) {
@@ -2963,6 +3096,9 @@ class SchoolClassPaymentModalsController extends AbstractController
     #[Route('/paiement/update', name: 'app_update_payment', methods: ['POST'])]
     public function updatePayment(Request $request, EntityManagerInterface $em): JsonResponse
     {
+        if (!$this->isGranted('perm', 'payments.save')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
         $paymentId = $request->request->get('paymentId');
         $amount = $request->request->get('amount');
         $date = $request->request->get('date');

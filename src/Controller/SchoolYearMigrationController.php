@@ -36,6 +36,8 @@ final class SchoolYearMigrationController extends AbstractController
         SchoolPeriodRepository $periodRepo,
         SessionInterface $session
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.execute');
+
         if (!$this->isCsrfTokenValid('year_migration', $request->request->get('_token'))) {
             $this->addFlash('danger', 'Token CSRF invalide.');
             return $this->redirectToRoute('app_year_migration_index');
@@ -105,6 +107,8 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/wizard', name: 'app_year_migration_wizard', methods: ['GET'])]
     public function wizard(MigrationLog $log, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.view');
+
         $school = $this->getSchool($session);
         if (!$school || $log->getSchool() !== $school) {
             throw $this->createAccessDeniedException();
@@ -152,6 +156,8 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/wizard/step/{stepKey}', name: 'app_year_migration_step_execute', methods: ['POST'], requirements: ['stepKey' => '[a-z_]+'])]
     public function stepExecute(MigrationLog $log, string $stepKey, Request $request, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.execute');
+
         if (!$this->isCsrfTokenValid('wizard_step_' . $log->getId(), $request->request->get('_token'))) {
             $this->addFlash('danger', 'Token CSRF invalide.');
             return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
@@ -191,6 +197,10 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/wizard/step/students/grade/{occId}', name: 'app_year_migration_wizard_students_grade', methods: ['POST'], requirements: ['occId' => '\d+'])]
     public function wizardStudentsGrade(MigrationLog $log, int $occId, Request $request, SessionInterface $session): JsonResponse
     {
+        if (!$this->isGranted('perm', 'year_migration.execute')) {
+            return $this->json(['ok' => false, 'message' => 'Accès refusé'], 403);
+        }
+
         if (!$this->isCsrfTokenValid('wizard_grade_' . $log->getId(), $request->request->get('_token'))) {
             return $this->json(['ok' => false, 'message' => 'Jeton de sécurité invalide.'], 403);
         }
@@ -225,6 +235,8 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/wizard/step/{stepKey}/skip', name: 'app_year_migration_step_skip', methods: ['POST'], requirements: ['stepKey' => '[a-z_]+'])]
     public function stepSkip(MigrationLog $log, string $stepKey, Request $request, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.execute');
+
         if (!$this->isCsrfTokenValid('wizard_skip_' . $log->getId(), $request->request->get('_token'))) {
             $this->addFlash('danger', 'Token CSRF invalide.');
             return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
@@ -249,6 +261,8 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/wizard/cancel', name: 'app_year_migration_wizard_cancel', methods: ['POST'])]
     public function wizardCancel(MigrationLog $log, Request $request, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.cancel');
+
         if (!$this->isCsrfTokenValid('cancel_migration_' . $log->getId(), $request->request->get('_token'))) {
             $this->addFlash('danger', 'Token CSRF invalide.');
             return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
@@ -279,6 +293,8 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/wizard/finish', name: 'app_year_migration_wizard_finish', methods: ['POST'])]
     public function wizardFinish(MigrationLog $log, Request $request, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.execute');
+
         if (!$this->isCsrfTokenValid('wizard_finish_' . $log->getId(), $request->request->get('_token'))) {
             $this->addFlash('danger', 'Token CSRF invalide.');
             return $this->redirectToRoute('app_year_migration_wizard', ['id' => $log->getId()]);
@@ -303,6 +319,8 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/result', name: 'app_year_migration_result', methods: ['GET'])]
     public function result(MigrationLog $log, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.view');
+
         $school = $this->getSchool($session);
         if (!$school || $log->getSchool() !== $school) {
             throw $this->createAccessDeniedException();
@@ -326,6 +344,8 @@ final class SchoolYearMigrationController extends AbstractController
         MigrationLogRepository $logRepo,
         SessionInterface $session
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.view');
+
         $school = $this->getSchool($session);
         if (!$school) {
             $this->addFlash('danger', 'Aucune école sélectionnée.');
@@ -349,6 +369,8 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/manage', name: 'app_year_migration_manage', methods: ['GET'])]
     public function manage(MigrationLog $log, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.view');
+
         $school = $this->getSchool($session);
         if (!$school || $log->getSchool() !== $school) {
             throw $this->createAccessDeniedException();
@@ -373,6 +395,8 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/cancel', name: 'app_year_migration_cancel', methods: ['POST'])]
     public function cancel(MigrationLog $log, Request $request, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.cancel');
+
         if (!$this->isCsrfTokenValid('cancel_migration_' . $log->getId(), $request->request->get('_token'))) {
             $this->addFlash('danger', 'Token CSRF invalide.');
             return $this->redirectToRoute('app_year_migration_manage', ['id' => $log->getId()]);
@@ -403,6 +427,8 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/correct-preview', name: 'app_year_migration_correct_preview', methods: ['POST'])]
     public function correctPreview(MigrationLog $log, Request $request, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.correct');
+
         $school = $this->getSchool($session);
         if (!$school || $log->getSchool() !== $school) {
             throw $this->createAccessDeniedException();
@@ -426,6 +452,8 @@ final class SchoolYearMigrationController extends AbstractController
     #[Route('/{id}/correct', name: 'app_year_migration_correct', methods: ['POST'])]
     public function correct(MigrationLog $log, Request $request, SessionInterface $session): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'year_migration.correct');
+
         if (!$this->isCsrfTokenValid('correct_migration_' . $log->getId(), $request->request->get('_token'))) {
             $this->addFlash('danger', 'Token CSRF invalide.');
             return $this->redirectToRoute('app_year_migration_manage', ['id' => $log->getId()]);
@@ -476,6 +504,7 @@ final class SchoolYearMigrationController extends AbstractController
             'subjects'       => (bool) $request->request->get('opt_subjects'),
             'modules'        => (bool) $request->request->get('opt_modules'),
             'payment_modals' => (bool) $request->request->get('opt_payment_modals'),
+            'evaluations'    => (bool) $request->request->get('opt_evaluations'),
         ];
     }
 }

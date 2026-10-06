@@ -84,6 +84,10 @@ class SchoolSwitchController extends AbstractController
         StudiesTypeRepository $studiesTypeRepo,
         LicenseManager $licenseManager // <-- Ajout ici
     ) {
+        if (!$this->isGranted('perm', 'schools.create')) {
+            return $this->json(['success' => false, 'message' => 'Accès refusé'], 403);
+        }
+
         // Récupération des données du formulaire
         $name = $request->request->get('name');
         $acronym = $request->request->get('acronym');
@@ -192,6 +196,10 @@ class SchoolSwitchController extends AbstractController
         SchoolPeriodRepository $periodRepository,
         ValidatorInterface $validator
     ) {
+        if (!$this->isGranted('perm', 'periods.create')) {
+            return $this->json(['success' => false, 'message' => 'Accès refusé'], 403);
+        }
+
         $name = trim((string) $request->request->get('name'));
         $enabled = $request->request->get('enabled', 0);
 

@@ -51,6 +51,10 @@ final class SchoolEvaluationController extends AbstractController
     #[Route(name: 'app_school_evaluation_index', methods: ['GET'])]
     public function index(SchoolEvaluationRepository $schoolEvaluationRepository, Request $request): Response
     {
+        // NB : un subject string de #[IsGranted] serait lu comme un nom
+        // d'argument de contrôleur (Symfony 6.4) → check en corps de méthode.
+        $this->denyAccessUnlessGranted('perm', 'evaluations.view');
+
         $schoolEvaluation = new SchoolEvaluation();
         $form = $this->createForm(SchoolEvaluationType::class, $schoolEvaluation, [
             'action' => $this->generateUrl('app_school_evaluation_new'),
@@ -65,6 +69,7 @@ final class SchoolEvaluationController extends AbstractController
     #[Route('/insert-notes-init', name: 'app_school_evaluation_insert_notes_init', methods: ['GET', 'POST'])]
     public function insertNotesInit(SessionInterface $session,EntityManagerInterface $entityManager, Request $request): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'evaluations.save');
         
         $this->session=$session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -106,6 +111,8 @@ final class SchoolEvaluationController extends AbstractController
     #[Route('/new', name: 'app_school_evaluation_new', methods: ['GET', 'POST'])]
     public function new(Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'evaluations.create');
+
         $schoolEvaluation = new SchoolEvaluation();
         $form = $this->createForm(SchoolEvaluationType::class, $schoolEvaluation);
         $form->handleRequest($request);
@@ -126,6 +133,7 @@ final class SchoolEvaluationController extends AbstractController
     #[Route('/report-card', name: 'app_school_evaluation_report_card', methods: ['GET', 'POST'])]
     public function reportCard(SessionInterface $session,Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'evaluations.report_card');
         
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -182,6 +190,7 @@ final class SchoolEvaluationController extends AbstractController
     #[Route('/report-card/frame', name: 'app_school_evaluation_report_card_frame', methods: ['GET', 'POST'])]
     public function reportCardFrame(SessionInterface $session,Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'evaluations.report_card');
         
         $this->session = $session;
         $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
@@ -240,6 +249,7 @@ final class SchoolEvaluationController extends AbstractController
         EntityManagerInterface $entityManager,
         ReportCardService $reportCardService,
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'evaluations.report_card');
 
         $student = $entityManager->getRepository(User::class)->find($studentId);
         $evaluation = $entityManager->getRepository(SchoolEvaluation::class)->find($evaluationId);
@@ -261,6 +271,7 @@ final class SchoolEvaluationController extends AbstractController
         PrimaryFrameReportCard $reportCardService,
         SluggerInterface $slugger,
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'evaluations.report_card');
 
         $student = $entityManager->getRepository(User::class)->find($studentId);
         $evaluation = $entityManager->getRepository(SchoolEvaluationFrame::class)->find($evaluationId);
@@ -290,6 +301,7 @@ final class SchoolEvaluationController extends AbstractController
         EntityManagerInterface $entityManager,
         SecondaryFrameReportCard $reportCardService,
     ): Response {
+        $this->denyAccessUnlessGranted('perm', 'evaluations.report_card');
 
         $student = $entityManager->getRepository(User::class)->find($studentId);
         $evaluation = $entityManager->getRepository(SchoolEvaluationFrame::class)->find($evaluationId);
@@ -306,7 +318,9 @@ final class SchoolEvaluationController extends AbstractController
     #[Route('/{id}', name: 'app_school_evaluation_show', methods: ['GET'])]
     public function show(SchoolEvaluation $schoolEvaluation, EntityManagerInterface $entityManager): Response
     {
-        /* 
+        $this->denyAccessUnlessGranted('perm', 'evaluations.view');
+
+        /*
         $user = $this->getUser();
         /** @var \App\Entity\SchoolClassPeriod[] 
         $classes = $entityManager->getRepository(SchoolClassPeriod::class)->findBy(['school' => $this->currentSchool]);
@@ -325,6 +339,8 @@ final class SchoolEvaluationController extends AbstractController
     #[Route('/{id}/edit', name: 'app_school_evaluation_edit', methods: ['GET', 'POST'])]
     public function edit(Request $request, SchoolEvaluation $schoolEvaluation, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'evaluations.edit');
+
         $form = $this->createForm(SchoolEvaluationType::class, $schoolEvaluation);
         $form->handleRequest($request);
 
@@ -343,6 +359,8 @@ final class SchoolEvaluationController extends AbstractController
     #[Route('/{id}', name: 'app_school_evaluation_delete', methods: ['POST'])]
     public function delete(Request $request, SchoolEvaluation $schoolEvaluation, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'evaluations.delete');
+
         if ($this->isCsrfTokenValid('delete' . $schoolEvaluation->getId(), $request->getPayload()->getString('_token'))) {
             $entityManager->remove($schoolEvaluation);
             $entityManager->flush();

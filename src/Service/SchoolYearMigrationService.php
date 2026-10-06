@@ -12,6 +12,7 @@ use App\Entity\SchoolClassAdmissionPayment;
 use App\Entity\SchoolClassPaymentModal;
 use App\Entity\SchoolClassPeriod;
 use App\Entity\SchoolClassSubject;
+use App\Entity\SchoolEvaluation;
 use App\Entity\SchoolPeriod;
 use App\Entity\StudentClass;
 use App\Entity\SubjectGroup;
@@ -26,6 +27,7 @@ class SchoolYearMigrationService
         'subjects'       => 'Matières & enseignants',
         'modules'        => 'Modules',
         'payment_modals' => 'Modalités de paiement',
+        'evaluations'    => 'Évaluations',
         'students'       => 'Élèves',
     ];
 
@@ -122,7 +124,7 @@ class SchoolYearMigrationService
             ->setOptions($options)
             ->setExecutedBy($executedBy)
             ->setStatus('in_progress')
-            // Les 7 clés toujours initialisées (manage.html.twig et checkMigrationState les lisent)
+            // Les 8 clés toujours initialisées (manage.html.twig et checkMigrationState les lisent)
             ->setCreatedIds([
                 'subjectGroups'       => [],
                 'schoolClassPeriods'  => [],
@@ -131,6 +133,7 @@ class SchoolYearMigrationService
                 'paymentModals'       => [],
                 'studentClasses'      => [],
                 'admissionPayments'   => [],
+                'schoolEvaluations'   => [],
             ]);
 
         $stepsState = [];
@@ -404,6 +407,10 @@ class SchoolYearMigrationService
                     $sourceTotal = $this->sumSourceRelation($school, $sourcePeriod, 'getPaymentModals');
                     [, $entities] = $this->clonePaymentModals($school, $sourcePeriod, $targetPeriod, $this->loadClassMap($log));
                     break;
+                case 'evaluations':
+                    $sourceTotal = count($this->em->getRepository(SchoolEvaluation::class)->findBy(['period' => $sourcePeriod]));
+                    [, $entities] = $this->cloneEvaluations($sourcePeriod, $targetPeriod);
+                    break;
                 case 'students':
                     $studentResult = $this->runStudentsStep($log, $classMapping, $studentMapping);
                     break;
@@ -419,6 +426,7 @@ class SchoolYearMigrationService
                     $e instanceof SchoolClassSubject       => 'schoolClassSubjects',
                     $e instanceof ClassSubjectModule       => 'classSubjectModules',
                     $e instanceof SchoolClassPaymentModal  => 'paymentModals',
+                    $e instanceof SchoolEvaluation         => 'schoolEvaluations',
                     default                                => null,
                 };
                 if ($key !== null) { $createdIds[$key][] = $e->getId(); }
@@ -572,6 +580,7 @@ class SchoolYearMigrationService
             'subjects'       => $this->sumSourceRelation($school, $sourcePeriod, 'getSchoolClassSubjects'),
             'modules'        => $this->sumSourceRelation($school, $sourcePeriod, 'getClassSubjectModules'),
             'payment_modals' => $this->sumSourceRelation($school, $sourcePeriod, 'getPaymentModals'),
+            'evaluations'    => count($this->em->getRepository(SchoolEvaluation::class)->findBy(['period' => $sourcePeriod])),
             default          => 0,
         };
     }
@@ -657,6 +666,7 @@ class SchoolYearMigrationService
             'subjects'       => $this->sumSourceRelation($school, $sourcePeriod, 'getSchoolClassSubjects'),
             'modules'        => $this->sumSourceRelation($school, $sourcePeriod, 'getClassSubjectModules'),
             'payment_modals' => $this->sumSourceRelation($school, $sourcePeriod, 'getPaymentModals'),
+            'evaluations'    => count($this->em->getRepository(SchoolEvaluation::class)->findBy(['period' => $sourcePeriod])),
             default          => 0,
         };
     }
@@ -901,6 +911,16 @@ class SchoolYearMigrationService
             $this->deleteByIds(SchoolClassPaymentModal::class,$ids['paymentModals']       ?? []);
             $this->deleteByIds(SchoolClassPeriod::class,      $ids['schoolClassPeriods']  ?? []);
             $this->deleteByIds(SubjectGroup::class,           $ids['subjectGroups']       ?? []);
+
+            // Évaluations (config de période) : détacher d'abord les présences
+            // qui y pointent (FK RESTRICT), puis supprimer les lignes créées.
+            if (!empty($ids['schoolEvaluations'] ?? [])) {
+                $evalIds = array_map('intval', $ids['schoolEvaluations']);
+                $conn->executeStatement(
+                    'UPDATE school_class_attendance SET evaluation_id = NULL WHERE evaluation_id IN (' . implode(',', $evalIds) . ')'
+                );
+                $this->deleteByIds(SchoolEvaluation::class, $evalIds);
+            }
 
             $this->em->flush();
 
@@ -1497,6 +1517,42 @@ class SchoolYearMigrationService
                 $seen[spl_object_id($newSCP)][$key] = true;
             }
         }
+        return [count($entities), $entities];
+    }
+
+    /**
+     * Reconduit la configuration des évaluations (frame × time) vers la période
+     * cible. Les frames/times sont globaux (réutilisés tels quels) : seules les
+     * lignes school_evaluation, liées à la période, sont clonées. Sans elles la
+     * page « Saisie des notes » ne liste aucune période/sous-période.
+     * (school_evaluation n'a pas de colonne école : la config est par période.)
+     *
+     * @return array{0: int, 1: SchoolEvaluation[]}
+     */
+    private function cloneEvaluations(SchoolPeriod $source, SchoolPeriod $target): array
+    {
+        $entities = [];
+
+        // Évaluations déjà configurées dans la période cible, indexées par
+        // « frame:time » : on ne reconduit que ce qui n'existe pas encore.
+        $existing = [];
+        foreach ($this->em->getRepository(SchoolEvaluation::class)->findBy(['period' => $target]) as $evaluation) {
+            $existing[($evaluation->getFrame()?->getId() ?? 0) . ':' . ($evaluation->getTime()?->getId() ?? 0)] = true;
+        }
+
+        foreach ($this->em->getRepository(SchoolEvaluation::class)->findBy(['period' => $source]) as $evaluation) {
+            $key = ($evaluation->getFrame()?->getId() ?? 0) . ':' . ($evaluation->getTime()?->getId() ?? 0);
+            if (isset($existing[$key])) { continue; }
+
+            $new = new SchoolEvaluation();
+            $new->setFrame($evaluation->getFrame())
+                ->setTime($evaluation->getTime())
+                ->setPeriod($target);
+            $this->em->persist($new);
+            $entities[] = $new;
+            $existing[$key] = true;
+        }
+
         return [count($entities), $entities];
     }
 

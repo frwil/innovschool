@@ -9,6 +9,7 @@ use App\Entity\User;
 use App\Repository\PermissionRepository;
 use App\Repository\RoleRepository;
 use App\Repository\UserRepository;
+use Doctrine\DBAL\Exception\TableNotFoundException;
 use Symfony\Component\Security\Core\Exception\AccessDeniedException;
 
 /**
@@ -18,8 +19,9 @@ use Symfony\Component\Security\Core\Exception\AccessDeniedException;
  * - un superadmin peut tout faire ;
  * - anti-escalation : on n'accorde que ce que l'on possède soi-même ;
  * - protection du dernier superadmin ;
- * - les rôles système ne sont modifiables/supprimables que par un superadmin,
- *   les rôles verrouillés (profils, fantômes) jamais ;
+ * - les rôles système ne sont modifiables/supprimables que par un superadmin ;
+ * - les rôles verrouillés (profils, fantômes) sont modifiables par un
+ *   superadmin (jamais supprimables) ;
  * - audit OperationLogger sur chaque application.
  */
 final class AccessRightsService
@@ -55,20 +57,17 @@ final class AccessRightsService
     }
 
     /**
-     * Rôles que l'acteur peut éditer : tout sauf les verrouillés ; un non
-     * superadmin n'édite que les rôles non système (ROLE_ADMIN réservé).
+     * Rôles que l'acteur peut éditer : un superadmin peut tout éditer, y
+     * compris les profils verrouillés ; un non superadmin n'édite que les
+     * rôles personnalisés (non verrouillés, non système).
      */
     public function canEditRole(User $actor, Role $role): bool
     {
-        if ($role->isLocked()) {
-            return false;
-        }
-
         if ($this->isSuperAdmin($actor)) {
             return true;
         }
 
-        return !$role->isSystem();
+        return !$role->isLocked() && !$role->isSystem();
     }
 
     /**
@@ -79,7 +78,13 @@ final class AccessRightsService
      */
     public function getAssignableRoles(User $actor): array
     {
-        $roles = $this->roleRepository->findAll();
+        try {
+            $roles = $this->roleRepository->findAll();
+        } catch (TableNotFoundException) {
+            // Table access_role absente (seconde machine avant schema:update) :
+            // aucun rôle assignable tant que le schéma n'est pas à jour.
+            return [];
+        }
         $assignable = [];
         foreach ($roles as $role) {
             if ($this->catalog->isProfileRole($role->getName())) {
@@ -130,8 +135,8 @@ final class AccessRightsService
 
     public function assertCanEditRole(User $actor, Role $role): void
     {
-        if ($role->isLocked()) {
-            throw new AccessDeniedException('Les rôles gérés automatiquement par l\'application ne peuvent pas être modifiés.');
+        if ($role->isLocked() && !$this->isSuperAdmin($actor)) {
+            throw new AccessDeniedException('Les rôles gérés automatiquement par l\'application ne peuvent être modifiés que par un super-administrateur.');
         }
         if (!$this->isSuperAdmin($actor) && $role->isSystem()) {
             throw new AccessDeniedException('Les rôles système ne peuvent être modifiés que par un super-administrateur.');

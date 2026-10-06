@@ -39,6 +39,8 @@ final class SchoolPeriodController extends AbstractController
     #[Route(name: 'app_school_period_index', methods: ['GET', 'POST'])]
     public function index(SchoolPeriodRepository $schoolPeriodRepository, Request $request, EntityManagerInterface $entityManager): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'periods.view');
+
         $schoolPeriod = new SchoolPeriod();
         $schoolPeriod->setName($schoolPeriodRepository->suggestNextName());
         $previousPeriod = $schoolPeriodRepository->findLatest();
@@ -60,6 +62,8 @@ final class SchoolPeriodController extends AbstractController
     #[Route('/new', name: 'app_school_period_new', methods: ['GET', 'POST'])]
     public function new(Request $request, EntityManagerInterface $entityManager, OperationLogger $operationLogger, SchoolPeriodRepository $schoolPeriodRepository, SchoolPeriodDeletionService $deletionService): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'periods.create');
+
         $this->initContext($request);
         $schoolPeriod = new SchoolPeriod();
         if (!$request->isMethod('POST')) {
@@ -138,6 +142,8 @@ final class SchoolPeriodController extends AbstractController
     #[Route('/{id}', name: 'app_school_period_show', methods: ['GET'])]
     public function show(SchoolPeriod $schoolPeriod): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'periods.view');
+
         return $this->render('school_period/show.html.twig', [
             'school_period' => $schoolPeriod,
         ]);
@@ -146,6 +152,8 @@ final class SchoolPeriodController extends AbstractController
     #[Route('/{id}/as-default', name: 'app_school_period_default', methods: ['GET'])]
     public function asDefault(Request $request, SchoolPeriod $schoolPeriod, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'periods.set_default');
+
         $this->initContext($request);
         $schoolPeriods = $entityManager->getRepository(SchoolPeriod::class)->findAll();
         foreach ($schoolPeriods as $period) {
@@ -176,6 +184,8 @@ final class SchoolPeriodController extends AbstractController
     #[Route('/{id}/edit', name: 'app_school_period_edit', methods: ['GET', 'POST'])]
     public function edit(Request $request, SchoolPeriod $schoolPeriod, EntityManagerInterface $entityManager, OperationLogger $operationLogger): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'periods.edit');
+
         $this->initContext($request);
         $form = $this->createForm(SchoolPeriodType::class, $schoolPeriod, ['lock_name' => true]);
         $form->handleRequest($request);
@@ -217,6 +227,8 @@ final class SchoolPeriodController extends AbstractController
     #[Route('/{id}/delete-check', name: 'app_school_period_delete_check', methods: ['GET'])]
     public function deleteCheck(SchoolPeriod $schoolPeriod, SchoolPeriodRepository $schoolPeriodRepository, SchoolPeriodDeletionService $deletionService): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'periods.view');
+
         if ($schoolPeriodRepository->hasLaterThan($schoolPeriod)) {
             $this->addFlash('error', sprintf(
                 'Impossible de supprimer « %s » : seule la dernière période peut être supprimée.',
@@ -235,6 +247,8 @@ final class SchoolPeriodController extends AbstractController
     #[Route('/{id}', name: 'app_school_period_delete', methods: ['POST'])]
     public function delete(Request $request, SchoolPeriod $schoolPeriod, EntityManagerInterface $entityManager, OperationLogger $operationLogger, SchoolPeriodRepository $schoolPeriodRepository, SchoolPeriodDeletionService $deletionService): Response
     {
+        $this->denyAccessUnlessGranted('perm', 'periods.delete');
+
         $this->initContext($request);
         if ($this->isCsrfTokenValid('delete' . $schoolPeriod->getId(), $request->getPayload()->getString('_token'))) {
             if ($schoolPeriodRepository->hasLaterThan($schoolPeriod)) {
