@@ -123,25 +123,13 @@
 
 <script>
 	// Affiche/masque le spinner d'un select pendant un chargement AJAX et le
-	// désactive (select2 compris) tant que les options ne sont pas arrivées.
+	// désactive tant que les options ne sont pas arrivées. La propriété
+	// disabled est posée sur le select natif (valeur exclue du formulaire
+	// pendant le chargement) ; select2 se synchronise via son écouteur change.
 	function setSelectLoading(selectId, isLoading) {
 		const select = $('#' + selectId);
-		const spinner = $('#' + selectId + '-spinner');
-		if (isLoading) {
-			spinner.show();
-			if (select.hasClass('select2-hidden-accessible')) {
-				select.select2('enable', false);
-			} else {
-				select.prop('disabled', true);
-			}
-		} else {
-			spinner.hide();
-			if (select.hasClass('select2-hidden-accessible')) {
-				select.select2('enable', true);
-			} else {
-				select.prop('disabled', false);
-			}
-		}
+		$('#' + selectId + '-spinner')[isLoading ? 'show' : 'hide']();
+		select.prop('disabled', isLoading).trigger('change');
 	}
 
 	$(document).ready(function () {
@@ -162,10 +150,10 @@
 						sectionId: sectionId
 					},
 					success: function (data) {
-						data.forEach(function (classItem) {
+						setSelectLoading('classId', false);
+						(data || []).forEach(function (classItem) {
 							classSelect.append(new Option(classItem.name, classItem.id));
 						});
-						setSelectLoading('classId', false);
 					},
 					error: function () {
 						alert('Une erreur est survenue lors du chargement des classes.');
@@ -192,10 +180,10 @@
 						classId: classId
 					},
 					success: function (data) {
-						data.forEach(function (subjectItem) {
+						setSelectLoading('subjectId', false);
+						(data || []).forEach(function (subjectItem) {
 							subjectSelect.append(new Option(subjectItem.name, subjectItem.id));
 						});
-						setSelectLoading('subjectId', false);
 					},
 					error: function () {
 						alert('Une erreur est survenue lors du chargement des matières.');
@@ -213,13 +201,13 @@
 			
 			if (frameId === 'all') {
 				// Mode Annuel : désactiver périodicité et sous-périodes
-				timeTypeSelect.val('').prop('disabled', true);
-				timeSelect.empty().prop('disabled', true);
+				timeTypeSelect.val('').prop('disabled', true).trigger('change');
+				timeSelect.empty().prop('disabled', true).trigger('change');
 				timeSelect.append(new Option('Toutes les sous-périodes (Annuel)', ''));
 			} else {
 				// Mode normal : réactiver
-				timeTypeSelect.prop('disabled', false);
-				timeSelect.prop('disabled', false);
+				timeTypeSelect.prop('disabled', false).trigger('change');
+				timeSelect.prop('disabled', false).trigger('change');
 				timeSelect.empty();
 				timeSelect.append(new Option('Sélectionnez une ou plusieurs sous-périodes', ''));
 				
@@ -253,10 +241,10 @@
 				success: function (data) {
 					timeSelect.empty();
 					timeSelect.append(new Option('Sélectionnez une ou plusieurs sous-périodes', ''));
-					data.forEach(function (timeItem) {
+					setSelectLoading('evaluationTimeId', false);
+					(data || []).forEach(function (timeItem) {
 						timeSelect.append(new Option(timeItem.name, timeItem.id));
 					});
-					setSelectLoading('evaluationTimeId', false);
 				},
 				error: function () {
 					alert('Une erreur est survenue lors du chargement des sous-périodes.');

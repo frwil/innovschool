@@ -11,6 +11,7 @@ use App\Entity\SchoolPeriod;
 use App\Entity\StudentClass;
 use App\Entity\StudyLevel;
 use App\Entity\User;
+use App\Entity\UserStatusHistory;
 use App\Form\UserType; // Ensure this class exists in the App.Form namespace
 use App\Repository\UserRepository;
 use App\Service\UserManager;
@@ -134,6 +135,43 @@ final class UserController extends AbstractController
         /** @var UploadedFile|null $photoFile */
         $photoFile = $request->files->get('photo');
 
+        // Détection d'un ancien élève (départ puis retour dans l'établissement) :
+        // un nom complet ou un matricule national déjà connu ne doit pas aboutir
+        // à un doublon de compte. La création est refusée (409) et la
+        // réhabilitation proposée ; « Créer quand même » passe avec force=1
+        // (homonymes réels).
+        $natRegNumber = $request->request->get('natRegNumber') ?: $request->request->get('nationalRegistrationNumber');
+        if ($request->request->get('force') !== '1') {
+            $duplicates = [];
+            if ($natRegNumber) {
+                foreach ($entityManager->getRepository(User::class)->findBy(['nationalRegistrationNumber' => $natRegNumber]) as $existing) {
+                    if (in_array('ROLE_STUDENT', $existing->getRoles())) {
+                        $duplicates[$existing->getId()] = $existing;
+                    }
+                }
+            }
+            if (trim((string) $name) !== '') {
+                $sameName = $entityManager->getRepository(User::class)->createQueryBuilder('u')
+                    ->where('LOWER(u.fullName) = :name')
+                    ->setParameter('name', mb_strtolower(trim($name)))
+                    ->getQuery()
+                    ->getResult();
+                foreach ($sameName as $existing) {
+                    if (in_array('ROLE_STUDENT', $existing->getRoles())) {
+                        $duplicates[$existing->getId()] = $existing;
+                    }
+                }
+            }
+            if ($duplicates) {
+                $candidates = array_map(fn($existing) => $this->studentCandidate($existing, $entityManager), array_values($duplicates));
+                return new JsonResponse([
+                    'status' => 'duplicate',
+                    'message' => 'Un ancien élève correspondant existe déjà. Réhabilitez-le plutôt que de créer un doublon.',
+                    'candidates' => $candidates,
+                ], 409);
+            }
+        }
+
         $regNumber = $this->currentSchool->getAcronym() . 'E' . rand(1000, 9999);
         $checkRegNumber = $entityManager->getRepository(User::class)->findOneBy(['registrationNumber' => $regNumber]);
         // Si le numéro d'enregistrement existe déjà, on en génère un nouveau
@@ -183,7 +221,7 @@ final class UserController extends AbstractController
         $email = str_replace(' ', '.', strtolower($name)) . rand(1000, 9999) . '@eleve.local';
         $checkEmail = $entityManager->getRepository(User::class)->findOneBy(['username' => $email]);
         while ($checkEmail) {
-            str_replace(' ', '.', strtolower($name)) . rand(1000, 9999) . '@eleve.local';
+            $email = str_replace(' ', '.', strtolower($name)) . rand(1000, 9999) . '@eleve.local';
             $checkEmail = $entityManager->getRepository(User::class)->findOneBy(['username' => $email]);
         }
 
@@ -197,12 +235,15 @@ final class UserController extends AbstractController
         $user->setSchool($this->currentSchool);
         $user->setUsername($email);
         $user->setEmail($email);
-        $user->setDateOfBirth(new \DateTime($request->request->get('dateOfBirth')));
-        $user->setPlaceOfBirth($request->request->get('placeOfBirth') ?: null);
+        $birthDate = $request->request->get('birthDate') ?: $request->request->get('dateOfBirth');
+        if ($birthDate) {
+            $user->setDateOfBirth(new \DateTime($birthDate));
+        }
+        $user->setPlaceOfBirth($request->request->get('birthPlace') ?: ($request->request->get('placeOfBirth') ?: null));
         $user->setResetPassword(true); // Oblige l'utilisateur à changer son mot de passe à la première connexion
         $user->setRegistrationNumber($regNumber);
         $user->setPassword($this->userPasswordHasher->hashPassword($user, '111111')); // Mot de passe vide, à changer par l'utilisateur
-        $user->setNationalRegistrationNumber($request->request->get('nationalRegistrationNumber') ?: null);
+        $user->setNationalRegistrationNumber($natRegNumber ?: null);
         $user->setInfos(json_encode([
             'isRepeating' => (bool)$isRepeating,
             'tutorId' => $tutorId,
@@ -1389,6 +1430,202 @@ final class UserController extends AbstractController
         ]);
     }
 
+    #[Route('/student/duplicate-candidates', name: 'app_student_duplicate_candidates', methods: ['GET'])]
+    public function duplicateStudentCandidates(Request $request, EntityManagerInterface $em, \App\Service\StudentNameSimilarityService $similarityService): JsonResponse
+    {
+        if (!$this->isGranted('perm', 'users.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
+        $input = trim($request->query->get('name', ''));
+        if (mb_strlen($input) < 5) {
+            return $this->json([]);
+        }
+
+        // Anciens élèves (comptes ROLE_STUDENT) dont le nom est identique ou
+        // proche (seuil 90) de la saisie : réhabiliter plutôt que recréer.
+        $allStudents = array_filter($em->getRepository(User::class)->findAll(), function ($user) {
+            return in_array('ROLE_STUDENT', $user->getRoles());
+        });
+        $byName = [];
+        $names = [];
+        foreach ($allStudents as $user) {
+            $byName[mb_strtolower(trim($user->getFullName()))][] = $user;
+            $names[trim($user->getFullName())] = true;
+        }
+        $matched = [];
+        foreach ($byName[mb_strtolower($input)] ?? [] as $user) {
+            $matched[$user->getId()] = $user;
+        }
+        foreach ($similarityService->findSimilarNames($input, array_keys($names), 90) as $similarName) {
+            foreach ($byName[mb_strtolower(trim($similarName))] ?? [] as $user) {
+                $matched[$user->getId()] = $user;
+            }
+        }
+
+        $candidates = array_map(fn($user) => $this->studentCandidate($user, $em), array_values($matched));
+        return $this->json($candidates);
+    }
+
+    #[Route('/student/{id}/toggle-enabled', name: 'app_student_toggle_enabled', methods: ['POST'])]
+    public function toggleStudentEnabled(User $student, EntityManagerInterface $em, OperationLogger $operationLogger): JsonResponse
+    {
+        if (!$this->isGranted('perm', 'users.edit')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
+        /** @var \App\Entity\User|null $currentUser */
+        $currentUser = $this->getUser();
+        if ($currentUser && $student->getId() === $currentUser->getId()) {
+            return new JsonResponse(['error' => 'Vous ne pouvez pas désactiver votre propre compte.'], 400);
+        }
+        if (in_array('ROLE_SUPER_ADMIN', $student->getRoles())) {
+            return new JsonResponse(['error' => 'Impossible de désactiver un super-administrateur.'], 400);
+        }
+
+        $newEnabled = !($student->isEnabled() ?? true);
+        $student->setEnabled($newEnabled);
+        // Historique de statut (désactivation / réactivation) consultable
+        // depuis la page des élèves.
+        $history = new UserStatusHistory();
+        $history->setUser($student);
+        $history->setEnabled($newEnabled);
+        $history->setPerformedBy($currentUser);
+        $em->persist($student);
+        $em->persist($history);
+        try {
+            $em->flush();
+            $operationLogger->log(
+                ($newEnabled ? 'Activation' : 'Désactivation') . ' du compte de ' . $student->getFullName(),
+                'SUCCESS',
+                'User',
+                $student->getId(),
+                null,
+                ['enabled' => $newEnabled]
+            );
+        } catch (\Exception $e) {
+            $operationLogger->log(
+                'Erreur lors du changement de statut du compte de ' . $student->getFullName(),
+                'ERROR',
+                'User',
+                $student->getId(),
+                $e->getMessage(),
+                []
+            );
+            return new JsonResponse(['error' => 'Erreur lors de la mise à jour du compte.'], 500);
+        }
+
+        return new JsonResponse([
+            'success' => true,
+            'enabled' => $newEnabled,
+            'message' => $newEnabled ? 'Compte réactivé.' : 'Compte désactivé : la connexion est désormais bloquée.',
+        ]);
+    }
+
+    #[Route('/student/{id}/status-history', name: 'app_student_status_history', methods: ['GET'])]
+    public function studentStatusHistory(User $student, EntityManagerInterface $em): JsonResponse
+    {
+        if (!$this->isGranted('perm', 'users.view')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
+        $history = $em->getRepository(UserStatusHistory::class)->findBy(['user' => $student], ['id' => 'DESC']);
+        $events = array_map(fn($entry) => [
+            'enabled' => $entry->isEnabled(),
+            'changedAt' => $entry->getChangedAt() ? $entry->getChangedAt()->format('d/m/Y H:i') : null,
+            'performedBy' => $entry->getPerformedBy() ? $entry->getPerformedBy()->getFullName() : null,
+        ], $history);
+        return $this->json($events);
+    }
+
+    #[Route('/student/rehabilitate', name: 'app_student_rehabilitate', methods: ['POST'])]
+    public function rehabilitateStudent(Request $request, EntityManagerInterface $em, SessionInterface $session, OperationLogger $operationLogger): JsonResponse
+    {
+        if (!$this->isGranted('perm', 'users.create')) {
+            return new JsonResponse(['error' => 'Accès refusé'], 403);
+        }
+
+        $this->session = $session;
+        $this->currentSchool = $em->getRepository(School::class)->find($this->session->get('school_id'));
+        $this->currentPeriod = $em->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
+
+        $student = $em->getRepository(User::class)->find($request->request->get('userId'));
+        $classPeriod = $em->getRepository(SchoolClassPeriod::class)->find($request->request->get('classId'));
+        if (!$student) {
+            return new JsonResponse(['error' => 'Élève non trouvé.'], 404);
+        }
+        if (!$classPeriod) {
+            return new JsonResponse(['error' => 'Classe non trouvée.'], 404);
+        }
+
+        // Déjà inscrit dans une classe de la période en cours ?
+        $existing = $em->getRepository(StudentClass::class)->createQueryBuilder('sc')
+            ->join('sc.schoolClassPeriod', 'scp')
+            ->where('sc.student = :student')
+            ->andWhere('scp.period = :period')
+            ->andWhere('scp.school = :school')
+            ->setParameter('student', $student)
+            ->setParameter('period', $this->currentPeriod)
+            ->setParameter('school', $this->currentSchool)
+            ->setMaxResults(1)
+            ->getQuery()
+            ->getOneOrNullResult();
+        if ($existing) {
+            $className = $existing->getSchoolClassPeriod() && $existing->getSchoolClassPeriod()->getClassOccurence()
+                ? $existing->getSchoolClassPeriod()->getClassOccurence()->getName()
+                : 'inconnue';
+            return new JsonResponse([
+                'error' => 'Cet élève est déjà inscrit dans la classe ' . $className . ' pour la période en cours.',
+            ], 409);
+        }
+
+        // Réactivation du compte s'il avait été désactivé au départ de l'élève
+        // (la réactivation rejoint alors l'historique de statut).
+        if (false === $student->isEnabled()) {
+            $student->setEnabled(true);
+            $history = new UserStatusHistory();
+            $history->setUser($student);
+            $history->setEnabled(true);
+            $history->setPerformedBy($this->getUser());
+            $em->persist($student);
+            $em->persist($history);
+        }
+        $studentClass = new StudentClass();
+        $studentClass->setStudent($student);
+        $studentClass->setSchoolClassPeriod($classPeriod);
+        $em->persist($studentClass);
+        try {
+            $em->flush();
+            $operationLogger->log(
+                'Réhabilitation de l\'élève ' . $student->getFullName() . ' dans la classe ' . $classPeriod->getClassOccurence()->getName(),
+                'SUCCESS',
+                'User',
+                $student->getId(),
+                null,
+                [
+                    'school' => $this->currentSchool->getId(),
+                    'period' => $this->currentPeriod->getId(),
+                    'class' => $classPeriod->getId(),
+                ]
+            );
+        } catch (\Exception $e) {
+            $operationLogger->log(
+                'Erreur lors de la réhabilitation de l\'élève ' . $student->getFullName(),
+                'ERROR',
+                'User',
+                $student->getId(),
+                $e->getMessage(),
+                []
+            );
+            return new JsonResponse(['error' => 'Erreur lors de la réhabilitation.'], 500);
+        }
+
+        return new JsonResponse([
+            'success' => true,
+            'message' => 'Élève réhabilité et inscrit dans la classe ' . $classPeriod->getClassOccurence()->getName() . '.',
+        ]);
+    }
+
     #[Route('/study-levels/list', name: 'app_study_levels_list', methods: ['GET'])]
     public function studyLevelsList(EntityManagerInterface $em): JsonResponse
     {
@@ -2040,5 +2277,30 @@ final class UserController extends AbstractController
         }
 
         return new JsonResponse(['success' => 'Utilisateur mis à jour avec succès.']);
+    }
+
+    /**
+     * Fiche « ancien élève » affichée dans la détection de doublons :
+     * identité, matricule, statut du compte et dernière classe connue.
+     */
+    private function studentCandidate(User $student, EntityManagerInterface $em): array
+    {
+        $lastClass = $em->getRepository(StudentClass::class)->findOneBy(
+            ['student' => $student],
+            ['id' => 'DESC']
+        );
+        $lastClassPeriod = $lastClass ? $lastClass->getSchoolClassPeriod() : null;
+        return [
+            'id' => $student->getId(),
+            'fullName' => $student->getFullName(),
+            'nationalRegistrationNumber' => $student->getNationalRegistrationNumber(),
+            'disabled' => false === $student->isEnabled(),
+            'lastClass' => $lastClassPeriod && $lastClassPeriod->getClassOccurence()
+                ? $lastClassPeriod->getClassOccurence()->getName()
+                : null,
+            'lastPeriod' => $lastClassPeriod && $lastClassPeriod->getPeriod()
+                ? $lastClassPeriod->getPeriod()->getName()
+                : null,
+        ];
     }
 }

@@ -51,6 +51,21 @@
 						<!-- Actions (ex: voir, éditer, supprimer) -->
 						<a href="{{ path('app_user_show_by_id', {'id': student.student.id}) }}"
 							class="btn btn-sm btn-primary">Voir</a>
+						<button type="button" class="btn btn-sm btn-outline-secondary status-history-btn"
+							data-id="{{ student.student.id }}" data-name="{{ student.student.fullName }}"
+							title="Historique des désactivations / réactivations">Historique</button>
+						{% if student.student.enabled is same as(false) %}
+						<span class="badge bg-danger ms-1"
+							title="Compte désactivé : la connexion est bloquée">Désactivé</span>
+						{% endif %}
+						{% if is_granted('perm', 'users.edit') %}
+						<button type="button"
+							class="btn btn-sm {{ student.student.enabled is same as(false) ? 'btn-outline-success' : 'btn-outline-danger' }} toggle-enabled-btn"
+							data-id="{{ student.student.id }}" data-name="{{ student.student.fullName }}"
+							data-currently-enabled="{{ student.student.enabled is same as(false) ? '0' : '1' }}">
+							{{ student.student.enabled is same as(false) ? 'Activer' : 'Désactiver' }}
+						</button>
+						{% endif %}
 					</td>
 				</tr>
 				{% endfor %}
@@ -125,6 +140,7 @@
 			<div class="mb-3">
 				<label for="lastName" class="form-label">Nom</label>
 				<input type="text" id="lastName" name="lastName" class="form-control" required>
+					<div id="duplicateCandidates" class="alert alert-warning" style="display: none;"></div>
 			</div>
 			<div class="mb-3">
 				<label for="gender" class="form-label">Sexe</label>
@@ -197,6 +213,22 @@
 
 			<button type="submit" class="btn btn-success">Enregistrer</button>
 		</form>
+	</div>
+</div>
+
+<!-- Modal Historique des statuts (désactivation / réactivation) -->
+<div class="modal fade" id="statusHistoryModal" tabindex="-1" aria-labelledby="statusHistoryModalLabel"
+	aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="statusHistoryModalLabel">Historique de statut</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+			</div>
+			<div class="modal-body">
+				<ul id="statusHistoryList" class="list-group"></ul>
+			</div>
+		</div>
 	</div>
 </div>
 
@@ -296,10 +328,146 @@ $('#parentGender').val($(this).data('gender')).trigger('change');
 		$('#parentSuggestions').empty();
 	});
 
+		// « Créer quand même » : passe force=1 au prochain envoi du formulaire
+	// (uniquement pour les homonymes réels).
+	var forceCreate = false;
+
+	// Affiche les anciens élèves correspondants (détection à la saisie du nom
+	// et refus serveur à la création). Chaque candidat propose la réhabilitation
+	// dans la classe sélectionnée — le retour d'un élève réhabilite, ne recrée pas.
+	function renderDuplicateCandidates(candidates, box) {
+		var html = '<strong>Ancien(s) élève(s) correspondant(s) :</strong>';
+		(candidates || []).forEach(function (c) {
+			html += '<div class="d-flex justify-content-between align-items-center border-bottom py-1">'
+				+ '<span>' + $('<div>').text(c.fullName).html()
+				+ ' <small class="text-muted">(matricule : ' + (c.nationalRegistrationNumber || '-') + ')</small>'
+				+ '<br><small class="text-muted">Dernière classe : ' + (c.lastClass || 'inconnue') + ' (' + (c.lastPeriod || 'période inconnue') + ')</small>'
+				+ (c.disabled ? ' <span class="badge bg-danger">Compte désactivé</span>' : '')
+				+ '</span>'
+				+ '<button type="button" class="btn btn-sm btn-success rehab-btn" data-id="' + c.id + '">Réhabiliter</button>'
+				+ '</div>';
+		});
+		html += '<small class="text-muted">Réhabiliter réinscrit l\'élève dans la classe sélectionnée ci-dessous (et réactive son compte s\'il était désactivé).</small>';
+		box.html(html).show();
+	}
+
+	// Détection à la saisie du nom (débounce 400 ms, 5 caractères minimum)
+	var lastNameTimer = null;
+	$('#lastName').on('input', function () {
+		var name = $(this).val().trim();
+		clearTimeout(lastNameTimer);
+		if (name.length < 5) {
+			$('#duplicateCandidates').hide().empty();
+			return;
+		}
+		lastNameTimer = setTimeout(function () {
+			$.ajax({
+				url: '{{ path('app_student_duplicate_candidates') }}',
+				method: 'GET',
+				data: { name: name },
+				success: function (data) {
+					if (data && data.length) {
+						renderDuplicateCandidates(data, $('#duplicateCandidates'));
+					} else {
+						$('#duplicateCandidates').hide().empty();
+					}
+				}
+			});
+		}, 400);
+	});
+
+	// Réhabilitation d'un ancien élève : inscription dans la classe sélectionnée
+	$('#duplicateCandidates').on('click', '.rehab-btn', function () {
+		var userId = $(this).data('id');
+		var classId = $('#schoolClassPeriod').val();
+		if (!classId) {
+			$.notify('Sélectionnez d\'abord la classe dans le formulaire.', { className: 'error' });
+			return;
+		}
+		var $btn = $(this);
+		$btn.prop('disabled', true).text('Réhabilitation...');
+		$.ajax({
+			url: '{{ path('app_student_rehabilitate') }}',
+			method: 'POST',
+			data: { userId: userId, classId: classId },
+			success: function (data) {
+				$.notify(data.message || 'Élève réhabilité avec succès !', 'success');
+				setTimeout(()=>{location.reload();},1200);
+			},
+			error: function (xhr) {
+				var msg = 'Erreur lors de la réhabilitation.';
+				if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
+				$.notify(msg, { className: 'error' });
+				$btn.prop('disabled', false).text('Réhabiliter');
+			}
+		});
+	});
+
+	// Activation / désactivation d'un compte élève (la connexion est bloquée
+	// côté serveur par UserChecker tant que le compte est désactivé).
+	$('#studentsTable').on('click', '.toggle-enabled-btn', function () {
+		var $btn = $(this);
+		var id = $btn.data('id');
+		var name = $btn.data('name');
+		var action = $btn.data('currently-enabled') === '1' ? 'désactiver' : 'réactiver';
+		if (!confirm('Voulez-vous vraiment ' + action + ' le compte de ' + name + ' ?')) {
+			return;
+		}
+		$btn.prop('disabled', true);
+		$.ajax({
+			url: "{{ path('app_student_toggle_enabled', {'id': 'ID_PLACEHOLDER'}) }}".replace('ID_PLACEHOLDER', id),
+			method: 'POST',
+			success: function (data) {
+				$.notify(data.message || 'Statut mis à jour.', 'success');
+				setTimeout(()=>{location.reload();},800);
+			},
+			error: function (xhr) {
+				var msg = 'Erreur lors de la mise à jour du statut.';
+				if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
+				$.notify(msg, { className: 'error' });
+				$btn.prop('disabled', false);
+			}
+		});
+	});
+
+	// Historique des désactivations / réactivations d'un compte élève
+	$('#studentsTable').on('click', '.status-history-btn', function () {
+		var id = $(this).data('id');
+		var name = $(this).data('name');
+		$('#statusHistoryModalLabel').text('Historique de statut — ' + name);
+		$('#statusHistoryList').html('<li class="list-group-item text-muted">Chargement...</li>');
+		$('#statusHistoryModal').modal('show');
+		$.ajax({
+			url: "{{ path('app_student_status_history', {'id': 'ID_PLACEHOLDER'}) }}".replace('ID_PLACEHOLDER', id),
+			method: 'GET',
+			success: function (data) {
+				var html = '';
+				if (!data || !data.length) {
+					html = '<li class="list-group-item text-muted">Aucun changement de statut enregistré.</li>';
+				} else {
+					data.forEach(function (event) {
+						html += '<li class="list-group-item d-flex justify-content-between align-items-center">'
+							+ '<span>' + (event.enabled ? '<span class="badge bg-success">Réactivation</span>' : '<span class="badge bg-danger">Désactivation</span>')
+							+ ' <small class="text-muted">' + event.changedAt + (event.performedBy ? ' par ' + $('<div>').text(event.performedBy).html() : '') + '</small></span>'
+							+ '</li>';
+					});
+				}
+				$('#statusHistoryList').html(html);
+			},
+			error: function () {
+				$('#statusHistoryList').html('<li class="list-group-item text-danger">Erreur lors du chargement de l\'historique.</li>');
+			}
+		});
+	});
+
 	$('#app_student_new_form').on('submit', function (e) {
 		e.preventDefault();
 		var $form = $(this);
 		var formData = new FormData(this);
+		if (forceCreate) {
+			formData.append('force', '1');
+			forceCreate = false;
+		}
 		$form.find('button[type="submit"]').prop('disabled', true).text('Enregistrement en cours...');
 		$.ajax({
 			url: $form.attr('action'),
@@ -318,7 +486,21 @@ $('#parentGender').val($(this).data('gender')).trigger('change');
 				} else if (xhr.status === 0) {
 					msg += '\nVérifiez votre connexion Internet.';
 				}
-				$.notify(msg);
+				if (xhr.status === 409 && xhr.responseJSON && xhr.responseJSON.candidates) {
+					// Un ancien élève correspondant existe : la création est refusée,
+					// la réhabilitation est proposée par défaut.
+					renderDuplicateCandidates(xhr.responseJSON.candidates, $('#duplicateCandidates'));
+					$('#duplicateCandidates').find('.force-create-btn').remove();
+					$('<button type="button" class="btn btn-sm btn-outline-danger force-create-btn mt-1">Créer quand même (homonyme)</button>')
+						.appendTo('#duplicateCandidates')
+						.on('click', function () {
+							forceCreate = true;
+							$form.trigger('submit');
+						});
+					$.notify(xhr.responseJSON.message || 'Un ancien élève correspondant existe déjà.', { className: 'error' });
+				} else {
+					$.notify(msg);
+				}
 			},
 			complete: function () {
 				setTimeout(()=>{$form.find('button[type="submit"]').prop('disabled', false).text('Enregistrer');},5000);
