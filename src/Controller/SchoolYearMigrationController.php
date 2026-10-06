@@ -6,6 +6,7 @@ use App\Entity\MigrationLog;
 use App\Entity\School;
 use App\Entity\SchoolClassPeriod;
 use App\Entity\SchoolPeriod;
+use App\Entity\StudentClass;
 use App\Repository\MigrationLogRepository;
 use App\Repository\SchoolClassPeriodRepository;
 use App\Repository\SchoolPeriodRepository;
@@ -230,6 +231,61 @@ final class SchoolYearMigrationController extends AbstractController
         $this->em->flush();
 
         return $this->json(['ok' => true, 'rows' => $this->migrationService->getClassGradePreview($log, $occId)]);
+    }
+
+    /**
+     * AJAX de l'étape Élèves : promotion forcée d'un redoublant vers une classe
+     * cible choisie (target vide = annulation). Persiste dans stepsState et
+     * renvoie l'aperçu recalculé du détail.
+     */
+    #[Route('/{id}/wizard/step/students/force-promote/{studentClassId}', name: 'app_year_migration_wizard_students_force_promote', methods: ['POST'], requirements: ['studentClassId' => '\d+'])]
+    public function wizardStudentsForcePromote(MigrationLog $log, int $studentClassId, Request $request, SessionInterface $session): JsonResponse
+    {
+        if (!$this->isGranted('perm', 'year_migration.execute')) {
+            return $this->json(['ok' => false, 'message' => 'Accès refusé'], 403);
+        }
+
+        if (!$this->isCsrfTokenValid('wizard_force_' . $log->getId(), $request->request->get('_token'))) {
+            return $this->json(['ok' => false, 'message' => 'Jeton de sécurité invalide.'], 403);
+        }
+
+        $school = $this->getSchool($session);
+        if (!$school || $log->getSchool() !== $school) {
+            throw $this->createAccessDeniedException();
+        }
+
+        if ($log->getStatus() !== 'in_progress') {
+            return $this->json(['ok' => false, 'message' => 'La migration n\'est plus modifiable.']);
+        }
+
+        $studentClass = $this->em->getRepository(StudentClass::class)->find($studentClassId);
+        $sourceSCP    = $studentClass?->getSchoolClassPeriod();
+        if (!$studentClass || !$sourceSCP || $sourceSCP->getSchool() !== $school || $sourceSCP->getPeriod() !== $log->getSourcePeriod()) {
+            return $this->json(['ok' => false, 'message' => 'Élève introuvable dans la période source.'], 404);
+        }
+
+        $raw      = $request->request->get('target');
+        $targetId = ($raw === null || trim((string) $raw) === '') ? null : (int) $raw;
+        $target   = null;
+        if ($targetId !== null) {
+            $target = $this->em->getRepository(SchoolClassPeriod::class)->find($targetId);
+            if (!$target || $target->getSchool() !== $school || $target->getPeriod() !== $log->getTargetPeriod()) {
+                return $this->json(['ok' => false, 'message' => 'Classe cible invalide.'], 400);
+            }
+        }
+
+        $this->migrationService->setStudentForcePromotion($log, $studentClassId, $targetId);
+        $this->em->flush();
+
+        $occId = $sourceSCP->getClassOccurence()?->getId();
+
+        return $this->json([
+            'ok'             => true,
+            'studentClassId' => $studentClassId,
+            'forced'         => $targetId !== null,
+            'targetName'     => $target?->getClassOccurence()?->getName(),
+            'rows'           => $occId !== null ? $this->migrationService->getClassGradePreview($log, $occId) : [],
+        ]);
     }
 
     #[Route('/{id}/wizard/step/{stepKey}/skip', name: 'app_year_migration_step_skip', methods: ['POST'], requirements: ['stepKey' => '[a-z_]+'])]

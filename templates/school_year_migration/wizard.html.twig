@@ -129,9 +129,11 @@
                         établissement sur chaque classe concrète (occurrence). Si plusieurs classes suivantes sont
                         possibles, le choix est requis : les promus d'une classe sans choix restent non affectés.
                         Une classe sans lien bloque l'étape — utilisez le bouton <em>Configurer</em>. Les redoublants
-                        restent dans la classe équivalente. La <strong>note de passage</strong> définie au démarrage
-                        ({{ log.passingGrade }}/20) s'applique par défaut : elle peut être ajustée classe par classe
-                        dans la colonne « Moyenne de passage ».
+                        restent dans la classe équivalente, sauf promotion forcée : dans le détail d'une classe,
+                        le bouton « Forcer la promotion » inscrit un redoublant dans la classe suivante choisie.
+                        La <strong>note de passage</strong> définie au démarrage ({{ log.passingGrade }}/20)
+                        s'applique par défaut : elle peut être ajustée classe par classe dans la colonne
+                        « Moyenne de passage ».
                     </p>
                     <div class="table-responsive">
                         <table class="table table-bordered align-middle mb-0">
@@ -236,14 +238,16 @@
                                                         <th>Élève</th>
                                                         <th class="text-center">Moyenne</th>
                                                         <th class="text-center">Statut</th>
-                                                        {% if row.candidates|length > 1 %}
+                                                        {% if row.candidates is not empty and not row.finalLevel %}
                                                         <th class="text-center">Classe cible</th>
                                                         {% endif %}
                                                     </tr>
                                                 </thead>
                                                 <tbody id="wizard-students-body-{{ row.sourceSCPId }}">
                                                     {% for stat in row.preview.studentStats %}
-                                                    <tr data-student-class-id="{{ stat.studentClassId }}">
+                                                    <tr data-student-class-id="{{ stat.studentClassId }}"
+                                                        data-force-url="{{ path('app_year_migration_wizard_students_force_promote', {id: log.id, studentClassId: stat.studentClassId}) }}"
+                                                        data-force-csrf="{{ csrf_token('wizard_force_' ~ log.id) }}">
                                                         <td>
                                                             {{ stat.student.firstName ?? '' }} {{ stat.student.lastName ?? stat.student.username }}
                                                         </td>
@@ -257,23 +261,43 @@
                                                             {% endif %}
                                                         </td>
                                                         <td class="text-center wizard-status">
-                                                            {% if stat.eligible %}
+                                                            {% if stat.forcedTargetId is defined and stat.forcedTargetId %}
+                                                                <span class="badge bg-primary">Promu (forcé)</span>
+                                                            {% elseif stat.eligible %}
                                                                 <span class="badge bg-success">Promu</span>
                                                             {% else %}
                                                                 <span class="badge bg-danger">Redoublant</span>
                                                             {% endif %}
                                                         </td>
-                                                        {% if row.candidates|length > 1 %}
-                                                        <td class="text-center" style="min-width: 170px;">
-                                                            <select name="student_mapping[{{ stat.studentClassId }}]"
-                                                                    class="form-select form-select-sm wizard-student-target"
-                                                                    {% if not stat.eligible %}disabled{% endif %}>
-                                                                <option value="">— Choisir —</option>
-                                                                {% for targetId, targetName in row.candidates %}
-                                                                <option value="{{ targetId }}">{{ targetName }}</option>
-                                                                {% endfor %}
-                                                            </select>
-                                                        </td>
+                                                        {% if row.candidates is not empty and not row.finalLevel %}
+                                                            {% set statMode = stat.forcedTargetId is defined and stat.forcedTargetId ? 'forced' : (stat.eligible ? (row.candidates|length > 1 ? 'eligible-select' : 'eligible-auto') : (row.candidates|length > 1 ? 'force-multi' : 'force-1')) %}
+                                                            <td class="text-center wizard-target" style="min-width: 190px;" data-mode="{{ statMode }}">
+                                                                {% if statMode == 'forced' %}
+                                                                    <span class="badge bg-primary"><i class="ti ti-arrow-up me-1"></i>Promu (forcé) → {{ row.candidates[stat.forcedTargetId] ?? '?' }}</span>
+                                                                    <button type="button" class="btn btn-sm btn-outline-secondary wizard-force-cancel" title="Annuler la promotion forcée"><i class="ti ti-x"></i></button>
+                                                                {% elseif statMode == 'eligible-select' %}
+                                                                    <select name="student_mapping[{{ stat.studentClassId }}]"
+                                                                            class="form-select form-select-sm wizard-student-target">
+                                                                        <option value="">— Choisir —</option>
+                                                                        {% for targetId, targetName in row.candidates %}
+                                                                        <option value="{{ targetId }}">{{ targetName }}</option>
+                                                                        {% endfor %}
+                                                                    </select>
+                                                                {% elseif statMode == 'eligible-auto' %}
+                                                                    <span class="text-muted">auto</span>
+                                                                {% elseif statMode == 'force-multi' %}
+                                                                    <select class="form-select form-select-sm d-inline-block wizard-force-target" style="width: auto;">
+                                                                        <option value="">— Choisir —</option>
+                                                                        {% for targetId, targetName in row.candidates %}
+                                                                        <option value="{{ targetId }}">{{ targetName }}</option>
+                                                                        {% endfor %}
+                                                                    </select>
+                                                                    <button type="button" class="btn btn-sm btn-outline-primary wizard-force-btn ms-1" title="Promouvoir cet élève dans la classe choisie"><i class="ti ti-arrow-up"></i> Forcer</button>
+                                                                {% else %}
+                                                                    {% set singleTarget = row.candidates|keys|first %}
+                                                                    <button type="button" class="btn btn-sm btn-outline-primary wizard-force-btn" data-target="{{ singleTarget }}" title="Promouvoir dans {{ row.candidates[singleTarget] }}"><i class="ti ti-arrow-up me-1"></i>Forcer la promotion</button>
+                                                                {% endif %}
+                                                            </td>
                                                         {% endif %}
                                                     </tr>
                                                     {% endfor %}
@@ -615,6 +639,67 @@
     // (mise à jour chirurgicale : les selects individuels des élèves sont conservés).
     // Si l'éligibilité d'une classe franchit zéro, l'affichage de la colonne cible
     // change de nature (choix de classe / tiret) : on recharge la page pour rester cohérent.
+    // Échappe une valeur avant insertion HTML.
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+    }
+
+    // Rend la colonne « Classe cible » d'une ligne du détail : choix de l'élève
+    // (promu), promotion forcée (redoublant promu manuellement) ou bouton Forcer.
+    // Le mode détermine la structure ; une valeur déjà choisie est conservée.
+    function renderTargetCell(tr, stat, row) {
+        var cell = tr.querySelector('.wizard-target');
+        if (!cell) { return; }
+        var candidateCount = row.candidates ? Object.keys(row.candidates).length : 0;
+        var mode = stat.forcedTargetId
+            ? 'forced'
+            : (stat.eligible
+                ? (candidateCount > 1 ? 'eligible-select' : 'eligible-auto')
+                : (candidateCount > 1 ? 'force-multi' : 'force-1'));
+        if (cell.dataset.mode === mode) {
+            var sel = cell.querySelector('.wizard-student-target');
+            if (sel) { sel.disabled = !stat.eligible; }
+            return;
+        }
+        var keep = '';
+        var prevSel = cell.querySelector('.wizard-student-target, .wizard-force-target');
+        if (prevSel) { keep = prevSel.value; }
+        var optionsHtml = '';
+        Object.keys(row.candidates || {}).forEach(function (id) {
+            optionsHtml += '<option value="' + id + '">' + escapeHtml(row.candidates[id]) + '</option>';
+        });
+        var html = '';
+        if (mode === 'forced') {
+            html = '<span class="badge bg-primary"><i class="ti ti-arrow-up me-1"></i>Promu (forcé) → ' +
+                   escapeHtml(row.candidates[stat.forcedTargetId] || '?') + '</span> ' +
+                   '<button type="button" class="btn btn-sm btn-outline-secondary wizard-force-cancel" title="Annuler la promotion forcée"><i class="ti ti-x"></i></button>';
+        } else if (mode === 'eligible-select') {
+            html = '<select name="student_mapping[' + stat.studentClassId + ']" class="form-select form-select-sm wizard-student-target">' +
+                   '<option value="">— Choisir —</option>' + optionsHtml + '</select>';
+        } else if (mode === 'eligible-auto') {
+            html = '<span class="text-muted">auto</span>';
+        } else if (mode === 'force-multi') {
+            html = '<select class="form-select form-select-sm d-inline-block wizard-force-target" style="width: auto;">' +
+                   '<option value="">— Choisir —</option>' + optionsHtml + '</select> ' +
+                   '<button type="button" class="btn btn-sm btn-outline-primary wizard-force-btn ms-1" title="Promouvoir cet élève dans la classe choisie"><i class="ti ti-arrow-up"></i> Forcer</button>';
+        } else {
+            var ids = Object.keys(row.candidates || {});
+            html = '<button type="button" class="btn btn-sm btn-outline-primary wizard-force-btn" data-target="' + ids[0] + '" title="Promouvoir dans ' +
+                   escapeHtml(row.candidates[ids[0]] || '') + '"><i class="ti ti-arrow-up me-1"></i>Forcer la promotion</button>';
+        }
+        cell.innerHTML = html;
+        cell.dataset.mode = mode;
+        if (keep) {
+            var newSel = cell.querySelector('.wizard-student-target, .wizard-force-target');
+            if (newSel) {
+                var exists = Array.prototype.some.call(newSel.options, function (o) { return o.value === keep; });
+                if (exists) { newSel.value = keep; }
+            }
+        }
+    }
+
     function applyGradeUpdate(data) {
         var crossedZero = false;
         (data.rows || []).forEach(function (row) {
@@ -655,16 +740,13 @@
                     }
                     var statusCell = tr.querySelector('.wizard-status');
                     if (statusCell) {
-                        statusCell.innerHTML = stat.eligible
-                            ? '<span class="badge bg-success">Promu</span>'
-                            : '<span class="badge bg-danger">Redoublant</span>';
+                        statusCell.innerHTML = stat.forcedTargetId
+                            ? '<span class="badge bg-primary">Promu (forcé)</span>'
+                            : (stat.eligible
+                                ? '<span class="badge bg-success">Promu</span>'
+                                : '<span class="badge bg-danger">Redoublant</span>');
                     }
-                    var targetSelect = tr.querySelector('.wizard-student-target');
-                    if (targetSelect) {
-                        // Redoublant : la valeur reste mais est ignorée à l'exécution ;
-                        // elle est retrouvée si l'élève redevient promu.
-                        targetSelect.disabled = !stat.eligible;
-                    }
+                    renderTargetCell(tr, stat, row);
                 });
             }
         });
@@ -702,6 +784,43 @@
                 el.value = previousValue;
                 alert('Erreur réseau. Réessayez.');
             });
+        });
+    });
+
+    // Promotion forcée / annulation (délégation : les boutons sont re-rendus par renderTargetCell).
+    document.addEventListener('click', function (event) {
+        var btn = event.target.closest('.wizard-force-btn, .wizard-force-cancel');
+        if (!btn) { return; }
+        var tr = btn.closest('tr[data-force-url]');
+        if (!tr) { return; }
+        var params = new URLSearchParams();
+        params.append('_token', tr.dataset.forceCsrf || '');
+        if (btn.classList.contains('wizard-force-btn')) {
+            var target = btn.dataset.target || '';
+            if (!target) {
+                var targetSelect = tr.querySelector('.wizard-force-target');
+                if (targetSelect) { target = targetSelect.value; }
+            }
+            if (target) { params.append('target', target); }
+        }
+        btn.disabled = true;
+        fetch(tr.dataset.forceUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: params.toString()
+        })
+        .then(function (response) { return response.json(); })
+        .then(function (data) {
+            if (data.ok) {
+                applyGradeUpdate(data);
+            } else {
+                alert(data.message || 'Erreur lors de la promotion forcée.');
+                btn.disabled = false;
+            }
+        })
+        .catch(function () {
+            alert('Erreur réseau. Réessayez.');
+            btn.disabled = false;
         });
     });
 })();

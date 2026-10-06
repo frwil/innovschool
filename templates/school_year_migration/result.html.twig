@@ -74,6 +74,11 @@
                         <div class="text-muted small">Moyenne &ge; {{ passingGrade }}/20</div>
                     </div>
                     <div class="col">
+                        <div class="display-6 fw-bold text-info">{{ studentStats.forced ?? 0 }}</div>
+                        <div class="text-muted">Promotion(s) forcée(s)</div>
+                        <div class="text-muted small">Redoublant(s) promu(s) manuellement</div>
+                    </div>
+                    <div class="col">
                         <div class="display-6 fw-bold text-warning">{{ studentStats.repeated }}</div>
                         <div class="text-muted">Élève(s) redoublant(s)</div>
                         <div class="text-muted small">Moyenne &lt; {{ passingGrade }}/20</div>

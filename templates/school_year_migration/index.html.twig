@@ -146,6 +146,7 @@
                             <th>Note de passage</th>
                             <th>Promus</th>
                             <th>Redoublants</th>
+                            <th>Forcées</th>
                             <th>Date</th>
                             <th>Par</th>
                             <th>Statut</th>
@@ -163,6 +164,7 @@
                         <td>{{ log.passingGrade }}/20</td>
                         <td><span class="badge bg-success">{{ log.studentStats.promoted ?? 0 }}</span></td>
                         <td><span class="badge bg-warning text-dark">{{ log.studentStats.repeated ?? 0 }}</span></td>
+                        <td><span class="badge bg-info">{{ log.studentStats.forced ?? 0 }}</span></td>
                         <td>{{ log.executedAt|date('d/m/Y H:i') }}</td>
                         <td>{{ log.executedBy }}</td>
                         <td>

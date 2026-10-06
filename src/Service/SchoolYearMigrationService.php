@@ -187,6 +187,7 @@ class SchoolYearMigrationService
 
         if ($stepKey === 'students') {
             $grades  = $this->loadPassingGrades($log);
+            $forced  = $this->loadForcedPromotions($log);
             $preview = $this->previewStudentMigration($school, $log->getSourcePeriod(), $log->getPassingGrade(), $grades);
             $targetByOccurence = $this->getTargetSCPsByOccurence($school, $log->getTargetPeriod());
             $rows = [];
@@ -204,6 +205,12 @@ class SchoolYearMigrationService
                         }
                     }
                 }
+                // Annotation des promotions forcées : détail par élève + compteur de classe.
+                $row['studentStats'] = array_map(function (array $stat) use ($forced) {
+                    $stat['forcedTargetId'] = $forced[$stat['studentClassId']] ?? null;
+                    return $stat;
+                }, $row['studentStats']);
+                $row['forcedCount'] = count(array_filter($row['studentStats'], fn (array $s) => $s['forcedTargetId'] !== null));
                 $rows[] = [
                     'preview'     => $row,
                     'sourceSCPId' => $sourceSCP->getId(),
@@ -270,12 +277,27 @@ class SchoolYearMigrationService
      */
     public function getClassGradePreview(MigrationLog $log, int $occId): array
     {
-        $grades = $this->loadPassingGrades($log);
-        $rows   = [];
-        foreach ($this->previewStudentMigration($log->getSchool(), $log->getSourcePeriod(), $log->getPassingGrade(), $grades) as $row) {
+        $grades            = $this->loadPassingGrades($log);
+        $forced            = $this->loadForcedPromotions($log);
+        $school            = $log->getSchool();
+        $targetByOccurence = $this->getTargetSCPsByOccurence($school, $log->getTargetPeriod());
+        $rows              = [];
+        foreach ($this->previewStudentMigration($school, $log->getSourcePeriod(), $log->getPassingGrade(), $grades) as $row) {
             $scp = $row['schoolClassPeriod'];
             if ($scp->getClassOccurence()?->getId() !== $occId) {
                 continue;
+            }
+            $occurence = $scp->getClassOccurence();
+            $config    = $this->getSchoolConfig($school, $occurence);
+            // Mêmes candidats que le rendu du wizard : nécessaires au rendu JS
+            // de la colonne cible (promotion forcée / choix par élève).
+            $candidates = [];
+            if ($config !== null) {
+                foreach ($config->getNextOccurences() as $nextOccurence) {
+                    foreach ($targetByOccurence[$nextOccurence->getId()] ?? [] as $targetSCP) {
+                        $candidates[$targetSCP->getId()] = $targetSCP->getClassOccurence()?->getName() ?? '(ID ' . $targetSCP->getId() . ')';
+                    }
+                }
             }
             $rows[] = [
                 'sourceSCPId'  => $scp->getId(),
@@ -284,18 +306,48 @@ class SchoolYearMigrationService
                 'total'        => $row['total'],
                 'eligible'     => $row['eligible'],
                 'nonEligible'  => $row['nonEligible'],
-                'studentStats' => array_map(function (array $stat) {
+                'candidates'   => $candidates,
+                'finalLevel'   => $config !== null && $config->isFinalLevel(),
+                'studentStats' => array_map(function (array $stat) use ($forced) {
                     $student = $stat['student'];
                     return [
                         'studentClassId' => $stat['studentClassId'],
                         'name'           => $student->getUsername() ?? $student->getFullName(),
                         'average'        => $stat['average'],
                         'eligible'       => $stat['eligible'],
+                        'forcedTargetId' => $forced[$stat['studentClassId']] ?? null,
                     ];
                 }, $row['studentStats']),
             ];
         }
         return $rows;
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // PROMOTION FORCÉE (étape Élèves)
+    // Un redoublant peut être promu manuellement dans une classe cible choisie.
+    // Cibles stockées sous la clé privée « _forced_promotions » du stepsState
+    // (studentClassId => targetSCPId) : l'absence de clé = redoublant normal.
+    // ─────────────────────────────────────────────────────────────────────────
+
+    /** Map « _forced_promotions » : studentClassId => targetSCPId. */
+    private function loadForcedPromotions(MigrationLog $log): array
+    {
+        return ($log->getStepsState() ?? [])['_forced_promotions'] ?? [];
+    }
+
+    /** Définit (ou supprime avec null) la promotion forcée d'un élève. */
+    public function setStudentForcePromotion(MigrationLog $log, int $studentClassId, ?int $targetSCPId): void
+    {
+        $state  = $log->getStepsState() ?? [];
+        $forced = $state['_forced_promotions'] ?? [];
+        if ($targetSCPId === null) {
+            unset($forced[$studentClassId]);
+        } else {
+            $forced[$studentClassId] = $targetSCPId;
+        }
+        $state['_forced_promotions'] = $forced;
+        $log->setStepsState($state);
     }
 
     /**
@@ -333,6 +385,7 @@ class SchoolYearMigrationService
         // promu doit en plus avoir un choix individuel valide.
         if ($stepKey === 'students') {
             $grades            = $this->loadPassingGrades($log);
+            $forcedPromotions  = $this->loadForcedPromotions($log);
             $targetByOccurence = $this->getTargetSCPsByOccurence($school, $targetPeriod);
             $missing   = [];
             $unchosen  = [];
@@ -359,6 +412,10 @@ class SchoolYearMigrationService
                 }
                 foreach ($row['studentStats'] as $stat) {
                     if (!$stat['eligible']) {
+                        continue;
+                    }
+                    // Promotion forcée : la classe cible est déjà choisie explicitement.
+                    if (isset($forcedPromotions[$stat['studentClassId']])) {
                         continue;
                     }
                     $mapped = $studentMapping[$stat['studentClassId']] ?? null;
@@ -455,6 +512,7 @@ class SchoolYearMigrationService
                 $log->setStudentStats([
                     'promoted'        => ($stats['promoted'] ?? 0) + $studentResult['promoted'],
                     'repeated'        => ($stats['repeated'] ?? 0) + $studentResult['repeated'],
+                    'forced'          => ($stats['forced'] ?? 0) + $studentResult['forced'],
                     'skipped'         => ($stats['skipped'] ?? 0) + $studentResult['skipped'],
                     'existing'        => ($stats['existing'] ?? 0) + $studentResult['existing'],
                     // 1ers versements à 0 € créés (et élèves sans modalité « base »).
@@ -702,7 +760,8 @@ class SchoolYearMigrationService
      * Promus : choix individuel de l'élève prioritaire (classes à plusieurs suivantes),
      * sinon mapping explicite du formulaire, sinon l'occurrence suivante configurée sur
      * l'occurrence source (exactement une → automatique ; plusieurs ou aucune → non affecté).
-     * Redoublants : classe de même occurrence (inchangé).
+     * Redoublants : classe de même occurrence (inchangé), sauf promotion forcée
+     * (clé « _forced_promotions » du stepsState) qui prime sur le redoublement.
      */
     private function runStudentsStep(MigrationLog $log, array $classMapping, array $studentMapping = []): array
     {
@@ -711,8 +770,9 @@ class SchoolYearMigrationService
         $targetPeriod = $log->getTargetPeriod();
         $passingGrade = $log->getPassingGrade();
         $grades       = $this->loadPassingGrades($log);
+        $forcedPromotions = $this->loadForcedPromotions($log);
 
-        $promoted = 0; $repeated = 0; $skipped = 0; $existingCount = 0; $errors = 0;
+        $promoted = 0; $repeated = 0; $forced = 0; $skipped = 0; $existingCount = 0; $errors = 0;
         $studentClasses = [];
         $skippedStudents = [];
         $payments        = [];
@@ -774,6 +834,15 @@ class SchoolYearMigrationService
                 $student = $studentClass->getStudent();
                 $name    = $student->getFullName() ?? $student->getUsername();
 
+                // Promotion forcée (décision manuelle sur un redoublant) : cible explicite.
+                $forcedTargetId = $forcedPromotions[$studentClass->getId()] ?? null;
+                $forcedTarget   = null;
+                $invalidForced  = false;
+                if ($forcedTargetId !== null) {
+                    $forcedTarget = $this->resolveExplicitTarget($school, $targetPeriod, $forcedTargetId);
+                    if ($forcedTarget === null) { $invalidForced = true; }
+                }
+
                 if ($isEligible && $invalidStudentChoice) {
                     $errors++; $skipped++;
                     $skippedStudents[] = ['name' => $name, 'className' => $sourceName, 'average' => $avg, 'reason' => 'Classe cible invalide.'];
@@ -781,6 +850,13 @@ class SchoolYearMigrationService
                     $sc = $this->enrollStudent($student, $studentChoiceTarget);
                     if ($sc) { $studentClasses[] = $sc; $promoted++; $this->createFirstPayment($student, $studentChoiceTarget, $payments, $noModalPayments); }
                     else { $existingCount++; } // déjà inscrit dans la classe cible
+                } elseif ($invalidForced) {
+                    $errors++; $skipped++;
+                    $skippedStudents[] = ['name' => $name, 'className' => $sourceName, 'average' => $avg, 'reason' => 'Promotion forcée : classe cible invalide.'];
+                } elseif ($forcedTarget) {
+                    $sc = $this->enrollStudent($student, $forcedTarget);
+                    if ($sc) { $studentClasses[] = $sc; $forced++; $this->createFirstPayment($student, $forcedTarget, $payments, $noModalPayments); }
+                    else { $existingCount++; }
                 } elseif ($isEligible && $invalidMapping) {
                     $errors++; $skipped++;
                     $skippedStudents[] = ['name' => $name, 'className' => $sourceName, 'average' => $avg, 'reason' => 'Classe cible invalide.'];
@@ -811,14 +887,16 @@ class SchoolYearMigrationService
             'errors'          => $errors,
             'promoted'        => $promoted,
             'repeated'        => $repeated,
+            'forced'          => $forced,
             'skipped'         => $skipped,
             'message'         => sprintf(
-                '%d inscrit(s), %d déjà inscrit(s), %d non affecté(s), %d premier(s) versement(s) à 0 €%s.',
+                '%d inscrit(s), %d déjà inscrit(s), %d non affecté(s), %d premier(s) versement(s) à 0 €%s%s.',
                 count($studentClasses),
                 $existingCount,
                 $skipped,
                 count($payments),
-                $noModalPayments > 0 ? sprintf(' (%d élève(s) sans modalité « base »)', $noModalPayments) : ''
+                $noModalPayments > 0 ? sprintf(' (%d élève(s) sans modalité « base »)', $noModalPayments) : '',
+                $forced > 0 ? sprintf(' Dont %d promotion(s) forcée(s)', $forced) : ''
             ),
             'studentClasses'  => $studentClasses,
             'skippedStudents' => $skippedStudents,
