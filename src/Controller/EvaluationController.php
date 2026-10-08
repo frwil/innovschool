@@ -815,6 +815,7 @@ class EvaluationController extends AbstractController
         $sectionId = $request->query->get('sectionId');
         $classId = $request->query->get('classId');
         $evaluationFrameId = $request->query->get('evaluationFrameId');
+        $isAnnual = ($evaluationFrameId === 'all');
         $evaluationTimeId = $request->query->all('evaluationTimeId');
         $subjectId = $request->query->get('subjectId'); // ID de la matière choisie
 
@@ -822,7 +823,7 @@ class EvaluationController extends AbstractController
         // Récupérer les entités associées
         $section = $sectionRepo->find($sectionId);
         $class = $classRepo->find($classId);
-        $evaluationFrame = $frameRepo->find($evaluationFrameId);
+        $evaluationFrame = $isAnnual ? null : $frameRepo->find($evaluationFrameId);
         $subject = $subjectId ? $this->entityManager->getRepository(StudySubject::class)->find((int) $subjectId) : null;
 
         // Sous-périodes choisies par l'utilisateur : c'est la sélection qui pilote
@@ -851,6 +852,33 @@ class EvaluationController extends AbstractController
             return strcmp($a->getStudent()->getFullName(), $b->getStudent()->getFullName());
         });
         $period = $this->currentPeriod;
+
+        // Mode Annuel (frame « all ») : périodicité et sous-périodes sont désactivées
+        // côté formulaire. On charge toutes les sous-périodes de l'année groupées par
+        // frame ; sans aucune note, la configuration des évaluations pilote la grille.
+        $groupedFrames = null;
+        if ($isAnnual) {
+            $this->bulletinContextService->initializeFromSession();
+            try {
+                $groupedFrames = $this->bulletinDataService->getAllTimesGroupedByFrame((int)$classId, $this->bulletinContextService);
+            } catch (\InvalidArgumentException $e) {
+                // Aucun module dans la classe : la grille restera vide (message dédié).
+                $groupedFrames = [];
+            }
+            $timeIds = [];
+            foreach ($groupedFrames as $frameData) {
+                foreach ($frameData['times'] as $time) {
+                    $timeIds[] = $time->getId();
+                }
+            }
+            if (empty($timeIds)) {
+                $configRows = $evaluationRepo->findEvaluationPeriodsByClass((int)$classId, $this->currentSchool->getId(), $period->getId());
+                foreach ($configRows as $row) {
+                    $timeIds[] = (int) $row['evaluationTimeId'];
+                }
+            }
+            $evaluationT = $timeIds ? $timeRepo->findBy(['id' => $timeIds], ['id' => 'ASC']) : [];
+        }
 
         // Récupérer les modules associés à la matière choisie
         $classSubjectModules = [];
@@ -900,6 +928,8 @@ class EvaluationController extends AbstractController
             'evaluations' => $evaluations,
             'selectedSubject' => $subject, // StudySubject choisie
             'moduleLen' => $moduleLen,
+            'isAnnual' => $isAnnual,
+            'groupedFrames' => $groupedFrames,
         ]);
     }
 
