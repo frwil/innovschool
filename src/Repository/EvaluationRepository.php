@@ -153,6 +153,7 @@ class EvaluationRepository extends ServiceEntityRepository
             ->join('student.schoolClassPeriod', 'classPeriod')
             ->where('classPeriod = :class')
             ->andWhere('time IN (:periods)')
+            ->andWhere('student.enabled = 1') // Comptes désactivés exclus
             ->setParameter('class', $class)
             ->setParameter('periods', $periods);
 
@@ -178,6 +179,7 @@ class EvaluationRepository extends ServiceEntityRepository
             ->join('st.schoolClassPeriod', 'scp')
             ->where('scp = :class')
             ->andWhere('t IN (:periods)')
+            ->andWhere('st.enabled = 1') // Comptes désactivés exclus
             ->setParameter('class', $class)
             ->setParameter('periods', $periods);
 

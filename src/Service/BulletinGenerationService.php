@@ -75,8 +75,8 @@ class BulletinGenerationService
             throw new \InvalidArgumentException('Classe non trouvée');
         }
 
-        $students = $this->studentRepo->findBy(['schoolClassPeriod' => $class]);
-        
+        $students = $this->studentRepo->findActiveBySchoolClassPeriod($class);
+
         if (empty($students)) {
             throw new \InvalidArgumentException('Aucun étudiant trouvé dans cette classe');
         }
@@ -171,7 +171,7 @@ class BulletinGenerationService
             $groupedFrames = $this->bulletinDataService->getAllTimesGroupedByFrame($dto->classId, $context);
         }
 
-        $students = $this->studentRepo->findBy(['schoolClassPeriod' => $class]);
+        $students = $this->studentRepo->findActiveBySchoolClassPeriod($class);
         $bulletinsHtml = [];
 
         foreach ($students as $index => $student) {

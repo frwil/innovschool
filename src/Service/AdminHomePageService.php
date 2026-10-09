@@ -16,7 +16,7 @@ class AdminHomePageService
     public function getModel(): AdminHomePageDTO
     {
         $model = new AdminHomePageDTO();
-        $countStudents = $this->entityManager->getRepository(User::class)->count(['roles' => [UserRoleEnum::STUDENT->value]]);
+        $countStudents = $this->entityManager->getRepository(User::class)->count(['roles' => [UserRoleEnum::STUDENT->value], 'enabled' => true]);
         $model->students = $countStudents;
         $countTeachers = $this->entityManager->getRepository(User::class)->count(['roles' => [UserRoleEnum::TEACHER->value]]);
         $model->teachers = $countTeachers;

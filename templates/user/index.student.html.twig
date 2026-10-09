@@ -232,6 +232,30 @@
 	</div>
 </div>
 
+<!-- Modal Raison obligatoire (désactivation / réactivation) -->
+<div class="modal fade" id="toggleReasonModal" tabindex="-1" aria-labelledby="toggleReasonModalLabel"
+	aria-hidden="true">
+	<div class="modal-dialog">
+		<div class="modal-content">
+			<div class="modal-header">
+				<h5 class="modal-title" id="toggleReasonModalLabel">Changement de statut</h5>
+				<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+			</div>
+			<div class="modal-body">
+				<p class="mb-2" id="toggleReasonText"></p>
+				<label for="toggleReason" class="form-label fw-bold">Raison <span class="text-danger">*</span></label>
+				<textarea id="toggleReason" class="form-control" rows="3" maxlength="255" required
+					placeholder="Ex. : départ de l'école, réintégration, erreur d'inscription..."></textarea>
+				<div class="form-text">La raison est obligatoire et sera conservée dans l'historique de statut.</div>
+			</div>
+			<div class="modal-footer">
+				<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annuler</button>
+				<button type="button" class="btn btn-primary" id="toggleReasonSubmit">Valider</button>
+			</div>
+		</div>
+	</div>
+</div>
+
 <!-- Modal Import Excel -->
 <div class="modal fade" id="importStudentsExcelModal" tabindex="-1" aria-labelledby="importStudentsExcelModalLabel"
 	aria-hidden="true">
@@ -405,19 +429,38 @@ $('#parentGender').val($(this).data('gender')).trigger('change');
 
 	// Activation / désactivation d'un compte élève (la connexion est bloquée
 	// côté serveur par UserChecker tant que le compte est désactivé).
+	// La raison est obligatoire : modale de saisie avant l'envoi.
 	$('#studentsTable').on('click', '.toggle-enabled-btn', function () {
 		var $btn = $(this);
-		var id = $btn.data('id');
+		$('#toggleReasonModal').data('student-id', $btn.data('id'))
+			.data('student-name', $btn.data('name'))
+			.data('action', $btn.data('currently-enabled') === '1' ? 'désactiver' : 'réactiver')
+			.data('btn', $btn);
 		var name = $btn.data('name');
-		var action = $btn.data('currently-enabled') === '1' ? 'désactiver' : 'réactiver';
-		if (!confirm('Voulez-vous vraiment ' + action + ' le compte de ' + name + ' ?')) {
+		var action = $btn.data('currently-enabled') === '1' ? 'Désactiver' : 'Réactiver';
+		$('#toggleReasonModalLabel').text(action + ' le compte');
+		$('#toggleReasonText').text('Voulez-vous vraiment ' + action.toLowerCase() + ' le compte de ' + name + ' ?');
+		$('#toggleReason').val('');
+		$('#toggleReasonSubmit').prop('disabled', false);
+		$('#toggleReasonModal').modal('show');
+	});
+
+	$('#toggleReasonSubmit').on('click', function () {
+		var $modal = $('#toggleReasonModal');
+		var id = $modal.data('student-id');
+		var reason = $('#toggleReason').val().trim();
+		if (!reason) {
+			$.notify('La raison est obligatoire.', { className: 'error' });
 			return;
 		}
-		$btn.prop('disabled', true);
+		var $btn = $modal.data('btn');
+		$(this).prop('disabled', true);
 		$.ajax({
 			url: "{{ path('app_student_toggle_enabled', {'id': 'ID_PLACEHOLDER'}) }}".replace('ID_PLACEHOLDER', id),
 			method: 'POST',
+			data: { reason: reason },
 			success: function (data) {
+				$('#toggleReasonModal').modal('hide');
 				$.notify(data.message || 'Statut mis à jour.', 'success');
 				setTimeout(()=>{location.reload();},800);
 			},
@@ -425,7 +468,8 @@ $('#parentGender').val($(this).data('gender')).trigger('change');
 				var msg = 'Erreur lors de la mise à jour du statut.';
 				if (xhr.responseJSON && xhr.responseJSON.error) msg = xhr.responseJSON.error;
 				$.notify(msg, { className: 'error' });
-				$btn.prop('disabled', false);
+				$('#toggleReasonSubmit').prop('disabled', false);
+				if ($btn) $btn.prop('disabled', false);
 			}
 		});
 	});
@@ -446,9 +490,12 @@ $('#parentGender').val($(this).data('gender')).trigger('change');
 					html = '<li class="list-group-item text-muted">Aucun changement de statut enregistré.</li>';
 				} else {
 					data.forEach(function (event) {
-						html += '<li class="list-group-item d-flex justify-content-between align-items-center">'
+						html += '<li class="list-group-item">'
+							+ '<div class="d-flex justify-content-between align-items-center">'
 							+ '<span>' + (event.enabled ? '<span class="badge bg-success">Réactivation</span>' : '<span class="badge bg-danger">Désactivation</span>')
 							+ ' <small class="text-muted">' + event.changedAt + (event.performedBy ? ' par ' + $('<div>').text(event.performedBy).html() : '') + '</small></span>'
+							+ '</div>'
+							+ (event.reason ? '<small class="text-muted">Raison : ' + $('<div>').text(event.reason).html() + '</small>' : '')
 							+ '</li>';
 					});
 				}

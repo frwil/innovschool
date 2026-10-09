@@ -74,7 +74,7 @@ class GenerateAllBulletinsPdfMessageHandler
                 throw new \Exception('Données manquantes pour la génération PDF');
             }
 
-            $students = $this->studentRepo->findBy(['schoolClassPeriod' => $class]);
+            $students = $this->studentRepo->findActiveBySchoolClassPeriod($class);
             $totalStudents = count($students);
 
             $this->logger->info('👨‍🎓 Étudiants trouvés', [

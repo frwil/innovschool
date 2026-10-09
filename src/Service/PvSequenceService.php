@@ -53,7 +53,7 @@ class PvSequenceService
     {
         $infos = [];
 
-        $headcount = sizeof($this->schoolClassPeriod->getStudents());
+        $headcount = sizeof($this->schoolClassPeriod->getActiveStudents());
         $infos['headcount'] = $headcount;
 
         $fermales = 0;
@@ -61,7 +61,7 @@ class PvSequenceService
         $repeated = 0;
 
         /** @var \App\Entity\User */
-        foreach ($this->schoolClassPeriod->getStudents() as $student) {
+        foreach ($this->schoolClassPeriod->getActiveStudents() as $student) {
             if ($student->isRepeated()) {
                 $repeated++;
             }
@@ -462,7 +462,7 @@ class PvSequenceService
 
     public function countAdmitedByGenderRate(): array
     {
-        $total = sizeof($this->schoolClassPeriod->getStudents());
+        $total = sizeof($this->schoolClassPeriod->getActiveStudents());
         $admitted = $this->countAdmitedByGender();
         $infos = $this->getPvHeadInfos();
         

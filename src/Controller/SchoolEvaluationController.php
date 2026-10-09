@@ -169,7 +169,7 @@ final class SchoolEvaluationController extends AbstractController
 
 
             return $this->render('school_evaluation/report.card.html.twig', [
-                'students' => $schoolClassPeriod->getStudents(),
+                'students' => $schoolClassPeriod->getActiveStudents(),
                 'form' => $form->createView(),
                 'evaluation' => $evaluation,
                 'section' => $section,
@@ -226,7 +226,7 @@ final class SchoolEvaluationController extends AbstractController
 
 
             return $this->render('school_evaluation/report.card.frame.html.twig', [
-                'students' => $schoolClassPeriod->getStudents(),
+                'students' => $schoolClassPeriod->getActiveStudents(),
                 'form' => $form->createView(),
                 'evaluation' => $evaluation,
                 'section' => $section,

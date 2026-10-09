@@ -352,7 +352,7 @@ final class SchoolClassPeriodController extends AbstractController
 
         // Exclure les classes sans élèves
         $classes = array_filter($classes, function (SchoolClassPeriod $class) {
-            return $class->getStudentClasses()->count() > 0;
+            return count($class->getActiveStudentClasses()) > 0;
         });
 
         $data = [];
@@ -382,7 +382,7 @@ final class SchoolClassPeriodController extends AbstractController
         if (in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             $schoolClassPeriod = $this->entityManager->getRepository(SchoolClassPeriod::class)->findBy(['period' => $this->currentPeriod, 'school' => $this->currentSchool]);
             foreach ($schoolClassPeriod as $scp) {
-                $studentClasses[] = $scp->getStudentClasses()->toArray();
+                $studentClasses[] = $scp->getActiveStudentClasses();
             }
 
             if ($studentClasses) {
@@ -452,14 +452,14 @@ final class SchoolClassPeriodController extends AbstractController
             // Récupérer les classes associées à la section
             $classes = $schoolClassRepository->findBy(['school' => $this->currentSchool, 'period' => $this->currentPeriod]);
             $classes = array_filter($classes, function (SchoolClassPeriod $class) use ($sectionCategories) {
-                return $class->getStudentClasses()->count() > 0 && in_array($class->getClassOccurence()->getClasse()->getId(), $sectionCategories); // Filtrer les classes avec des étudiants
+                return count($class->getActiveStudentClasses()) > 0 && in_array($class->getClassOccurence()->getClasse()->getId(), $sectionCategories); // Filtrer les classes avec des étudiants
             });
         } else {
             $config = $this->getConnectedUser()->getBaseConfigurations()->toArray();
             if (count($config) > 0) {
                 $classes = $schoolClassRepository->findBy(['id' => count($config[0]->getClassList()) > 0 ? $config[0]->getClassList() : $classes]);
                 $classes = array_filter($classes, function (SchoolClassPeriod $class) use ($sectionCategories) {
-                    return count($class->getStudentClasses()->toArray()) > 0 && in_array($class->getClassOccurence()->getClasse()->getId(), $sectionCategories); // Filtrer les classes avec des étudiants
+                    return count($class->getActiveStudentClasses()) > 0 && in_array($class->getClassOccurence()->getClasse()->getId(), $sectionCategories); // Filtrer les classes avec des étudiants
                 });
             } else {
                 $classes = [];

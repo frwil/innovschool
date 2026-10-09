@@ -535,7 +535,7 @@ class SchoolClassPaymentModalsController extends AbstractController
             return new JsonResponse(['error' => 'Année scolaire invalide.'], 400);
         }
         $schoolClassPeriod = $this->schoolClassRepository->find($classId);
-        $students = $this->studentRepository->findBy(['schoolClassPeriod' => $schoolClassPeriod]);
+        $students = $this->studentRepository->findActiveBySchoolClassPeriod($schoolClassPeriod);
         // Trier les étudiants par fullname (ordre alphabétique)
         usort($students, function ($a, $b) {
             return strcmp($a->getStudent()->getFullName(), $b->getStudent()->getFullName());

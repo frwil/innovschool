@@ -1002,8 +1002,12 @@ final class UserController extends AbstractController
         } else {
             $class = $entityManager->getRepository(SchoolClassPeriod::class)->findBy(['period' => $period, 'school' => $this->currentSchool]);
         }
-        $students = $entityManager->getRepository(StudentClass::class)
-            ->findBy(['schoolClassPeriod' => $class]);
+        // Export opérationnel : les comptes désactivés en sont exclus
+        $studentClassRepo = $entityManager->getRepository(StudentClass::class);
+        $students = [];
+        foreach ($class as $scp) {
+            $students = array_merge($students, $studentClassRepo->findActiveBySchoolClassPeriod($scp));
+        }
 
         $gender = $request->request->get('exportGender');
         if ($gender !== 'all' && $gender !== null) {
@@ -1468,7 +1472,7 @@ final class UserController extends AbstractController
     }
 
     #[Route('/student/{id}/toggle-enabled', name: 'app_student_toggle_enabled', methods: ['POST'])]
-    public function toggleStudentEnabled(User $student, EntityManagerInterface $em, OperationLogger $operationLogger): JsonResponse
+    public function toggleStudentEnabled(User $student, EntityManagerInterface $em, OperationLogger $operationLogger, Request $request): JsonResponse
     {
         if (!$this->isGranted('perm', 'users.edit')) {
             return new JsonResponse(['error' => 'Accès refusé'], 403);
@@ -1483,6 +1487,15 @@ final class UserController extends AbstractController
             return new JsonResponse(['error' => 'Impossible de désactiver un super-administrateur.'], 400);
         }
 
+        // La raison est obligatoire pour toute désactivation comme réactivation.
+        $reason = trim($request->request->get('reason', ''));
+        if ('' === $reason) {
+            return new JsonResponse(['error' => 'La raison est obligatoire pour désactiver ou réactiver un compte.'], 400);
+        }
+        if (mb_strlen($reason) > 255) {
+            return new JsonResponse(['error' => 'La raison est trop longue (255 caractères maximum).'], 400);
+        }
+
         $newEnabled = !($student->isEnabled() ?? true);
         $student->setEnabled($newEnabled);
         // Historique de statut (désactivation / réactivation) consultable
@@ -1491,6 +1504,7 @@ final class UserController extends AbstractController
         $history->setUser($student);
         $history->setEnabled($newEnabled);
         $history->setPerformedBy($currentUser);
+        $history->setReason($reason);
         $em->persist($student);
         $em->persist($history);
         try {
@@ -1501,7 +1515,7 @@ final class UserController extends AbstractController
                 'User',
                 $student->getId(),
                 null,
-                ['enabled' => $newEnabled]
+                ['enabled' => $newEnabled, 'reason' => $reason]
             );
         } catch (\Exception $e) {
             $operationLogger->log(
@@ -1534,6 +1548,7 @@ final class UserController extends AbstractController
             'enabled' => $entry->isEnabled(),
             'changedAt' => $entry->getChangedAt() ? $entry->getChangedAt()->format('d/m/Y H:i') : null,
             'performedBy' => $entry->getPerformedBy() ? $entry->getPerformedBy()->getFullName() : null,
+            'reason' => $entry->getReason(),
         ], $history);
         return $this->json($events);
     }
@@ -1587,6 +1602,9 @@ final class UserController extends AbstractController
             $history->setUser($student);
             $history->setEnabled(true);
             $history->setPerformedBy($this->getUser());
+            // Raison automatique : le retour de l'élève est la réactivation.
+            $history->setReason('Réhabilitation : réinscription dans la classe '
+                . ($classPeriod->getClassOccurence() ? $classPeriod->getClassOccurence()->getName() : 'inconnue'));
             $em->persist($student);
             $em->persist($history);
         }

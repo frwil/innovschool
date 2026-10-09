@@ -3,6 +3,7 @@
 namespace App\Repository;
 
 use App\Entity\StudentClass;
+use App\Entity\SchoolClassPeriod;
 use Doctrine\Bundle\DoctrineBundle\Repository\ServiceEntityRepository;
 use Doctrine\Persistence\ManagerRegistry;
 
@@ -14,6 +15,23 @@ class StudentClassRepository extends ServiceEntityRepository
     public function __construct(ManagerRegistry $registry)
     {
         parent::__construct($registry, StudentClass::class);
+    }
+
+    /**
+     * Inscriptions de la classe dont le compte élève est actif (non désactivé).
+     * Remplace findBy(['schoolClassPeriod' => ...]) sur les écrans opérationnels.
+     *
+     * @return StudentClass[]
+     */
+    public function findActiveBySchoolClassPeriod(SchoolClassPeriod $schoolClassPeriod): array
+    {
+        return $this->createQueryBuilder('sc')
+            ->join('sc.student', 'st')
+            ->where('sc.schoolClassPeriod = :scp')
+            ->andWhere('st.enabled = 1')
+            ->setParameter('scp', $schoolClassPeriod)
+            ->getQuery()
+            ->getResult();
     }
 
     public function findStudentsByCriteria($classId, $modalities)
@@ -31,6 +49,7 @@ class StudentClassRepository extends ServiceEntityRepository
             ->addSelect('m') // Ajouter les données des modalités
             ->where('s.schoolClassPeriod = :classId') // Filtrer par classe
             ->andWhere('m.id IN (:modalities)') // Filtrer par modalités
+            ->andWhere('st.enabled = 1') // Comptes désactivés exclus
             ->orderBy('st.fullName','ASC')
             ->setParameter('classId', $classId)
             ->setParameter('modalities', $modalities);

@@ -87,7 +87,7 @@ class SchoolReportService
                     }
 
                     // filtre effectifs de classe
-                    $currentEnrollment = $schoolClassPeriod->getStudentClasses()->count();
+                    $currentEnrollment = count($schoolClassPeriod->getActiveStudentClasses());
 
                     if ($filter->minCurrentEnrollment !== null && $currentEnrollment < $filter->minCurrentEnrollment) {
                         continue;

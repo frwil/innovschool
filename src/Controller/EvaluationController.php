@@ -122,7 +122,8 @@ class EvaluationController extends AbstractController
         $slotId = $request->query->get('slotId');
         $datePresence = $request->query->get('datePresence');
         $evaluationTimeId = $request->query->get('evaluationTimeId');
-        $studentClasses = $studentClassRepo->findBy(['schoolClassPeriod' => $classId]);
+        $class = $this->entityManager->getRepository(SchoolClassPeriod::class)->find($classId);
+        $studentClasses = $class ? $studentClassRepo->findActiveBySchoolClassPeriod($class) : [];
         $result = [];
         $attendanceRepo = $this->entityManager->getRepository(\App\Entity\StudentClassAttendance::class);
         $evalTime = $evaluationTimeId ? $this->entityManager->getRepository(\App\Entity\SchoolEvaluationTime::class)->find($evaluationTimeId) : null;
@@ -198,7 +199,8 @@ class EvaluationController extends AbstractController
         $datePresence = $request->request->get('datePresence');
         $evaluationTimeId = $request->request->get('evaluationTimeId');
         $locked = filter_var($request->request->get('locked'), FILTER_VALIDATE_BOOLEAN);
-        $studentClasses = $studentClassRepo->findBy(['schoolClassPeriod' => $classId]);
+        $class = $this->entityManager->getRepository(SchoolClassPeriod::class)->find($classId);
+        $studentClasses = $class ? $studentClassRepo->findActiveBySchoolClassPeriod($class) : [];
         foreach ($studentClasses as $studentClass) {
             $criteria = [
                 'studentClass' => $studentClass,
@@ -702,7 +704,7 @@ class EvaluationController extends AbstractController
         }
         foreach ($classes as $class) {
             // Récupérer les élèves des classes
-            $students = $this->entityManager->getRepository(StudentClass::class)->findBy(['schoolClassPeriod' => $class]);
+            $students = $this->entityManager->getRepository(StudentClass::class)->findActiveBySchoolClassPeriod($class);
             if (!$students) {
                 return new JsonResponse(['error' => 'Aucun élève trouvé pour cette classe : ' . $class->getClassOccurence()->getName()], 404);
             }
@@ -846,7 +848,7 @@ class EvaluationController extends AbstractController
         }
 
         // Récupérer les élèves de la classe
-        $students = $studentClassRepo->findBy(['schoolClassPeriod' => $class]);
+        $students = $studentClassRepo->findActiveBySchoolClassPeriod($class);
         // Trier les élèves par ordre alphabétique
         usort($students, function ($a, $b) {
             return strcmp($a->getStudent()->getFullName(), $b->getStudent()->getFullName());
@@ -961,7 +963,7 @@ class EvaluationController extends AbstractController
         $class = $classRepo->findOneBy(['id' => $classId, 'period' => $period, 'school' => $this->currentSchool]);
 
         // Récupérer les élèves de la classe
-        $students = $studentClassRepo->findBy(['schoolClassPeriod' => $class]);
+        $students = $studentClassRepo->findActiveBySchoolClassPeriod($class);
 
         // Trier les élèves par ordre alphabétique initialement
         usort($students, function ($a, $b) {
@@ -2033,7 +2035,7 @@ class EvaluationController extends AbstractController
 
 
         // Récupérer les élèves pour la classe (triés par ordre alphabétique)
-        $students = $studentRepo->findBy(['schoolClassPeriod' => $class]);
+        $students = $studentRepo->findActiveBySchoolClassPeriod($class);
         // Trier les élèves par ordre alphabétique
         usort($students, function ($a, $b) {
             return strcmp($a->getStudent()->getFullName(), $b->getStudent()->getFullName());
@@ -2302,7 +2304,7 @@ class EvaluationController extends AbstractController
 
         $modules = $classSubjectModuleRepo->findBy(['class' => $class, 'period' => $period, 'school' => $school]);
 
-        $students = $entityManager->getRepository(StudentClass::class)->findBy(['schoolClassPeriod' => $class]);
+        $students = $entityManager->getRepository(StudentClass::class)->findActiveBySchoolClassPeriod($class);
         foreach ($students as $student) {
             $evals = $evaluationRepo->findBy([
                 'student' => $student,
@@ -3078,7 +3080,7 @@ class EvaluationController extends AbstractController
         }
 
         // Récupérer les élèves inscrits dans cette classe pour la période courante
-        $students = $studentClassRepo->findBy(['schoolClassPeriod' => $class]);
+        $students = $studentClassRepo->findActiveBySchoolClassPeriod($class[0]);
 
         $data = [];
         foreach ($students as $studentClass) {

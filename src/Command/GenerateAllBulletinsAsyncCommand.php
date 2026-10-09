@@ -60,7 +60,7 @@ class GenerateAllBulletinsAsyncCommand extends Command
         $progressFile = $this->projectDir . '/var/bulletin_progress_' . $taskId . '.json';
         $class = $this->classRepo->find($classId);
         $period = $this->currentPeriod;
-        $students = $this->studentRepo->findBy(['schoolClassPeriod' => $class, 'period' => $period]);
+        $students = $this->studentRepo->findActiveBySchoolClassPeriod($class);
         
         $user = $this->userRepo->findOneBy(['email' => 'fohom.william.francis@emailboxy.cm']);
         

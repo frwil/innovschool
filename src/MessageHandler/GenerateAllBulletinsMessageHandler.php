@@ -26,7 +26,7 @@ class GenerateAllBulletinsMessageHandler
         $progressFile = $this->projectDir . "/var/bulletin_progress_{$message->taskId}.json";
         $class = $this->classRepo->find($message->classId);
         $period = $this->periodRepo->findOneBy(['enabled' => true]);
-        $students = $this->studentRepo->findBy(['schoolClassPeriod' => $class]);
+        $students = $this->studentRepo->findActiveBySchoolClassPeriod($class);
         $user = $this->userRepo->findOneBy(['email' => 'fohom.william.francis@emailboxy.cm']); // adapte selon ton besoin
 
         $total = count($students);

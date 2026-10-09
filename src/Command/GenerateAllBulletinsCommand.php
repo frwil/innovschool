@@ -55,7 +55,7 @@ class GenerateAllBulletinsCommand extends Command
 
         $class = $this->classRepo->find($classId);
         $period = $this->currentPeriod;
-        $students = $this->studentRepo->findBy(['schoolClassPeriod' => $class, 'period' => $period]);
+        $students = $this->studentRepo->findActiveBySchoolClassPeriod($class);
         // Par exemple, récupère le premier admin
         $user = $this->userRepo->findOneBy(['email' => 'fohom.william.francis@emailboxy.cm']);
         // Ou par son email

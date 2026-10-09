@@ -514,7 +514,7 @@ class AdmissionReportsController extends AbstractController
 
         // On récupère les StudentClass liés à ce SchoolClassPeriod
         $studentClasses = $entityManager->getRepository(\App\Entity\StudentClass::class)
-            ->findBy(['schoolClassPeriod' => $schoolClassPeriod]);
+            ->findActiveBySchoolClassPeriod($schoolClassPeriod);
 
         $data = [];
         foreach ($studentClasses as $studentClass) {
@@ -684,7 +684,7 @@ class AdmissionReportsController extends AbstractController
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
         $students = $entityManager->getRepository(\App\Entity\User::class)->findAll();
         $students=array_filter($students,function($student){
-            return in_array('ROLE_STUDENT',$student->getRoles());
+            return in_array('ROLE_STUDENT',$student->getRoles()) && false !== $student->isEnabled();
         });
         $schoolClassPeriod = $entityManager->getRepository(\App\Entity\SchoolClassPeriod::class)->findBy(['school' => $this->currentSchool, 'period' => $this->currentPeriod]);
         
@@ -739,9 +739,9 @@ class AdmissionReportsController extends AbstractController
         }
         // Récupérer la classe et les élèves inscrits
         $class = $entityManager->getRepository(\App\Entity\SchoolClassPeriod::class)->find($classId);
-        $studentClasses = $entityManager->getRepository(\App\Entity\StudentClass::class)->findBy(['schoolClassPeriod' => $class]);
+        $studentClasses = $entityManager->getRepository(\App\Entity\StudentClass::class)->findActiveBySchoolClassPeriod($class);
         $students = array_map(function($sc) { return $sc->getStudent(); }, $studentClasses);
-        
+
         // Rendu HTML partiel pour AJAX
         return $this->render('admission/_students_list.html.twig', [
             'students' => $students,
@@ -761,7 +761,7 @@ class AdmissionReportsController extends AbstractController
             return new Response('Paramètres manquants.', 400);
         }
         $class = $entityManager->getRepository(\App\Entity\SchoolClassPeriod::class)->find($classId);
-        $studentClasses = $entityManager->getRepository(\App\Entity\StudentClass::class)->findBy(['schoolClassPeriod' => $class]);
+        $studentClasses = $entityManager->getRepository(\App\Entity\StudentClass::class)->findActiveBySchoolClassPeriod($class);
         $students = array_map(function($sc) { return $sc->getStudent(); }, $studentClasses);
         $html = $this->renderView('admission/_students_list_pdf.html.twig', [
             'students' => $students,
@@ -796,6 +796,7 @@ class AdmissionReportsController extends AbstractController
                 ->join('p.paymentModal', 'modality')
                 ->where('p.paymentDate BETWEEN :start AND :end')
                 ->andWhere('p.schoolClassPeriod IN (:classes)')
+                ->andWhere('student.enabled = 1') // Comptes désactivés exclus
                 ->setParameter('start', $startDate.' 00:00:00')
                 ->setParameter('end', $endDate.' 23:59:59')
                 ->setParameter('classes', $schoolClassPeriod)
@@ -832,6 +833,7 @@ class AdmissionReportsController extends AbstractController
                 ->join('p.paymentModal', 'modality')
                 ->where('p.paymentDate BETWEEN :start AND :end')
                 ->andWhere('p.schoolClassPeriod IN (:classes)')
+                ->andWhere('student.enabled = 1') // Comptes désactivés exclus
                 ->setParameter('start', $startDate.' 00:00:00')
                 ->setParameter('end', $endDate.' 23:59:59')
                 ->setParameter('classes', $schoolClassPeriod)

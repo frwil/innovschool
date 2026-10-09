@@ -218,7 +218,7 @@ class RegistrationCardController extends AbstractController
                 return new JsonResponse(['error' => 'Class not found'], Response::HTTP_NOT_FOUND);
             }
             // Récupérer les élèves pour la classe donnée
-            $students = $this->studentRepository->findBy(['schoolClassPeriod' => $class]);
+            $students = $this->studentRepository->findActiveBySchoolClassPeriod($class[0]);
             if (empty($students)) {
                 return new JsonResponse(['error' => 'No students found'], Response::HTTP_NOT_FOUND);
             }

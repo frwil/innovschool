@@ -39,8 +39,11 @@ class HomeController extends AbstractController
         $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
         $schoolClassPeriod = $this->entityManager->getRepository(SchoolClassPeriod::class)->findBy(['school' => $this->currentSchool, 'period' => $this->currentPeriod]);
         $users = $this->entityManager->getRepository(User::class)->findAll();
-        $eleves = array_filter($users, fn($u) => in_array('ROLE_STUDENT', $u->getRoles()));
-        $studentClasses = $this->entityManager->getRepository(StudentClass::class)->findBy(['schoolClassPeriod' => $schoolClassPeriod]);
+        $eleves = array_filter($users, fn($u) => in_array('ROLE_STUDENT', $u->getRoles()) && false !== $u->isEnabled());
+        $studentClasses = [];
+        foreach ($schoolClassPeriod as $scp) {
+            $studentClasses = array_merge($studentClasses, $this->entityManager->getRepository(StudentClass::class)->findActiveBySchoolClassPeriod($scp));
+        }
         $schoolClassPeriodMap = array_map(fn($scp) => $scp->getId(), $schoolClassPeriod);
         $enseignants=array_filter($users, fn($u) => in_array('ROLE_TEACHER', $u->getRoles()));
         $subjects= $this->entityManager->getRepository(SchoolClassSubject::class)->findBy(['schoolClassPeriod' => $schoolClassPeriod]);

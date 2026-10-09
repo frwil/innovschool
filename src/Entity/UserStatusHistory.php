@@ -27,6 +27,9 @@ class UserStatusHistory
     #[ORM\Column(type: 'datetime')]
     private \DateTime $changedAt; // Date et heure du changement de statut
 
+    #[ORM\Column(type: 'string', length: 255)]
+    private string $reason = ''; // Raison obligatoire de la désactivation / réactivation
+
     public function __construct()
     {
         $this->changedAt = new \DateTime();
@@ -78,6 +81,17 @@ class UserStatusHistory
     public function setChangedAt(\DateTime $changedAt): self
     {
         $this->changedAt = $changedAt;
+        return $this;
+    }
+
+    public function getReason(): string
+    {
+        return $this->reason;
+    }
+
+    public function setReason(string $reason): self
+    {
+        $this->reason = $reason;
         return $this;
     }
 }

@@ -35,8 +35,10 @@ class ReportService
         /** @var \App\Entity\User */
         $user = $this->security->getUser();
         // TODO créer une method cout by role & school
-        $teachers = $this->userRepository->findByRoleAndSchool(UserRoleEnum::STUDENT->value, $this->currentSchool);
-        return sizeof($teachers);
+        $students = $this->userRepository->findByRoleAndSchool(UserRoleEnum::STUDENT->value, $this->currentSchool);
+        // Comptes désactivés exclus des statistiques
+        $students = array_filter($students, fn($student) => false !== $student->isEnabled());
+        return sizeof($students);
     }
 
     public function parentCount(): int

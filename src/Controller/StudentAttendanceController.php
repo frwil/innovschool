@@ -101,7 +101,7 @@ final class StudentAttendanceController extends AbstractController
         /** @var \App\Entity\SchoolClassPeriod */
         $schoolClassPeriod = $entityManager->getRepository(SchoolClassPeriod::class)->find($scid);
         $evaluation = $entityManager->getRepository(SchoolEvaluation::class)->find($evaluationId);
-        $students = $schoolClassPeriod->getStudents();
+        $students = $schoolClassPeriod->getActiveStudents();
 
         /**
          * Vérifier si un enregistrement SchoolClassAttendance existe déjà

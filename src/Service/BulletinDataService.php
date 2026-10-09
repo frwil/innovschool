@@ -80,8 +80,8 @@ class BulletinDataService
     public function getStudentsByClass(int $classId): array
     {
         $class = $this->getClass($classId);
-        $students = $this->studentRepo->findBy(['schoolClassPeriod' => $class]);
-        
+        $students = $this->studentRepo->findActiveBySchoolClassPeriod($class);
+
         if (empty($students)) {
             throw new \InvalidArgumentException('Aucun étudiant trouvé pour cette classe');
         }
@@ -246,7 +246,7 @@ class BulletinDataService
             }
             $students = [$student[0]];
         } else {
-            $students = $this->studentRepo->findBy(['schoolClassPeriod' => $class]);
+            $students = $this->studentRepo->findActiveBySchoolClassPeriod($class);
         }
 
         // Déterminer les périodes à vérifier
@@ -390,7 +390,7 @@ class BulletinDataService
         $class = $this->getClass($dto->classId);
         $school = $context->getCurrentSchool();
         $period = $context->getCurrentPeriod();
-        $students = $this->studentRepo->findBy(['schoolClassPeriod' => $class]);
+        $students = $this->studentRepo->findActiveBySchoolClassPeriod($class);
 
         $subjects = $this->schoolClassSubjectRepo->findBy(['schoolClassPeriod' => $class]);
         $totalSubjects = count($subjects);

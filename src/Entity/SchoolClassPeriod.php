@@ -216,14 +216,38 @@ class SchoolClassPeriod
         return $students;
     }
 
-    
+    /**
+     * Inscriptions dont le compte élève est actif (non désactivé).
+     */
+    public function getActiveStudentClasses(): array
+    {
+        return array_filter(
+            $this->getStudentClasses()->toArray(),
+            fn(StudentClass $studentClass) => null !== $studentClass->getStudent()
+                && false !== $studentClass->getStudent()->isEnabled()
+        );
+    }
+
+    /**
+     * Élèves au compte actif (non désactivé) : listes opérationnelles et
+     * statistiques de la classe (les comptes désactivés en sont exclus).
+     */
+    public function getActiveStudents(): array
+    {
+        return array_map(
+            fn(StudentClass $studentClass) => $studentClass->getStudent(),
+            $this->getActiveStudentClasses()
+        );
+    }
+
+
 
     /**
      * Nombre d'étudiants garçon
      */
     public function getStudentsBoysCount(): ?int
     {
-        $students = $this->getStudents();
+        $students = $this->getActiveStudents();
         $repeaters = array_reduce($students, function ($carry, User $item) {
             if ($item->getGender() == GenderEnum::MALE) {
                  $carry++;
@@ -239,7 +263,7 @@ class SchoolClassPeriod
      */
     public function getStudentsGirlssCount(): ?int
     {
-        $students = $this->getStudents();
+        $students = $this->getActiveStudents();
         $repeaters = array_reduce($students, function ($carry, User $item) {
             if ($item->getGender() == GenderEnum::FEMALE) {
                 $carry++;
@@ -255,7 +279,7 @@ class SchoolClassPeriod
         $parentsIds = array_map(function (User $student) {
             $id = $student->getTutor() ? $student->getTutor()->getId() : null;
             if (null !== $id) return $id;
-        }, $this->getStudents());
+        }, $this->getActiveStudents());
 
         return sizeof(\array_unique($parentsIds));
     }

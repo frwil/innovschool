@@ -62,7 +62,7 @@ class SchoolYearMigrationService
 
             $eligible = [];
             $nonEligible = [];
-            foreach ($scp->getStudentClasses() as $studentClass) {
+            foreach ($scp->getActiveStudentClasses() as $studentClass) {
                 $avg  = $this->calculateStudentAverage($studentClass, $scp);
                 $stat = [
                     'student'        => $studentClass->getStudent(),
@@ -817,7 +817,7 @@ class SchoolYearMigrationService
 
             $repeaterTarget = $occId ? ($repeaterTargetMap[$occId] ?? null) : null;
 
-            foreach ($sourceSCP->getStudentClasses() as $studentClass) {
+            foreach ($sourceSCP->getActiveStudentClasses() as $studentClass) {
                 $avg        = $this->calculateStudentAverage($studentClass, $sourceSCP);
                 $grade      = $occId !== null ? ($grades[$occId] ?? $passingGrade) : $passingGrade;
                 $isEligible = $avg !== null && $avg >= $grade;
@@ -1045,7 +1045,7 @@ class SchoolYearMigrationService
         ];
 
         foreach ($sourceClasses as $sourceSCP) {
-            foreach ($sourceSCP->getStudentClasses() as $sourceStudentClass) {
+            foreach ($sourceSCP->getActiveStudentClasses() as $sourceStudentClass) {
                 $student      = $sourceStudentClass->getStudent();
                 $avg          = $this->calculateStudentAverage($sourceStudentClass, $sourceSCP);
                 $wasEligible  = $avg !== null && $avg >= $oldGrade;
@@ -1745,8 +1745,10 @@ class SchoolYearMigrationService
         $repo = $this->em->getRepository(StudentClass::class);
         $all  = $repo->createQueryBuilder('sc')
             ->join('sc.schoolClassPeriod', 'scp')
+            ->join('sc.student', 'st')
             ->where('sc.student = :student')
             ->andWhere('scp.period = :period')
+            ->andWhere('st.enabled = 1') // Comptes désactivés exclus
             ->setParameter('student', $student)
             ->setParameter('period', $targetPeriod)
             ->getQuery()
