@@ -188,7 +188,11 @@ class StudentStatusService
         $keyA = $this->eventPeriodKey($a) ?? '';
         $keyB = $this->eventPeriodKey($b) ?? '';
 
-        return [$keyA, $a->getChangedAt()->getTimestamp(), $a->getId() ?? 0]
-            <=> [$keyB, $b->getChangedAt()->getTimestamp(), $b->getId() ?? 0] > 0;
+        // Parenthèses obligatoires : « > » lie plus fort que « <=> », donc
+        // « A <=> B > 0 » s'évalue comme « A <=> (B > 0) » et renvoie toujours
+        // 0 — le premier événement gagnait au lieu du dernier (un compte
+        // désactivé puis réactivé restait exclu des bordereaux et bulletins).
+        return ([$keyA, $a->getChangedAt()->getTimestamp(), $a->getId() ?? 0]
+            <=> [$keyB, $b->getChangedAt()->getTimestamp(), $b->getId() ?? 0]) > 0;
     }
 }
