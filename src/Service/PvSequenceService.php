@@ -17,8 +17,12 @@ class PvSequenceService
     private SchoolEvaluation $evaluation;
     private array $notes = [];
 
+    /** @var array<int, true>|null ids des comptes actifs dans la période de la classe */
+    private ?array $activeStudentIds = null;
+
     public function __construct(
         private EntityManagerInterface $entityManager,
+        private StudentStatusService $studentStatusService,
     ) {}
 
     public function compute(
@@ -35,6 +39,11 @@ class PvSequenceService
     {
         $notes = [];
 
+        // Seuls les comptes actifs dans la période de la classe participent
+        // aux totaux du PV : les désactivés en sont exclus, notes comprises
+        // (sinon admis/genre/taux seraient incohérents avec l'effectif).
+        $activeIds = $this->activeStudentIds();
+
         // return notes as
         // $notes[studentId][schoolClassSubjectId] = note
         $schoolClassGrades = $this->entityManager->getRepository(SchoolClassGrade::class)
@@ -42,6 +51,9 @@ class PvSequenceService
         /** @var \App\Entity\SchoolClassGrade */
         foreach ($schoolClassGrades as $schoolClassGrade) {
             foreach ($schoolClassGrade->getNotesJson() as $studenId => $note) {
+                if (!isset($activeIds[$studenId])) {
+                    continue;
+                }
                 $notes[$studenId][$schoolClassGrade->getSubject()->getId()] = $note;
             }
         }
@@ -53,7 +65,8 @@ class PvSequenceService
     {
         $infos = [];
 
-        $headcount = sizeof($this->schoolClassPeriod->getActiveStudents());
+        $students = $this->studentStatusService->getActiveStudents($this->schoolClassPeriod);
+        $headcount = sizeof($students);
         $infos['headcount'] = $headcount;
 
         $fermales = 0;
@@ -61,7 +74,7 @@ class PvSequenceService
         $repeated = 0;
 
         /** @var \App\Entity\User */
-        foreach ($this->schoolClassPeriod->getActiveStudents() as $student) {
+        foreach ($students as $student) {
             if ($student->isRepeated()) {
                 $repeated++;
             }
@@ -146,6 +159,25 @@ class PvSequenceService
         }
 
         return $studentRank;
+    }
+
+    /**
+     * Ids des comptes actifs dans la période de la classe (mémoïsés par
+     * instance de service).
+     *
+     * @return array<int, true>
+     */
+    private function activeStudentIds(): array
+    {
+        if ($this->activeStudentIds === null) {
+            $ids = [];
+            foreach ($this->studentStatusService->getActiveStudents($this->schoolClassPeriod) as $student) {
+                $ids[$student->getId()] = true;
+            }
+            $this->activeStudentIds = $ids;
+        }
+
+        return $this->activeStudentIds;
     }
 
     private function computeAverage(array $notes): float
@@ -462,7 +494,7 @@ class PvSequenceService
 
     public function countAdmitedByGenderRate(): array
     {
-        $total = sizeof($this->schoolClassPeriod->getActiveStudents());
+        $total = sizeof($this->studentStatusService->getActiveStudents($this->schoolClassPeriod));
         $admitted = $this->countAdmitedByGender();
         $infos = $this->getPvHeadInfos();
         

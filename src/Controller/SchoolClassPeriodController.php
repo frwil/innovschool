@@ -12,6 +12,7 @@ use App\Repository\SchoolClassPeriodRepository;
 use App\Repository\SchoolPeriodRepository;
 use App\Repository\StudyLevelRepository;
 use App\Service\OperationLogger;
+use App\Service\StudentStatusService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
@@ -317,7 +318,7 @@ final class SchoolClassPeriodController extends AbstractController
     }
 
     #[Route('/classes/by-section', name: 'app_classes_by_section')]
-    public function getClassesBySection(SessionInterface $session, Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager): JsonResponse
+    public function getClassesBySection(SessionInterface $session, Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager, StudentStatusService $studentStatusService): JsonResponse
     {
         if (!$this->isGranted('perm', 'classes.view')) {
             return new JsonResponse(['error' => 'Accès refusé'], 403);
@@ -350,9 +351,9 @@ final class SchoolClassPeriodController extends AbstractController
             }
         }
 
-        // Exclure les classes sans élèves
-        $classes = array_filter($classes, function (SchoolClassPeriod $class) {
-            return count($class->getActiveStudentClasses()) > 0;
+        // Exclure les classes sans élèves (comptes actifs dans la période)
+        $classes = array_filter($classes, function (SchoolClassPeriod $class) use ($studentStatusService) {
+            return count($studentStatusService->getActiveStudentClasses($class)) > 0;
         });
 
         $data = [];
@@ -367,7 +368,7 @@ final class SchoolClassPeriodController extends AbstractController
     }
 
     #[Route('/generic-classes/by-section', name: 'app_generic_classes_by_section')]
-    public function getGenericClassesBySection(Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager, SessionInterface $session): JsonResponse
+    public function getGenericClassesBySection(Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager, SessionInterface $session, StudentStatusService $studentStatusService): JsonResponse
     {
         if (!$this->isGranted('perm', 'classes.view')) {
             return new JsonResponse(['error' => 'Accès refusé'], 403);
@@ -382,7 +383,7 @@ final class SchoolClassPeriodController extends AbstractController
         if (in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             $schoolClassPeriod = $this->entityManager->getRepository(SchoolClassPeriod::class)->findBy(['period' => $this->currentPeriod, 'school' => $this->currentSchool]);
             foreach ($schoolClassPeriod as $scp) {
-                $studentClasses[] = $scp->getActiveStudentClasses();
+                $studentClasses[] = $studentStatusService->getActiveStudentClasses($scp);
             }
 
             if ($studentClasses) {
@@ -432,7 +433,7 @@ final class SchoolClassPeriodController extends AbstractController
     }
 
     #[Route('/classes/by-section-with-students', name: 'app_classes_by_section_with_students')]
-    public function getClassesBySectionWithStudents(SessionInterface $session, Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager): JsonResponse
+    public function getClassesBySectionWithStudents(SessionInterface $session, Request $request, SchoolClassPeriodRepository $schoolClassRepository, EntityManagerInterface $entityManager, StudentStatusService $studentStatusService): JsonResponse
     {
         if (!$this->isGranted('perm', 'classes.view')) {
             return new JsonResponse(['error' => 'Accès refusé'], 403);
@@ -451,15 +452,15 @@ final class SchoolClassPeriodController extends AbstractController
         if (in_array('ROLE_SUPER_ADMIN', $this->getUser()->getRoles())) {
             // Récupérer les classes associées à la section
             $classes = $schoolClassRepository->findBy(['school' => $this->currentSchool, 'period' => $this->currentPeriod]);
-            $classes = array_filter($classes, function (SchoolClassPeriod $class) use ($sectionCategories) {
-                return count($class->getActiveStudentClasses()) > 0 && in_array($class->getClassOccurence()->getClasse()->getId(), $sectionCategories); // Filtrer les classes avec des étudiants
+            $classes = array_filter($classes, function (SchoolClassPeriod $class) use ($sectionCategories, $studentStatusService) {
+                return count($studentStatusService->getActiveStudentClasses($class)) > 0 && in_array($class->getClassOccurence()->getClasse()->getId(), $sectionCategories); // Filtrer les classes avec des étudiants
             });
         } else {
             $config = $this->getConnectedUser()->getBaseConfigurations()->toArray();
             if (count($config) > 0) {
                 $classes = $schoolClassRepository->findBy(['id' => count($config[0]->getClassList()) > 0 ? $config[0]->getClassList() : $classes]);
-                $classes = array_filter($classes, function (SchoolClassPeriod $class) use ($sectionCategories) {
-                    return count($class->getActiveStudentClasses()) > 0 && in_array($class->getClassOccurence()->getClasse()->getId(), $sectionCategories); // Filtrer les classes avec des étudiants
+                $classes = array_filter($classes, function (SchoolClassPeriod $class) use ($sectionCategories, $studentStatusService) {
+                    return count($studentStatusService->getActiveStudentClasses($class)) > 0 && in_array($class->getClassOccurence()->getClasse()->getId(), $sectionCategories); // Filtrer les classes avec des étudiants
                 });
             } else {
                 $classes = [];

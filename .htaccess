@@ -1,0 +1,23 @@
+# Redirige vers le dossier public/ si le DocumentRoot pointe à la racine du projet
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Si on n'est pas déjà dans /public, rediriger vers public/
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^(.*)$ /public/$1 [L]
+
+    # Bloquer l'accès aux fichiers sensibles
+    RewriteRule ^(\.env|composer\.(json|lock)|\.git|vendor|var|node_modules) - [F,L]
+</IfModule>
+
+# Bloquer l'accès aux fichiers sensibles même sans mod_rewrite
+<FilesMatch "^(\.env|composer\.(json|lock)|phpunit\.xml|symfony\.lock)">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>

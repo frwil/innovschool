@@ -143,6 +143,7 @@
                                     <th class="text-center">Total élèves</th>
                                     <th class="text-center text-success">Promus</th>
                                     <th class="text-center text-danger">Redoublants</th>
+                                    <th class="text-center text-secondary">Désactivés</th>
                                     <th class="text-center" style="width: 140px;">Moyenne de passage</th>
                                     <th>Classe cible pour les promus</th>
                                 </tr>
@@ -157,6 +158,9 @@
                                     </td>
                                     <td class="text-center">
                                         <span class="badge bg-danger fs-6" id="wizard-noneligible-{{ row.sourceSCPId }}">{{ row.preview.nonEligible }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge bg-secondary fs-6" id="wizard-disabled-{{ row.sourceSCPId }}">{{ row.preview.disabled }}</span>
                                     </td>
                                     <td class="text-center">
                                         {% if row.occId %}
@@ -221,7 +225,7 @@
                                 </tr>
                                 {% if row.preview.studentStats is not empty %}
                                 <tr class="table-secondary">
-                                    <td colspan="6" class="py-1">
+                                    <td colspan="7" class="py-1">
                                         <a class="text-decoration-none small" data-bs-toggle="collapse"
                                            href="#wizard-students-{{ row.sourceSCPId }}">
                                             <i class="ti ti-chevron-down me-1"></i>
@@ -261,7 +265,9 @@
                                                             {% endif %}
                                                         </td>
                                                         <td class="text-center wizard-status">
-                                                            {% if stat.forcedTargetId is defined and stat.forcedTargetId %}
+                                                            {% if stat.disabled|default(false) %}
+                                                                <span class="badge bg-secondary">Désactivé</span>
+                                                            {% elseif stat.forcedTargetId is defined and stat.forcedTargetId %}
                                                                 <span class="badge bg-primary">Promu (forcé)</span>
                                                             {% elseif stat.eligible %}
                                                                 <span class="badge bg-success">Promu</span>
@@ -270,9 +276,11 @@
                                                             {% endif %}
                                                         </td>
                                                         {% if row.candidates is not empty and not row.finalLevel %}
-                                                            {% set statMode = stat.forcedTargetId is defined and stat.forcedTargetId ? 'forced' : (stat.eligible ? (row.candidates|length > 1 ? 'eligible-select' : 'eligible-auto') : (row.candidates|length > 1 ? 'force-multi' : 'force-1')) %}
+                                                            {% set statMode = stat.disabled|default(false) ? 'disabled' : (stat.forcedTargetId is defined and stat.forcedTargetId ? 'forced' : (stat.eligible ? (row.candidates|length > 1 ? 'eligible-select' : 'eligible-auto') : (row.candidates|length > 1 ? 'force-multi' : 'force-1'))) %}
                                                             <td class="text-center wizard-target" style="min-width: 190px;" data-mode="{{ statMode }}">
-                                                                {% if statMode == 'forced' %}
+                                                                {% if statMode == 'disabled' %}
+                                                                    <span class="badge bg-secondary">Désactivé — reporté</span>
+                                                                {% elseif statMode == 'forced' %}
                                                                     <span class="badge bg-primary"><i class="ti ti-arrow-up me-1"></i>Promu (forcé) → {{ row.candidates[stat.forcedTargetId] ?? '?' }}</span>
                                                                     <button type="button" class="btn btn-sm btn-outline-secondary wizard-force-cancel" title="Annuler la promotion forcée"><i class="ti ti-x"></i></button>
                                                                 {% elseif statMode == 'eligible-select' %}
@@ -653,11 +661,13 @@
         var cell = tr.querySelector('.wizard-target');
         if (!cell) { return; }
         var candidateCount = row.candidates ? Object.keys(row.candidates).length : 0;
-        var mode = stat.forcedTargetId
-            ? 'forced'
-            : (stat.eligible
-                ? (candidateCount > 1 ? 'eligible-select' : 'eligible-auto')
-                : (candidateCount > 1 ? 'force-multi' : 'force-1'));
+        var mode = stat.disabled
+            ? 'disabled'
+            : (stat.forcedTargetId
+                ? 'forced'
+                : (stat.eligible
+                    ? (candidateCount > 1 ? 'eligible-select' : 'eligible-auto')
+                    : (candidateCount > 1 ? 'force-multi' : 'force-1')));
         if (cell.dataset.mode === mode) {
             var sel = cell.querySelector('.wizard-student-target');
             if (sel) { sel.disabled = !stat.eligible; }
@@ -671,7 +681,9 @@
             optionsHtml += '<option value="' + id + '">' + escapeHtml(row.candidates[id]) + '</option>';
         });
         var html = '';
-        if (mode === 'forced') {
+        if (mode === 'disabled') {
+            html = '<span class="badge bg-secondary">Désactivé — reporté</span>';
+        } else if (mode === 'forced') {
             html = '<span class="badge bg-primary"><i class="ti ti-arrow-up me-1"></i>Promu (forcé) → ' +
                    escapeHtml(row.candidates[stat.forcedTargetId] || '?') + '</span> ' +
                    '<button type="button" class="btn btn-sm btn-outline-secondary wizard-force-cancel" title="Annuler la promotion forcée"><i class="ti ti-x"></i></button>';
@@ -705,8 +717,10 @@
         (data.rows || []).forEach(function (row) {
             var eligibleBadge = document.getElementById('wizard-eligible-' + row.sourceSCPId);
             var nonEligibleBadge = document.getElementById('wizard-noneligible-' + row.sourceSCPId);
+            var disabledBadge = document.getElementById('wizard-disabled-' + row.sourceSCPId);
             if (eligibleBadge) { eligibleBadge.textContent = row.eligible; }
             if (nonEligibleBadge) { nonEligibleBadge.textContent = row.nonEligible; }
+            if (disabledBadge) { disabledBadge.textContent = row.disabled; }
 
             var input = document.querySelector('.wizard-grade-input[data-source-scp-id="' + row.sourceSCPId + '"]');
             if (input) {
@@ -740,11 +754,13 @@
                     }
                     var statusCell = tr.querySelector('.wizard-status');
                     if (statusCell) {
-                        statusCell.innerHTML = stat.forcedTargetId
-                            ? '<span class="badge bg-primary">Promu (forcé)</span>'
-                            : (stat.eligible
-                                ? '<span class="badge bg-success">Promu</span>'
-                                : '<span class="badge bg-danger">Redoublant</span>');
+                        statusCell.innerHTML = stat.disabled
+                            ? '<span class="badge bg-secondary">Désactivé</span>'
+                            : (stat.forcedTargetId
+                                ? '<span class="badge bg-primary">Promu (forcé)</span>'
+                                : (stat.eligible
+                                    ? '<span class="badge bg-success">Promu</span>'
+                                    : '<span class="badge bg-danger">Redoublant</span>'));
                     }
                     renderTargetCell(tr, stat, row);
                 });

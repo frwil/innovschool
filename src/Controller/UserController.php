@@ -1472,7 +1472,7 @@ final class UserController extends AbstractController
     }
 
     #[Route('/student/{id}/toggle-enabled', name: 'app_student_toggle_enabled', methods: ['POST'])]
-    public function toggleStudentEnabled(User $student, EntityManagerInterface $em, OperationLogger $operationLogger, Request $request): JsonResponse
+    public function toggleStudentEnabled(User $student, EntityManagerInterface $em, OperationLogger $operationLogger, Request $request, SessionInterface $session): JsonResponse
     {
         if (!$this->isGranted('perm', 'users.edit')) {
             return new JsonResponse(['error' => 'Accès refusé'], 403);
@@ -1499,12 +1499,19 @@ final class UserController extends AbstractController
         $newEnabled = !($student->isEnabled() ?? true);
         $student->setEnabled($newEnabled);
         // Historique de statut (désactivation / réactivation) consultable
-        // depuis la page des élèves.
+        // depuis la page des élèves. L'école et la période de l'action (depuis
+        // la session) scopent la désactivation par année scolaire : une
+        // réactivation ne comptera que pour l'année où elle a lieu.
         $history = new UserStatusHistory();
         $history->setUser($student);
         $history->setEnabled($newEnabled);
         $history->setPerformedBy($currentUser);
         $history->setReason($reason);
+        $schoolPeriod = $em->getRepository(SchoolPeriod::class)->find($session->get('period_id'));
+        $school = $em->getRepository(School::class)->find($session->get('school_id'));
+        $history->setSchoolPeriod($schoolPeriod);
+        // Sans contexte de session (école non choisie) : école du compte.
+        $history->setSchool($school ?? $student->getSchool());
         $em->persist($student);
         $em->persist($history);
         try {
@@ -1548,6 +1555,8 @@ final class UserController extends AbstractController
             'enabled' => $entry->isEnabled(),
             'changedAt' => $entry->getChangedAt() ? $entry->getChangedAt()->format('d/m/Y H:i') : null,
             'performedBy' => $entry->getPerformedBy() ? $entry->getPerformedBy()->getFullName() : null,
+            'schoolPeriod' => $entry->getSchoolPeriod() ? $entry->getSchoolPeriod()->getName() : null,
+            'school' => $entry->getSchool() ? $entry->getSchool()->getName() : null,
             'reason' => $entry->getReason(),
         ], $history);
         return $this->json($events);
@@ -1602,6 +1611,10 @@ final class UserController extends AbstractController
             $history->setUser($student);
             $history->setEnabled(true);
             $history->setPerformedBy($this->getUser());
+            // La réactivation est scopée par l'année scolaire de la
+            // réhabilitation : elle ne comptera que pour cette année.
+            $history->setSchoolPeriod($this->currentPeriod);
+            $history->setSchool($this->currentSchool);
             // Raison automatique : le retour de l'élève est la réactivation.
             $history->setReason('Réhabilitation : réinscription dans la classe '
                 . ($classPeriod->getClassOccurence() ? $classPeriod->getClassOccurence()->getName() : 'inconnue'));

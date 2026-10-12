@@ -264,6 +264,14 @@ final class SchoolYearMigrationController extends AbstractController
             return $this->json(['ok' => false, 'message' => 'Élève introuvable dans la période source.'], 404);
         }
 
+        // Un compte désactivé n'a pas de décision : il est reporté désactivé
+        // dans sa classe de promotion (le bouton n'est pas rendu, mais l'état
+        // résiduel du wizard pourrait forcer un désactivé).
+        $student = $studentClass->getStudent();
+        if ($student && false === $student->isEnabled()) {
+            return $this->json(['ok' => false, 'message' => 'Compte désactivé : il sera reporté désactivé, sans promotion forcée.'], 400);
+        }
+
         $raw      = $request->request->get('target');
         $targetId = ($raw === null || trim((string) $raw) === '') ? null : (int) $raw;
         $target   = null;

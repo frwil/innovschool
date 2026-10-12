@@ -490,10 +490,14 @@ $('#parentGender').val($(this).data('gender')).trigger('change');
 					html = '<li class="list-group-item text-muted">Aucun changement de statut enregistré.</li>';
 				} else {
 					data.forEach(function (event) {
+						var scope = event.schoolPeriod
+							? ' — ' + $('<div>').text(event.schoolPeriod).html()
+								+ (event.school ? ' (' + $('<div>').text(event.school).html() + ')' : '')
+							: '';
 						html += '<li class="list-group-item">'
 							+ '<div class="d-flex justify-content-between align-items-center">'
 							+ '<span>' + (event.enabled ? '<span class="badge bg-success">Réactivation</span>' : '<span class="badge bg-danger">Désactivation</span>')
-							+ ' <small class="text-muted">' + event.changedAt + (event.performedBy ? ' par ' + $('<div>').text(event.performedBy).html() : '') + '</small></span>'
+							+ ' <small class="text-muted">' + event.changedAt + (event.performedBy ? ' par ' + $('<div>').text(event.performedBy).html() : '') + scope + '</small></span>'
 							+ '</div>'
 							+ (event.reason ? '<small class="text-muted">Raison : ' + $('<div>').text(event.reason).html() + '</small>' : '')
 							+ '</li>';

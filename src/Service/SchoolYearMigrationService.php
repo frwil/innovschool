@@ -34,7 +34,10 @@ class SchoolYearMigrationService
     /** Étapes qui nécessitent des classes dans la période cible pour être exécutées. */
     private const CLASS_DEPENDENT_STEPS = ['subjects', 'modules', 'payment_modals', 'students'];
 
-    public function __construct(private EntityManagerInterface $em) {}
+    public function __construct(
+        private EntityManagerInterface $em,
+        private StudentStatusService $studentStatusService,
+    ) {}
 
     // ─────────────────────────────────────────────────────────────────────────
     // PREVIEW
@@ -62,23 +65,47 @@ class SchoolYearMigrationService
 
             $eligible = [];
             $nonEligible = [];
-            foreach ($scp->getActiveStudentClasses() as $studentClass) {
+            $disabled = [];
+            // Toutes les inscriptions, pas seulement les comptes actifs :
+            // un compte désactivé est reporté désactivé dans l'année cible
+            // (hors décision promu/redoublant), un compte réactivé après la
+            // fin de l'année source n'impacte aucune stat de cette année.
+            foreach ($scp->getStudentClasses() as $studentClass) {
+                $student = $studentClass->getStudent();
+                if ($student === null) {
+                    continue;
+                }
+                if (false === $student->isEnabled()) {
+                    $disabled[] = [
+                        'student'        => $student,
+                        'studentClassId' => $studentClass->getId(),
+                        'average'        => null,
+                        'eligible'       => false,
+                        'disabled'       => true,
+                    ];
+                    continue;
+                }
+                if (!$this->studentStatusService->isActiveIn($student, $scp)) {
+                    continue;
+                }
                 $avg  = $this->calculateStudentAverage($studentClass, $scp);
                 $stat = [
-                    'student'        => $studentClass->getStudent(),
+                    'student'        => $student,
                     'studentClassId' => $studentClass->getId(),
                     'average'        => $avg,
                     'eligible'       => $avg !== null && $avg >= $grade,
+                    'disabled'       => false,
                 ];
                 $stat['eligible'] ? $eligible[] = $stat : $nonEligible[] = $stat;
             }
             $results[] = [
                 'schoolClassPeriod' => $scp,
                 'className'         => $scp->getClassOccurence()?->getName() ?? '—',
-                'total'             => count($eligible) + count($nonEligible),
+                'total'             => count($eligible) + count($nonEligible) + count($disabled),
                 'eligible'          => count($eligible),
                 'nonEligible'       => count($nonEligible),
-                'studentStats'      => array_merge($eligible, $nonEligible),
+                'disabled'          => count($disabled),
+                'studentStats'      => array_merge($eligible, $nonEligible, $disabled),
                 'grade'             => $grade,
             ];
         }
@@ -206,8 +233,9 @@ class SchoolYearMigrationService
                     }
                 }
                 // Annotation des promotions forcées : détail par élève + compteur de classe.
+                // Les reportés désactivés n'ont pas de décision (ni forcée ni auto).
                 $row['studentStats'] = array_map(function (array $stat) use ($forced) {
-                    $stat['forcedTargetId'] = $forced[$stat['studentClassId']] ?? null;
+                    $stat['forcedTargetId'] = empty($stat['disabled']) ? ($forced[$stat['studentClassId']] ?? null) : null;
                     return $stat;
                 }, $row['studentStats']);
                 $row['forcedCount'] = count(array_filter($row['studentStats'], fn (array $s) => $s['forcedTargetId'] !== null));
@@ -306,6 +334,7 @@ class SchoolYearMigrationService
                 'total'        => $row['total'],
                 'eligible'     => $row['eligible'],
                 'nonEligible'  => $row['nonEligible'],
+                'disabled'     => $row['disabled'],
                 'candidates'   => $candidates,
                 'finalLevel'   => $config !== null && $config->isFinalLevel(),
                 'studentStats' => array_map(function (array $stat) use ($forced) {
@@ -315,7 +344,8 @@ class SchoolYearMigrationService
                         'name'           => $student->getUsername() ?? $student->getFullName(),
                         'average'        => $stat['average'],
                         'eligible'       => $stat['eligible'],
-                        'forcedTargetId' => $forced[$stat['studentClassId']] ?? null,
+                        'disabled'       => $stat['disabled'] ?? false,
+                        'forcedTargetId' => empty($stat['disabled']) ? ($forced[$stat['studentClassId']] ?? null) : null,
                     ];
                 }, $row['studentStats']),
             ];
@@ -515,6 +545,8 @@ class SchoolYearMigrationService
                     'forced'          => ($stats['forced'] ?? 0) + $studentResult['forced'],
                     'skipped'         => ($stats['skipped'] ?? 0) + $studentResult['skipped'],
                     'existing'        => ($stats['existing'] ?? 0) + $studentResult['existing'],
+                    // Comptes désactivés reportés (inscrits, sans paiement).
+                    'disabled'        => ($stats['disabled'] ?? 0) + $studentResult['disabled'],
                     // 1ers versements à 0 € créés (et élèves sans modalité « base »).
                     'payments'        => ($stats['payments'] ?? 0) + $studentResult['paymentsCount'],
                     'noModalPayments' => ($stats['noModalPayments'] ?? 0) + $studentResult['noModalPayments'],
@@ -772,7 +804,7 @@ class SchoolYearMigrationService
         $grades       = $this->loadPassingGrades($log);
         $forcedPromotions = $this->loadForcedPromotions($log);
 
-        $promoted = 0; $repeated = 0; $forced = 0; $skipped = 0; $existingCount = 0; $errors = 0;
+        $promoted = 0; $repeated = 0; $forced = 0; $skipped = 0; $existingCount = 0; $errors = 0; $disabled = 0;
         $studentClasses = [];
         $skippedStudents = [];
         $payments        = [];
@@ -817,7 +849,45 @@ class SchoolYearMigrationService
 
             $repeaterTarget = $occId ? ($repeaterTargetMap[$occId] ?? null) : null;
 
-            foreach ($sourceSCP->getActiveStudentClasses() as $studentClass) {
+            // Toutes les inscriptions : les désactivés sont reportés désactivés,
+            // les comptes réactivés après la fin de l'année source sont ignorés.
+            foreach ($sourceSCP->getStudentClasses() as $studentClass) {
+                $student = $studentClass->getStudent();
+                if ($student === null) {
+                    continue;
+                }
+                $name = $student->getFullName() ?? $student->getUsername();
+
+                // Compte désactivé : inscrit dans la classe de promotion de
+                // l'année cible MAIS reste désactivé (exclu des stats jusqu'à
+                // une réactivation, qui ne comptera que pour l'année cible).
+                // Aucun paiement. Cette branche doit rester EN PREMIER : un
+                // désactivé ayant une moyenne ne doit pas partir en promotion.
+                if (false === $student->isEnabled()) {
+                    if ($promotedTarget) {
+                        $sc = $this->enrollStudent($student, $promotedTarget);
+                        if ($sc) { $studentClasses[] = $sc; $disabled++; }
+                        else { $existingCount++; } // déjà inscrit dans la classe cible
+                    } else {
+                        $skipped++;
+                        $reason = match (true) {
+                            $finalClass     => 'Désactivé : classe terminale, aucune classe de promotion.',
+                            $invalidMapping => 'Désactivé : classe cible invalide.',
+                            default         => 'Désactivé : classe de promotion ambiguë ou non configurée.',
+                        };
+                        $skippedStudents[] = ['name' => $name, 'className' => $sourceName, 'average' => null, 'reason' => $reason];
+                    }
+                    continue;
+                }
+
+                // Compte actif mais inactif dans l'année source (réactivé après
+                // la fin de l'année source) : aucune stat de l'année source
+                // n'est impactée, la réactivation ne compte que pour l'année
+                // où elle a eu lieu.
+                if (!$this->studentStatusService->isActiveIn($student, $sourceSCP)) {
+                    continue;
+                }
+
                 $avg        = $this->calculateStudentAverage($studentClass, $sourceSCP);
                 $grade      = $occId !== null ? ($grades[$occId] ?? $passingGrade) : $passingGrade;
                 $isEligible = $avg !== null && $avg >= $grade;
@@ -830,9 +900,6 @@ class SchoolYearMigrationService
                     $studentChoiceTarget = $this->resolveExplicitTarget($school, $targetPeriod, $studentChoiceId);
                     if ($studentChoiceTarget === null) { $invalidStudentChoice = true; }
                 }
-
-                $student = $studentClass->getStudent();
-                $name    = $student->getFullName() ?? $student->getUsername();
 
                 // Promotion forcée (décision manuelle sur un redoublant) : cible explicite.
                 $forcedTargetId = $forcedPromotions[$studentClass->getId()] ?? null;
@@ -889,14 +956,16 @@ class SchoolYearMigrationService
             'repeated'        => $repeated,
             'forced'          => $forced,
             'skipped'         => $skipped,
+            'disabled'        => $disabled,
             'message'         => sprintf(
-                '%d inscrit(s), %d déjà inscrit(s), %d non affecté(s), %d premier(s) versement(s) à 0 €%s%s.',
+                '%d inscrit(s), %d déjà inscrit(s), %d non affecté(s), %d premier(s) versement(s) à 0 €%s%s%s.',
                 count($studentClasses),
                 $existingCount,
                 $skipped,
                 count($payments),
                 $noModalPayments > 0 ? sprintf(' (%d élève(s) sans modalité « base »)', $noModalPayments) : '',
-                $forced > 0 ? sprintf(' Dont %d promotion(s) forcée(s)', $forced) : ''
+                $forced > 0 ? sprintf(' Dont %d promotion(s) forcée(s)', $forced) : '',
+                $disabled > 0 ? sprintf(' Dont %d reporté(s) désactivé(s)', $disabled) : ''
             ),
             'studentClasses'  => $studentClasses,
             'skippedStudents' => $skippedStudents,
@@ -1045,7 +1114,8 @@ class SchoolYearMigrationService
         ];
 
         foreach ($sourceClasses as $sourceSCP) {
-            foreach ($sourceSCP->getActiveStudentClasses() as $sourceStudentClass) {
+            // Reportés désactivés et réactivés en année cible : hors correction.
+            foreach ($this->studentStatusService->getActiveStudentClasses($sourceSCP) as $sourceStudentClass) {
                 $student      = $sourceStudentClass->getStudent();
                 $avg          = $this->calculateStudentAverage($sourceStudentClass, $sourceSCP);
                 $wasEligible  = $avg !== null && $avg >= $oldGrade;
@@ -1745,10 +1815,8 @@ class SchoolYearMigrationService
         $repo = $this->em->getRepository(StudentClass::class);
         $all  = $repo->createQueryBuilder('sc')
             ->join('sc.schoolClassPeriod', 'scp')
-            ->join('sc.student', 'st')
             ->where('sc.student = :student')
             ->andWhere('scp.period = :period')
-            ->andWhere('st.enabled = 1') // Comptes désactivés exclus
             ->setParameter('student', $student)
             ->setParameter('period', $targetPeriod)
             ->getQuery()

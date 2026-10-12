@@ -19,6 +19,7 @@ use Symfony\Component\Routing\Attribute\Route;
 use Symfony\Component\HttpFoundation\Session\SessionInterface;
 use App\Entity\School;
 use App\Service\OperationLogger;
+use App\Service\StudentStatusService;
 
 #[Route('/student/attendance')]
 final class StudentAttendanceController extends AbstractController
@@ -90,7 +91,8 @@ final class StudentAttendanceController extends AbstractController
         int $evaluationId,
         Request $request,
         EntityManagerInterface $entityManager,
-        OperationLogger $operationLogger
+        OperationLogger $operationLogger,
+        StudentStatusService $studentStatusService
     ): Response {
         $this->denyAccessUnlessGranted('perm', 'presence.save');
 
@@ -101,7 +103,7 @@ final class StudentAttendanceController extends AbstractController
         /** @var \App\Entity\SchoolClassPeriod */
         $schoolClassPeriod = $entityManager->getRepository(SchoolClassPeriod::class)->find($scid);
         $evaluation = $entityManager->getRepository(SchoolEvaluation::class)->find($evaluationId);
-        $students = $schoolClassPeriod->getActiveStudents();
+        $students = $studentStatusService->getActiveStudents($schoolClassPeriod);
 
         /**
          * Vérifier si un enregistrement SchoolClassAttendance existe déjà

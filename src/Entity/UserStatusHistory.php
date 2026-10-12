@@ -21,6 +21,14 @@ class UserStatusHistory
     #[ORM\JoinColumn(name: 'performed_by_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
     private ?User $performedBy = null;
 
+    #[ORM\ManyToOne(targetEntity: SchoolPeriod::class)]
+    #[ORM\JoinColumn(name: 'school_period_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?SchoolPeriod $schoolPeriod = null; // Période scolaire de l'action (désactivation scopée par année)
+
+    #[ORM\ManyToOne(targetEntity: School::class)]
+    #[ORM\JoinColumn(name: 'school_id', referencedColumnName: 'id', nullable: true, onDelete: 'SET NULL')]
+    private ?School $school = null; // École de l'action (audit ; la règle de statut ne filtre pas par école)
+
     #[ORM\Column(type: 'boolean')]
     private bool $enabled = true; // Nouvel état du compte après l'action
 
@@ -59,6 +67,28 @@ class UserStatusHistory
     public function setPerformedBy(?User $performedBy): self
     {
         $this->performedBy = $performedBy;
+        return $this;
+    }
+
+    public function getSchoolPeriod(): ?SchoolPeriod
+    {
+        return $this->schoolPeriod;
+    }
+
+    public function setSchoolPeriod(?SchoolPeriod $schoolPeriod): self
+    {
+        $this->schoolPeriod = $schoolPeriod;
+        return $this;
+    }
+
+    public function getSchool(): ?School
+    {
+        return $this->school;
+    }
+
+    public function setSchool(?School $school): self
+    {
+        $this->school = $school;
         return $this;
     }
 

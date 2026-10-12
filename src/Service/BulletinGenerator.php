@@ -50,6 +50,7 @@ class BulletinGenerator
     private EntityManagerInterface $entityManager;
     private StudentClassAttendanceRepository $attendanceRepo;
     private LoggerInterface $logger;
+    private StudentStatusService $studentStatusService;
 
     public function __construct(
         StudentClassRepository $studentRepo,
@@ -68,7 +69,8 @@ class BulletinGenerator
         StudySubjectRepository $studySubjectRepo,
         EntityManagerInterface $entityManager,
         StudentClassAttendanceRepository $attendanceRepo,
-        LoggerInterface $logger
+        LoggerInterface $logger,
+        StudentStatusService $studentStatusService
     ) {
         $this->studentRepo = $studentRepo;
         $this->classRepo = $classRepo;
@@ -86,6 +88,7 @@ class BulletinGenerator
         $this->studySubjectRepo = $studySubjectRepo;
         $this->entityManager = $entityManager;
         $this->attendanceRepo = $attendanceRepo;
+        $this->studentStatusService = $studentStatusService;
     }
 
     public function generateBulletinA(
@@ -648,7 +651,7 @@ class BulletinGenerator
                 if ($allPeriodsNA) continue;
 
                 $subjectId = $subject->getStudySubject()->getId();
-                foreach ($class->getActiveStudentClasses() as $studentClass) {
+                foreach ($this->studentStatusService->getActiveStudentClasses($class) as $studentClass) {
                     $studentId = $studentClass->getStudent()->getId();
                     $total = 0;
                     $count = 0;
@@ -680,7 +683,7 @@ class BulletinGenerator
 
 
             $moyennesEleves = [];
-            foreach ($class->getActiveStudentClasses() as $studentClass) {
+            foreach ($this->studentStatusService->getActiveStudentClasses($class) as $studentClass) {
                 $studentId = $studentClass->getStudent()->getId();
                 $totalPondere = 0;
                 $totalCoefficients = 0;
@@ -790,7 +793,7 @@ class BulletinGenerator
                 <div class="col-md-9">
                     <div class="row" style="font-size:10pt">
                         <div class="col-md-5">Nom : <strong>' . strtoupper($student[0]->getStudent()->getFullName()) . '</strong></div><div class="col-md-4">Classe : <strong>' . $class->getClassOccurence()->getName() . '</strong></div><div class="col-md-3">Redoublant : <strong></strong></div>
-                        <div class="col-md-5">Né(e) le : <strong>' . $student[0]->getStudent()->getDateOfBirth()->format('d M Y') . '</strong> à : <strong>' . $student[0]->getStudent()->getPlaceOfBirth() . '</strong></div><div class="col-md-4">Effectif : <strong>' . count($class->getActiveStudentClasses()) . '</strong></div><div class="col-md-3">Nb. de matières : <strong>' . count($class->getSchoolClassSubjects()->toArray()) . '</strong></div>
+                        <div class="col-md-5">Né(e) le : <strong>' . $student[0]->getStudent()->getDateOfBirth()->format('d M Y') . '</strong> à : <strong>' . $student[0]->getStudent()->getPlaceOfBirth() . '</strong></div><div class="col-md-4">Effectif : <strong>' . count($this->studentStatusService->getActiveStudentClasses($class)) . '</strong></div><div class="col-md-3">Nb. de matières : <strong>' . count($class->getSchoolClassSubjects()->toArray()) . '</strong></div>
                         <div class="col-md-5">Sexe: <strong>' . ($student[0]->getStudent()->getGender()->value == 'male' ? 'Masculun' : 'Féminin') . '</strong> / Mattricule : <strong>' . $student[0]->getStudent()->getRegistrationNumber() . '</strong></div><div class="col-md-4">Enseignant Principal : <strong>' . ($class->getClassMaster() ? $class->getClassMaster()->getFullName() : '') . '</strong></div><div class="col-md-3"></div>
                         <div class="col-md-5">Nom du tuteur/parent : <strong>' . ($student[0]->getStudent()->getTutor() ? $student[0]->getStudent()->getTutor()->getFullName() : '') . '</strong></div><div class="col-md-4">Contact tuteur/parent : <strong>' . ($student[0]->getStudent()->getTutor() ? $student[0]->getStudent()->getTutor()->getPhone() : '') . '</strong></div><div class="col-md-3"></div>
                         <div class="col-md-5">Matricule national : <strong>' . ($student[0]->getStudent()->getNationalRegistrationNumber() ?? '') . '</strong></div><div class="col-md-4"></div><div class="col-md-3"></div>
@@ -1114,7 +1117,7 @@ class BulletinGenerator
                 if ($allPeriodsNA) continue;
 
                 $subjectId = $subject->getStudySubject()->getId();
-                foreach ($class->getActiveStudentClasses() as $studentClass) {
+                foreach ($this->studentStatusService->getActiveStudentClasses($class) as $studentClass) {
                     $studentId = $studentClass->getStudent()->getId();
                     $total = 0;
                     $count = 0;
@@ -1144,7 +1147,7 @@ class BulletinGenerator
             $nbMat = 0;
 
             $moyennesEleves = [];
-            foreach ($class->getActiveStudentClasses() as $studentClass) {
+            foreach ($this->studentStatusService->getActiveStudentClasses($class) as $studentClass) {
                 $studentId = $studentClass->getStudent()->getId();
                 $totalPondere = 0;
                 $totalCoefficients = 0;

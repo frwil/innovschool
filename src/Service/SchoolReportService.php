@@ -2,6 +2,7 @@
 
 namespace App\Service;
 
+use App\Contract\GenderEnum;
 use App\Entity\School;
 use App\Filter\SchoolGlobalReportFilter;
 use App\Repository\SchoolRepository;
@@ -12,6 +13,7 @@ class SchoolReportService
 
     public function __construct(
         private SchoolSectionRepository $schoolSectionRepository,
+        private StudentStatusService $studentStatusService,
     ) {}
     /**
      * Retourne les données du rapport filtrées selon les critères donnés.
@@ -39,7 +41,7 @@ class SchoolReportService
 
             // On récupère toutes les classes de l'école liée à cette SchoolSection
             $school = $schoolSection->getSchool();
-            $schoolClassPeriods = $school->getSchoolClasses();
+            $schoolClassPeriods = $school->getSchoolClassPeriods();
 
             // Pour chaque "level" (Classe) de cette section...
             foreach ($section->getSectionCategories() as $level) {
@@ -87,7 +89,10 @@ class SchoolReportService
                     }
 
                     // filtre effectifs de classe
-                    $currentEnrollment = count($schoolClassPeriod->getActiveStudentClasses());
+                    // Les effectifs ne comptent que les comptes actifs dans la
+                    // période de la classe (désactivation scopée par année).
+                    $students = $this->studentStatusService->getActiveStudents($schoolClassPeriod);
+                    $currentEnrollment = count($students);
 
                     if ($filter->minCurrentEnrollment !== null && $currentEnrollment < $filter->minCurrentEnrollment) {
                         continue;
@@ -97,7 +102,7 @@ class SchoolReportService
                     }
 
                     // filtre etudiants redoublants
-                    $repeaters = $schoolClassPeriod->getRepeatedStudentCount();
+                    $repeaters = count(array_filter($students, fn ($s) => $s->isRepeated()));
 
                     if ($filter->minRepeaters !== null && $repeaters < $filter->minRepeaters) {
                         continue;
@@ -107,7 +112,7 @@ class SchoolReportService
                     }
 
                     // filtre etudiants males
-                    $boys = $schoolClassPeriod->getStudentsBoysCount();
+                    $boys = count(array_filter($students, fn ($s) => $s->getGender() === GenderEnum::MALE));
 
                     if ($filter->minBoys !== null && $boys < $filter->minBoys) {
                         continue;
@@ -117,7 +122,7 @@ class SchoolReportService
                     }
 
                     // filtre etudiants femelles
-                    $girls = $schoolClassPeriod->getStudentsGirlssCount(); // Corriger si faute
+                    $girls = count(array_filter($students, fn ($s) => $s->getGender() === GenderEnum::FEMALE));
 
                     if ($filter->minGirls !== null && $girls < $filter->minGirls) {
                         continue;
@@ -127,7 +132,13 @@ class SchoolReportService
                     }
 
                     // filtre parents d'élèves
-                    $parents = $schoolClassPeriod->getParentsCount();
+                    $parentsIds = [];
+                    foreach ($students as $student) {
+                        if ($student->getTutor() !== null) {
+                            $parentsIds[$student->getTutor()->getId()] = true;
+                        }
+                    }
+                    $parents = count($parentsIds);
 
                     if ($filter->minParents !== null && $parents < $filter->minParents) {
                         continue;
@@ -138,9 +149,8 @@ class SchoolReportService
 
 
                     // Hypothèse : filtrage par nom, ou bien utiliser une méthode comme matchLevel($level)
-                    if (str_contains($schoolClassPeriod->getName(), $levelName)) {
-                        $className = $schoolClassPeriod->getName();
-
+                    $className = $schoolClassPeriod->getClassOccurence() ? $schoolClassPeriod->getClassOccurence()->getName() : '';
+                    if (str_contains($className, $levelName)) {
                         $classDetails = [
                             'subClass' => $className,
                             'capacity' => 0,

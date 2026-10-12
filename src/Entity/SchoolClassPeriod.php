@@ -218,6 +218,10 @@ class SchoolClassPeriod
 
     /**
      * Inscriptions dont le compte élève est actif (non désactivé).
+     *
+     * ⚠️ État COURANT du compte uniquement (pas de scopage par année) :
+     * pour les écrans opérationnels et les statistiques d'une période,
+     * utiliser StudentStatusService::getActiveStudentClasses() à la place.
      */
     public function getActiveStudentClasses(): array
     {
@@ -231,6 +235,9 @@ class SchoolClassPeriod
     /**
      * Élèves au compte actif (non désactivé) : listes opérationnelles et
      * statistiques de la classe (les comptes désactivés en sont exclus).
+     *
+     * ⚠️ État COURANT du compte uniquement (pas de scopage par année) :
+     * préférer StudentStatusService::getActiveStudents().
      */
     public function getActiveStudents(): array
     {

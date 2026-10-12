@@ -28,6 +28,7 @@ use App\Service\GradeCSVGenerator;
 use App\Service\PrimaryFrameReportCard;
 use App\Service\ReportCardService;
 use App\Service\SecondaryFrameReportCard;
+use App\Service\StudentStatusService;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\Request;
@@ -43,9 +44,11 @@ final class SchoolEvaluationController extends AbstractController
     private SchoolPeriod $currentPeriod;
     private EntityManagerInterface $entityManager;
     private SessionInterface $session;
-    public function __construct(EntityManagerInterface $entityManager)
+    private StudentStatusService $studentStatusService;
+    public function __construct(EntityManagerInterface $entityManager, StudentStatusService $studentStatusService)
     {
         $this->entityManager = $entityManager;
+        $this->studentStatusService = $studentStatusService;
     }
 
     #[Route(name: 'app_school_evaluation_index', methods: ['GET'])]
@@ -169,7 +172,7 @@ final class SchoolEvaluationController extends AbstractController
 
 
             return $this->render('school_evaluation/report.card.html.twig', [
-                'students' => $schoolClassPeriod->getActiveStudents(),
+                'students' => $this->studentStatusService->getActiveStudents($schoolClassPeriod),
                 'form' => $form->createView(),
                 'evaluation' => $evaluation,
                 'section' => $section,
@@ -226,7 +229,7 @@ final class SchoolEvaluationController extends AbstractController
 
 
             return $this->render('school_evaluation/report.card.frame.html.twig', [
-                'students' => $schoolClassPeriod->getActiveStudents(),
+                'students' => $this->studentStatusService->getActiveStudents($schoolClassPeriod),
                 'form' => $form->createView(),
                 'evaluation' => $evaluation,
                 'section' => $section,
