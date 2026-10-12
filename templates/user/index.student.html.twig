@@ -432,12 +432,15 @@ $('#parentGender').val($(this).data('gender')).trigger('change');
 	// La raison est obligatoire : modale de saisie avant l'envoi.
 	$('#studentsTable').on('click', '.toggle-enabled-btn', function () {
 		var $btn = $(this);
+		// .attr() plutôt que .data() : jQuery convertit "0"/"1" en nombres,
+		// ce qui casse la comparaison stricte avec la chaîne '1'.
+		var currentlyEnabled = $btn.attr('data-currently-enabled') === '1';
 		$('#toggleReasonModal').data('student-id', $btn.data('id'))
 			.data('student-name', $btn.data('name'))
-			.data('action', $btn.data('currently-enabled') === '1' ? 'désactiver' : 'réactiver')
+			.data('action', currentlyEnabled ? 'désactiver' : 'réactiver')
 			.data('btn', $btn);
 		var name = $btn.data('name');
-		var action = $btn.data('currently-enabled') === '1' ? 'Désactiver' : 'Réactiver';
+		var action = currentlyEnabled ? 'Désactiver' : 'Réactiver';
 		$('#toggleReasonModalLabel').text(action + ' le compte');
 		$('#toggleReasonText').text('Voulez-vous vraiment ' + action.toLowerCase() + ' le compte de ' + name + ' ?');
 		$('#toggleReason').val('');
