@@ -1,4 +1,4 @@
-# Sauvegarde horaire de la base de développement (Windows + Docker Desktop).
+# Sauvegarde horaire de la base de données (Windows 11 + Docker, prod ou dev).
 # À planifier dans le Planificateur de tâches (voir README.md).
 # Le dump passe par le conteneur et est copié avec docker cp (binaire sûr).
 $ErrorActionPreference = "Stop"
@@ -22,9 +22,9 @@ function Log([string]$msg) {
     Add-Content -Path $LogFile -Value "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $msg"
 }
 
-# Docker Desktop doit tourner et le conteneur de base exister.
+# Docker doit tourner et le conteneur de base exister.
 try { & docker info 2>&1 | Out-Null } catch {}
-if ($LASTEXITCODE -ne 0) { Log "Docker Desktop arrêté : sauvegarde ignorée."; exit 0 }
+if ($LASTEXITCODE -ne 0) { Log "Docker non démarré : sauvegarde ignorée."; exit 0 }
 try { $running = (& docker ps --filter "name=^$DbContainer$" --format "{{.Names}}" 2>&1) -join " " } catch { $running = "" }
 if (-not $running) { Log "Conteneur « $DbContainer » absent : sauvegarde ignorée."; exit 0 }
 
