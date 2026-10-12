@@ -46,4 +46,7 @@
 /public/js/Chart.min.js
 /assets/js/fullcalendar.min.js
 /assets/js/Chart.min.js
+# Dumps SQL locaux (données élèves : à ne jamais versionner)
+data/*.sql
+data/data_splited/
 ###< custom ###
