@@ -1,0 +1,6 @@
+# Scripts shell exécutés sur Linux : fins de ligne LF obligatoires
+# (un fichier .sh commité en CRLF depuis Windows explose sous bash)
+*.sh text eol=lf
+
+# PowerShell : CRLF natif
+*.ps1 text eol=crlf
