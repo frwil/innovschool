@@ -10,8 +10,8 @@ KEEP_WEEKLY="${KEEP_WEEKLY:-4}"
 KEEP_MONTHLY="${KEEP_MONTHLY:-12}"
 # Journal
 LOG_FILE="${LOG_FILE:-$BACKUP_ROOT/backup.log}"
-# Conteneur MySQL/MariaDB
-DB_CONTAINER="${DB_CONTAINER:-database}"
+# Conteneur MySQL/MariaDB (auto-détecté s'il n'est pas fourni)
+DB_CONTAINER="${DB_CONTAINER:-}"
 # Cible rclone « remote:chemin » (vide = pas de synchronisation cloud)
 RCLONE_TARGET="${RCLONE_TARGET:-}"
 
@@ -50,3 +50,15 @@ load_db_credentials() {
 }
 
 log() { echo "[$(date '+%F %T')] $*" >> "$LOG_FILE"; }
+
+# Conteneur de base : variable DB_CONTAINER sinon auto-détection du conteneur
+# dont l'image est MySQL ou MariaDB (le nom de service « database » du réseau
+# Docker n'est pas forcément le nom du conteneur).
+find_db_container() {
+    if [[ -n "$DB_CONTAINER" ]]; then
+        return 0
+    fi
+    DB_CONTAINER="$(docker ps --format '{{.Names}} {{.Image}}' 2>/dev/null \
+        | awk 'tolower($2) ~ /mysql|mariadb/ {print $1; exit}')"
+    [[ -n "$DB_CONTAINER" ]]
+}

@@ -21,6 +21,7 @@ if ! flock -n 9; then
 fi
 
 load_db_credentials || exit 1
+find_db_container || { log "Aucun conteneur MySQL/MariaDB en marche, abandon."; exit 1; }
 
 # --set-gtid-purged n'existe pas sous MariaDB
 SERVER_VERSION="$(docker exec "$DB_CONTAINER" sh -c 'mysqld --version 2>/dev/null || mariadbd --version 2>/dev/null' 2>/dev/null || true)"

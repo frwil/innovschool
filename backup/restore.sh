@@ -16,6 +16,7 @@ if [[ -z "$DUMP" || ! -f "$DUMP" ]]; then
 fi
 
 load_db_credentials || exit 1
+find_db_container || { echo "Aucun conteneur MySQL/MariaDB en marche, abandon." >&2; exit 1; }
 
 echo "Restauration de « $DB_NAME » depuis $DUMP"
 echo "⚠️  Les données actuelles de la base seront remplacées."

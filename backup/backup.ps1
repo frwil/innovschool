@@ -6,7 +6,7 @@ $ErrorActionPreference = "Stop"
 $ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $EnvFile      = Join-Path (Split-Path -Parent $ScriptDir) ".env"
 $BackupRoot   = if ($env:INNOVSKOOL_BACKUP_DIR) { $env:INNOVSKOOL_BACKUP_DIR } else { Join-Path $env:USERPROFILE "backups\innovskool" }
-$DbContainer  = if ($env:INNOVSKOOL_DB_CONTAINER) { $env:INNOVSKOOL_DB_CONTAINER } else { "database" }
+$DbContainer  = $env:INNOVSKOOL_DB_CONTAINER  # surcharge possible ; sinon auto-détection ci-dessous
 $RcloneTarget = $env:INNOVSKOOL_RCLONE_TARGET  # ex. "gdrive:innovskool-backups/dev" ; vide = pas de cloud
 $KeepHourly   = 24
 $KeepDaily    = 7
@@ -22,11 +22,18 @@ function Log([string]$msg) {
     Add-Content -Path $LogFile -Value "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] $msg"
 }
 
-# Docker doit tourner et le conteneur de base exister.
+# Docker doit tourner.
 try { & docker info 2>&1 | Out-Null } catch {}
 if ($LASTEXITCODE -ne 0) { Log "Docker non démarré : sauvegarde ignorée."; exit 0 }
-try { $running = (& docker ps --filter "name=^$DbContainer$" --format "{{.Names}}" 2>&1) -join " " } catch { $running = "" }
-if (-not $running) { Log "Conteneur « $DbContainer » absent : sauvegarde ignorée."; exit 0 }
+
+# Conteneur de base : variable INNOVSKOOL_DB_CONTAINER sinon auto-détection
+# du conteneur dont l'image est MySQL ou MariaDB (le nom de service
+# « database » dans le réseau Docker n'est pas forcément le nom du conteneur).
+if (-not $DbContainer) {
+    try { $psLines = (& docker ps --format "{{.Names}} {{.Image}}" 2>&1) } catch { $psLines = @() }
+    $DbContainer = ($psLines | Where-Object { $_ -match "(mysql|mariadb)" } | Select-Object -First 1) -replace " .*$", ""
+}
+if (-not $DbContainer) { Log "Aucun conteneur MySQL/MariaDB en marche : sauvegarde ignorée."; exit 0 }
 
 # Identifiants depuis le DATABASE_URL de l'application (valeurs URL-encodées décodées).
 if (-not (Test-Path $EnvFile)) { Log "ERREUR : $EnvFile introuvable."; exit 1 }

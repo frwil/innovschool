@@ -7,7 +7,7 @@ Dumps SQL horaires (mysqldump + gzip) avec rotation **24 h / 7 jours / 4 semaine
 | Distante (prod, Docker) | `backup.ps1` | Planificateur de tâches, toutes les heures à :17 | `…/prod` |
 | Windows (dev, Docker Desktop) | `backup.ps1` | Planificateur de tâches, toutes les heures à :17 | `…/dev` |
 
-Le dump est fait **dans** le conteneur `database` (`--single-transaction`, procédures/événements/déclencheurs inclus), compressé en gzip, vérifié (`gzip -t`, taille minimale), copié en binaire via `docker cp`, puis tourné. Les identifiants sont lus dans le `.env` de l'application (`DATABASE_URL`) — rien à dupliquer. Docker arrêté → la tâche journalise et se retire sans erreur. Aucun dump n'est écrit dans le dépôt.
+Le dump est fait **dans** le conteneur MySQL/MariaDB (`--single-transaction`, procédures/événements/déclencheurs inclus), compressé en gzip, vérifié (`gzip -t`, taille minimale), copié en binaire via `docker cp`, puis tourné. Les identifiants sont lus dans le `.env` de l'application (`DATABASE_URL`) — rien à dupliquer. Le conteneur de base est **auto-détecté** (`docker ps`, image `mysql` ou `mariadb`) ; surcharge possible par la variable `INNOVSKOOL_DB_CONTAINER` (PowerShell) ou `DB_CONTAINER` (variante Linux). Docker arrêté → la tâche journalise et se retire sans erreur. Aucun dump n'est écrit dans le dépôt.
 
 > Variante Linux (si l'hôte devient un jour Linux) : `backup.sh`, `lib.sh`, `restore.sh` + cron — voir la dernière section.
 
@@ -57,11 +57,11 @@ Identique, avec la cible cloud `…/dev` si rclone est utilisé :
 
 ## Restauration
 
-**Sur n'importe laquelle des deux machines** (remplace la base actuelle) :
+**Sur n'importe laquelle des deux machines** (remplace la base actuelle) — `CONTAINER` est le nom du conteneur MySQL (visible avec `docker ps` ; en PowerShell : `(docker ps --format "{{.Names}} {{.Image}}" | Select-String "mysql|mariadb").ToString().Split(" ")[0]`) :
 ```powershell
-docker cp <chemin>\innovskool-XXXX.sql.gz database:/tmp/restore.sql.gz
-docker exec -e MYSQL_PWD=<mot-de-passe> database sh -c "gzip -cd /tmp/restore.sql.gz | mysql -uroot <nom-de-base>"
-docker exec database rm -f /tmp/restore.sql.gz
+docker cp <chemin>\innovskool-XXXX.sql.gz CONTAINER:/tmp/restore.sql.gz
+docker exec -e MYSQL_PWD=<mot-de-passe> CONTAINER sh -c "gzip -cd /tmp/restore.sql.gz | mysql -uroot <nom-de-base>"
+docker exec CONTAINER rm -f /tmp/restore.sql.gz
 ```
 (utilisateur, mot de passe et nom de base sont dans le `DATABASE_URL` du `.env` ; base `innovsh` par défaut)
 
