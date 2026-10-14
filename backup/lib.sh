@@ -4,21 +4,26 @@
 # Répertoire racine des sauvegardes (hors du dépôt)
 BACKUP_ROOT="${BACKUP_ROOT:-/var/backups/innovskool}"
 # Nombre de sauvegardes conservées par niveau de rotation
-KEEP_HOURLY="${KEEP_HOURLY:-24}"
-KEEP_DAILY="${KEEP_DAILY:-7}"
-KEEP_WEEKLY="${KEEP_WEEKLY:-4}"
-KEEP_MONTHLY="${KEEP_MONTHLY:-12}"
+# Par jour, ne conserver que les N sauvegardes les plus récentes
+# (16 = une journée de présence, 6 h → 22 h)
+KEEP_PER_DAY="${KEEP_PER_DAY:-16}"
+# Âge maximal des sauvegardes (jours) : rien n'est conservé au-delà
+MAX_AGE_DAYS="${MAX_AGE_DAYS:-30}"
 # Journal
 LOG_FILE="${LOG_FILE:-$BACKUP_ROOT/backup.log}"
 # Conteneur MySQL/MariaDB (auto-détecté s'il n'est pas fourni)
 DB_CONTAINER="${DB_CONTAINER:-}"
 # Cible rclone « remote:chemin » (vide = pas de synchronisation cloud)
 RCLONE_TARGET="${RCLONE_TARGET:-}"
+# Deuxième cible rclone (ex. la machine partenaire en SFTP) et répertoire
+# local qui reçoit les dumps de cette machine (réplication croisée).
+RCLONE_TARGET2="${RCLONE_TARGET2:-}"
+REPLICA_DIR="${REPLICA_DIR:-}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Surcharges locales éventuelles (fichier optionnel à côté des scripts,
-# par exemple : RCLONE_TARGET="gdrive:innovskool-backups/prod")
+# par exemple : RCLONE_TARGET="secret:prod")
 if [[ -f "$SCRIPT_DIR/backup.conf" ]]; then
     # shellcheck disable=SC1091
     source "$SCRIPT_DIR/backup.conf"

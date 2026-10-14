@@ -11,7 +11,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck disable=SC1091
 source "$SCRIPT_DIR/lib.sh"
 
-mkdir -p "$BACKUP_ROOT/hourly" "$BACKUP_ROOT/daily" "$BACKUP_ROOT/weekly" "$BACKUP_ROOT/monthly"
+mkdir -p "$BACKUP_ROOT/hourly"
 
 # Une seule sauvegarde à la fois (évite le chevauchement si un dump traîne)
 exec 9>"$BACKUP_ROOT/.lock"
@@ -60,41 +60,56 @@ fi
 mv "$TMP_FILE" "$FINAL_FILE"
 log "Sauvegarde OK : $FINAL_FILE ($((SIZE / 1024)) Ko)."
 
-# Rotation : ne conserver que les N fichiers les plus récents de chaque niveau.
-prune() { # $1 répertoire, $2 nombre à conserver
-    [[ -n "$(ls "$1"/*.gz 2>/dev/null)" ]] || return 0
-    ls -1t "$1"/*.gz 2>/dev/null | tail -n +$(($2 + 1)) | xargs -r rm -f --
-}
-prune "$BACKUP_ROOT/hourly" "$KEEP_HOURLY"
-
-# Quotidienne à 02h, hebdomadaire le dimanche à 03h, mensuelle le 1er à 05h
-# (chaque passage horaire décide lui-même de son niveau).
-HOUR="$(date +%-H)"
-if [[ "$HOUR" == "2" ]]; then
-    cp "$FINAL_FILE" "$BACKUP_ROOT/daily/" && prune "$BACKUP_ROOT/daily" "$KEEP_DAILY"
-    log "Copie quotidienne conservée."
-fi
-if [[ "$HOUR" == "3" && "$(date +%u)" == "7" ]]; then
-    cp "$FINAL_FILE" "$BACKUP_ROOT/weekly/" && prune "$BACKUP_ROOT/weekly" "$KEEP_WEEKLY"
-    log "Copie hebdomadaire conservée."
-fi
-if [[ "$HOUR" == "5" && "$(date +%-d)" == "1" ]]; then
-    cp "$FINAL_FILE" "$BACKUP_ROOT/monthly/" && prune "$BACKUP_ROOT/monthly" "$KEEP_MONTHLY"
-    log "Copie mensuelle conservée."
-fi
-
-# Synchronisation cloud (rclone), si configurée.
-if [[ -n "$RCLONE_TARGET" ]]; then
-    if command -v rclone >/dev/null 2>&1; then
-        for LEVEL in hourly daily weekly monthly; do
-            if ! rclone sync "$BACKUP_ROOT/$LEVEL" "$RCLONE_TARGET/$LEVEL" \
-                    --log-file="$BACKUP_ROOT/rclone.log" --log-level ERROR; then
-                log "AVERTISSEMENT : synchronisation cloud échouée ($LEVEL)."
+# Rétention commune : par jour, ne conserver que les KEEP_PER_DAY sauvegardes
+# les plus récentes (16 = les heures de présence, 6 h → 22 h), rien au-delà
+# de MAX_AGE_DAYS jours, et garde-fou : la sauvegarde la plus récente n'est
+# jamais supprimée (machine éteinte longtemps → on garde le dernier point
+# connu plutôt que rien). $1 = racine à écréter (chemins sans espaces).
+apply_retention() {
+    local root="$1" ALL_GZ CUTOFF DELETED i
+    [[ -d "$root" ]] || return 0
+    find "$root" -type f -name '*.gz' -printf '%T@ %TY-%Tm-%Td %p\n' \
+        | sort -rn \
+        | awk -v keep="$KEEP_PER_DAY" '$2 != day { day = $2; n = 0 } { n++ } n > keep { print $3 }' \
+        | xargs -r rm -f --
+    mapfile -t ALL_GZ < <(find "$root" -type f -name '*.gz' -printf '%T@\t%p\n' | sort -n | cut -f2-)
+    if [[ "${#ALL_GZ[@]}" -gt 1 ]]; then
+        CUTOFF="$(date -d "$MAX_AGE_DAYS days ago" +%s)"
+        DELETED=0
+        # on parcourt tous les fichiers sauf le dernier (le plus récent)
+        for ((i = 0; i < ${#ALL_GZ[@]} - 1; i++)); do
+            if [[ "$(stat -c %Y "${ALL_GZ[$i]}")" -lt "$CUTOFF" ]]; then
+                rm -f -- "${ALL_GZ[$i]}"
+                DELETED=$((DELETED + 1))
             fi
         done
-        log "Synchronisation cloud terminée vers $RCLONE_TARGET."
+        if [[ "$DELETED" -gt 0 ]]; then
+            log "Suppression des sauvegardes de plus de $MAX_AGE_DAYS jours ($(basename "$root")) : $DELETED fichier(s) supprimé(s)."
+        fi
+    fi
+}
+
+apply_retention "$BACKUP_ROOT"
+# Dumps reçus de l'autre machine (réplication croisée) : même rétention.
+[[ -n "$REPLICA_DIR" ]] && apply_retention "$REPLICA_DIR"
+
+# Synchronisation (rclone) : cloud et/ou réplication croisée, si configurées.
+TARGETS=()
+[[ -n "$RCLONE_TARGET" ]] && TARGETS+=("$RCLONE_TARGET")
+[[ -n "$RCLONE_TARGET2" ]] && TARGETS+=("$RCLONE_TARGET2")
+if [[ "${#TARGETS[@]}" -gt 0 ]]; then
+    if command -v rclone >/dev/null 2>&1; then
+        for TARGET in "${TARGETS[@]}"; do
+            for LEVEL in hourly; do
+                if ! rclone sync "$BACKUP_ROOT/$LEVEL" "$TARGET/$LEVEL" \
+                        --log-file="$BACKUP_ROOT/rclone.log" --log-level ERROR; then
+                    log "AVERTISSEMENT : synchronisation échouée ($TARGET/$LEVEL)."
+                fi
+            done
+            log "Synchronisation terminée vers $TARGET."
+        done
     else
-        log "AVERTISSEMENT : rclone absent, pas de synchronisation cloud."
+        log "AVERTISSEMENT : rclone absent, pas de synchronisation."
     fi
 fi
 

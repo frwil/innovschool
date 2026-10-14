@@ -1,4 +1,4 @@
-# Sauvegarde horaire de la base de données (Windows 11 + Docker, prod ou dev).
+﻿# Sauvegarde horaire de la base de données (Windows 11 + Docker, prod ou dev).
 # À planifier dans le Planificateur de tâches (voir README.md).
 # Le dump passe par le conteneur et est copié avec docker cp (binaire sûr).
 $ErrorActionPreference = "Stop"
@@ -7,14 +7,17 @@ $ScriptDir    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $EnvFile      = Join-Path (Split-Path -Parent $ScriptDir) ".env"
 $BackupRoot   = if ($env:INNOVSKOOL_BACKUP_DIR) { $env:INNOVSKOOL_BACKUP_DIR } else { Join-Path $env:USERPROFILE "backups\innovskool" }
 $DbContainer  = $env:INNOVSKOOL_DB_CONTAINER  # surcharge possible ; sinon auto-détection ci-dessous
-$RcloneTarget = $env:INNOVSKOOL_RCLONE_TARGET  # ex. "gdrive:innovskool-backups/dev" ; vide = pas de cloud
-$KeepHourly   = 24
-$KeepDaily    = 7
-$KeepWeekly   = 4
-$KeepMonthly  = 12
+# Cibles rclone : cible 1 (cloud) et cible 2 (réplication croisée), ex.
+# "secret:dev" ou "sftp-maison:backups/replicas" ; vide = ignorée.
+$RcloneTargets = @($env:INNOVSKOOL_RCLONE_TARGET, $env:INNOVSKOOL_RCLONE_TARGET2) | Where-Object { $_ }
+# Répertoire qui reçoit les dumps de l'autre machine (réplication croisée) ;
+# même rétention que les dumps locaux. Vide = pas de réplication.
+$ReplicaDir   = if ($env:INNOVSKOOL_REPLICA_DIR) { [Environment]::ExpandEnvironmentVariables($env:INNOVSKOOL_REPLICA_DIR) } else { $null }
+$KeepPerDay   = if ($env:INNOVSKOOL_KEEP_PER_DAY) { [int]$env:INNOVSKOOL_KEEP_PER_DAY } else { 16 }
+$MaxAgeDays   = if ($env:INNOVSKOOL_MAX_AGE_DAYS) { [int]$env:INNOVSKOOL_MAX_AGE_DAYS } else { 30 }
 $LogFile      = Join-Path $BackupRoot "backup.log"
 
-foreach ($dir in @("hourly", "daily", "weekly", "monthly")) {
+foreach ($dir in @("hourly")) {
     New-Item -ItemType Directory -Force -Path (Join-Path $BackupRoot $dir) | Out-Null
 }
 
@@ -79,44 +82,55 @@ if ($size -lt 10240) {
 try { & docker exec $DbContainer rm -f $remote 2>&1 | Out-Null } catch {}
 Log "Sauvegarde OK : $final ($([math]::Round($size / 1KB)) Ko)."
 
-# Rotation : ne conserver que les N fichiers les plus récents de chaque niveau.
-function Prune([string]$dir, [int]$keep) {
-    Get-ChildItem $dir -Filter *.gz -File |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -Skip $keep |
-        Remove-Item -Force
-}
-Prune (Join-Path $BackupRoot "hourly") $KeepHourly
-
-# Quotidienne à 02h, hebdomadaire le dimanche à 03h, mensuelle le 1er à 05h.
-$now = Get-Date
-if ($now.Hour -eq 2) {
-    Copy-Item $final (Join-Path $BackupRoot "daily")
-    Prune (Join-Path $BackupRoot "daily") $KeepDaily
-    Log "Copie quotidienne conservée."
-}
-if ($now.Hour -eq 3 -and $now.DayOfWeek -eq "Sunday") {
-    Copy-Item $final (Join-Path $BackupRoot "weekly")
-    Prune (Join-Path $BackupRoot "weekly") $KeepWeekly
-    Log "Copie hebdomadaire conservée."
-}
-if ($now.Hour -eq 5 -and $now.Day -eq 1) {
-    Copy-Item $final (Join-Path $BackupRoot "monthly")
-    Prune (Join-Path $BackupRoot "monthly") $KeepMonthly
-    Log "Copie mensuelle conservée."
-}
-
-# Synchronisation cloud (rclone), si configurée.
-if ($RcloneTarget) {
-    if (Get-Command rclone -ErrorAction SilentlyContinue) {
-        foreach ($level in @("hourly", "daily", "weekly", "monthly")) {
-            & rclone sync (Join-Path $BackupRoot $level) "$RcloneTarget/$level" `
-                --log-file (Join-Path $BackupRoot "rclone.log") --log-level ERROR
-            if ($LASTEXITCODE -ne 0) { Log "AVERTISSEMENT : synchronisation cloud échouée ($level)." }
+# Rétention commune : par jour, ne conserver que les $KeepPerDay sauvegardes
+# les plus récentes (16 = les heures de présence, 6 h → 22 h), rien au-delà
+# de $MaxAgeDays jours, et garde-fou : la sauvegarde la plus récente n'est
+# jamais supprimée — si elle est seule (machine éteinte longtemps), on garde
+# le dernier point connu plutôt que rien.
+function Apply-Retention([string]$root) {
+    if (-not (Test-Path $root)) { return }
+    Get-ChildItem $root -Recurse -Filter *.gz -File |
+        Group-Object { $_.LastWriteTime.Date } |
+        ForEach-Object {
+            $_.Group | Sort-Object LastWriteTime -Descending |
+                Select-Object -Skip $KeepPerDay |
+                Remove-Item -Force
         }
-        Log "Synchronisation cloud terminée vers $RcloneTarget."
+    $all = @(Get-ChildItem $root -Recurse -Filter *.gz -File)
+    if ($all.Count -gt 1) {
+        $cutoff = (Get-Date).AddDays(-$MaxAgeDays)
+        $newest = $all | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        $old = @($all | Where-Object { $_.LastWriteTime -lt $cutoff -and $_.FullName -ne $newest.FullName })
+        if ($old.Count -gt 0) {
+            $old | Remove-Item -Force
+            Log "Suppression des sauvegardes de plus de $MaxAgeDays jours : $($old.Count) fichier(s) supprimé(s)."
+        }
+    }
+}
+
+Apply-Retention $BackupRoot
+# Dumps reçus de l'autre machine (réplication croisée) : même rétention.
+if ($ReplicaDir) { Apply-Retention $ReplicaDir }
+
+# Synchronisation (rclone) : cloud et/ou réplication croisée, si configurées.
+if ($RcloneTargets.Count -gt 0) {
+    # rclone peut ne pas être dans le PATH (shell ouvert avant l'installation
+    # par winget) : repli sur le lien winget standard.
+    $rcloneCmd = Get-Command rclone -ErrorAction SilentlyContinue
+    if (-not $rcloneCmd) {
+        $rcloneCmd = Get-Command (Join-Path $env:LOCALAPPDATA "Microsoft\WinGet\Links\rclone.exe") -ErrorAction SilentlyContinue
+    }
+    if ($rcloneCmd) {
+        foreach ($target in $RcloneTargets) {
+            foreach ($level in @("hourly")) {
+                & $rcloneCmd.Source sync (Join-Path $BackupRoot $level) "$target/$level" `
+                    --log-file (Join-Path $BackupRoot "rclone.log") --log-level ERROR
+                if ($LASTEXITCODE -ne 0) { Log "AVERTISSEMENT : synchronisation échouée ($target/$level)." }
+            }
+            Log "Synchronisation terminée vers $target."
+        }
     } else {
-        Log "AVERTISSEMENT : rclone absent, pas de synchronisation cloud."
+        Log "AVERTISSEMENT : rclone absent, pas de synchronisation."
     }
 }
 
