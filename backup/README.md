@@ -48,27 +48,28 @@ Prérequis : le dépôt à jour (`git pull`), Docker démarré, le conteneur MyS
    - Autres fournisseurs possibles : OVH Object Storage, Google Drive, OneDrive… seul le nom du remote change (Scaleway Object Storage exige une carte physique validée — bloqué avec une carte virtuelle ; MediaFire n'est pas géré par rclone).
 
 4. **Réplication croisée (cible 2)** — chaque machine envoie ses dumps sur l'autre (aucun tiers, copie hors site même si le cloud tombe) :
-   1. Installer **Tailscale** sur les deux machines (`winget install Tailscale.Tailscale`, puis `tailscale up` et se connecter) : elles se voient ensuite par des noms stables (ex. `innovskool-ecole`, `innovskool-maison`), même derrière les box.
-   2. Activer le **serveur OpenSSH** sur les deux machines (PowerShell **administrateur**) :
+   1. Installer **Tailscale** sur les deux machines (`winget install Tailscale.Tailscale`, puis `tailscale up` avec **le même compte** des deux côtés) : elles se voient ensuite par des noms stables (ex. `innovskool-ecole`, `innovskool-maison`), même derrière les box. Noter l'IP Tailscale de chaque machine (`tailscale ip -4`, ex. `100.x.y.z`).
+   2. Sur **chaque** machine, un petit conteneur SFTP dédié reçoit les dumps de l'autre (pas besoin du serveur OpenSSH de Windows ni d'un mot de passe de session) :
       ```powershell
-      Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0
-      Start-Service sshd
-      Set-Service -Name sshd -StartupType Automatic
+      docker run -d --name backup-sftp --restart unless-stopped -p 2222:22 ^
+        -e SFTP_USERS=backup:<mot-de-passe> ^
+        -v "$env:USERPROFILE\backups\replicas:/home/backup/backups/replicas" ^
+        atmoz/sftp
       ```
-   3. Déclarer l'autre machine dans rclone (sur chaque machine) :
+      ⚠️ Le **même** `<mot-de-passe>` sur les deux machines (à conserver, par ex. dans `%USERPROFILE%\backups\rclone-sftp.txt`) : c'est lui qui sert au SFTP — le mot de passe de session Windows n'est jamais utilisé.
+   3. Déclarer l'autre machine dans rclone (sur chaque machine ; `<ip-ts>` = IP Tailscale de l'**autre** machine) :
       ```powershell
-      rclone obscure <mot-de-passe-ssh>    # copier la sortie
-      rclone config create sftp-maison sftp host innovskool-maison ^
-        user <utilisateur> pass <sortie-obscurcie> shell_type powershell ^
-        md5sum_command none sha1sum_command none
+      rclone obscure <mot-de-passe>    # copier la sortie
+      rclone config create sftp-maison sftp host <ip-ts> port 2222 ^
+        user backup pass <sortie-obscurcie>
       ```
-      (sur l'autre machine : `sftp-ecole`, hôte `innovskool-ecole`)
+      (sur l'autre machine : remote `sftp-ecole`, hôte = IP Tailscale de la maison)
    4. Variables (sur cette machine, prod) :
       ```powershell
       setx INNOVSKOOL_RCLONE_TARGET2 "sftp-maison:backups/replicas"
       setx INNOVSKOOL_REPLICA_DIR "%USERPROFILE%\backups\replicas"
       ```
-      Sur l'autre machine : cible 2 = `sftp-ecole:backups/replicas`, même `INNOVSKOOL_REPLICA_DIR`. `backups/replicas` est relatif au répertoire personnel SSH de l'autre machine ; le script y applique la même rétention (16/jour, 30 jours, jamais la plus récente).
+      Sur l'autre machine : cible 2 = `sftp-ecole:backups/replicas`, même `INNOVSKOOL_REPLICA_DIR`. `backups/replicas` est relatif au répertoire personnel du compte `backup` **dans le conteneur**, monté sur `%USERPROFILE%\backups\replicas` de la machine qui reçoit ; le script y applique la même rétention (16/jour, 30 jours, jamais la plus récente).
       Vérifier (après un passage horaire) : `dir $env:USERPROFILE\backups\replicas\hourly`.
 
 ---
