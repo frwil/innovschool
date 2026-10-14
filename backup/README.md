@@ -52,16 +52,17 @@ Prérequis : le dépôt à jour (`git pull`), Docker démarré, le conteneur MyS
    2. Sur **chaque** machine, un petit conteneur SFTP dédié reçoit les dumps de l'autre (pas besoin du serveur OpenSSH de Windows ni d'un mot de passe de session) :
       ```powershell
       docker run -d --name backup-sftp --restart unless-stopped -p 2222:22 ^
-        -e SFTP_USERS=backup:<mot-de-passe> ^
-        -v "$env:USERPROFILE\backups\replicas:/home/backup/backups/replicas" ^
+        -e SFTP_USERS=sftprep:<mot-de-passe> ^
+        -v "$env:USERPROFILE\backups\replicas:/home/sftprep/backups/replicas" ^
         atmoz/sftp
       ```
       ⚠️ Le **même** `<mot-de-passe>` sur les deux machines (à conserver, par ex. dans `%USERPROFILE%\backups\rclone-sftp.txt`) : c'est lui qui sert au SFTP — le mot de passe de session Windows n'est jamais utilisé.
+      > Ne pas utiliser le nom d'utilisateur `backup` : c'est un utilisateur système déjà présent dans l'image Debian (UID 34), l'entrypoint l'ignorerait (« already exists. Skipping »).
    3. Déclarer l'autre machine dans rclone (sur chaque machine ; `<ip-ts>` = IP Tailscale de l'**autre** machine) :
       ```powershell
       rclone obscure <mot-de-passe>    # copier la sortie
       rclone config create sftp-maison sftp host <ip-ts> port 2222 ^
-        user backup pass <sortie-obscurcie>
+        user sftprep pass <sortie-obscurcie>
       ```
       (sur l'autre machine : remote `sftp-ecole`, hôte = IP Tailscale de la maison)
    4. Variables (sur cette machine, prod) :
@@ -69,7 +70,7 @@ Prérequis : le dépôt à jour (`git pull`), Docker démarré, le conteneur MyS
       setx INNOVSKOOL_RCLONE_TARGET2 "sftp-maison:backups/replicas"
       setx INNOVSKOOL_REPLICA_DIR "%USERPROFILE%\backups\replicas"
       ```
-      Sur l'autre machine : cible 2 = `sftp-ecole:backups/replicas`, même `INNOVSKOOL_REPLICA_DIR`. `backups/replicas` est relatif au répertoire personnel du compte `backup` **dans le conteneur**, monté sur `%USERPROFILE%\backups\replicas` de la machine qui reçoit ; le script y applique la même rétention (16/jour, 30 jours, jamais la plus récente).
+      Sur l'autre machine : cible 2 = `sftp-ecole:backups/replicas`, même `INNOVSKOOL_REPLICA_DIR`. `backups/replicas` est relatif au répertoire personnel du compte `sftprep` **dans le conteneur**, monté sur `%USERPROFILE%\backups\replicas` de la machine qui reçoit ; le script y applique la même rétention (16/jour, 30 jours, jamais la plus récente).
       Vérifier (après un passage horaire) : `dir $env:USERPROFILE\backups\replicas\hourly`.
 
 ---
@@ -115,6 +116,7 @@ Configuration : fichier `backup/backup.conf` à côté des scripts avec `RCLONE_
 - **Espace disque** : un dump gzip mesuré (base dev) fait ~2 Mo ; même en tablant large pour la prod (×10), 16 par jour sur 30 jours ≈ 480 fichiers, soit environ 1 à 10 Go par machine, localement, chez l'autre machine et dans le cloud.
 - **Rétention identique partout** : `rclone sync` répercute les suppressions locales — le cloud et la machine partenaire ne gardent rien au-delà de 30 jours non plus, et la sauvegarde la plus récente y est protégée de la même façon.
 - **Journal** : `%USERPROFILE%\backups\innovskool\backup.log`, auto-tronqué à 1 Mo. Le journal `rclone.log` reçoit les erreurs de synchronisation.
+- **rclone 1.75+** : un mot de passe passé en **flag** (`--sftp-pass`…) doit être **obscurci** (`rclone obscure`) — en clair, il est interprété comme obscurci et l'authentification échoue. Dans le fichier de config (`config create … pass <valeur>`), c'est géré automatiquement.
 - **Hors périmètre** : les fichiers téléversés (`public/uploads/`), les secrets et la config serveur ne sont pas couverts — dumps de la base uniquement.
 - **Limites du dump SQL** : pas de reprise point-dans-le-temps à la minute (il faudrait les binlogs) ; `--single-transaction` garantit un instantané cohérent des données engagées.
 - Les **scripts** sont versionnés dans `backup/` (livrés avec le dépôt) ; les **dumps**, eux, vivent hors du dépôt (`%USERPROFILE%\backups\…`) et ne sont jamais commités.
