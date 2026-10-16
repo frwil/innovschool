@@ -37,6 +37,7 @@ use App\Entity\SchoolClassAdmissionPayment;
 use App\Service\StringHelper;
 use App\Service\OperationLogger;
 use App\Service\AccessRightsService;
+use App\Service\StudentStatusService;
 use App\Entity\AdmissionReductions;
 
 #[Route('/users')]
@@ -61,7 +62,8 @@ final class UserController extends AbstractController
     public function studentIndex(
         EntityManagerInterface $entityManager,
         Request $request,
-        SessionInterface $session
+        SessionInterface $session,
+        StudentStatusService $studentStatusService
     ): Response {
         $this->denyAccessUnlessGranted('perm', 'users.view');
 
@@ -76,9 +78,40 @@ final class UserController extends AbstractController
 
         $period = $this->currentPeriod;
         $classId = $request->query->get('classId');
+        $status = $request->query->get('status', 'all');
+        if (!in_array($status, ['all', 'active', 'disabled'], true)) {
+            $status = 'all';
+        }
         $classes = $entityManager->getRepository(SchoolClassPeriod::class)->findBy(['school' => $this->currentSchool, 'period' => $period]);
         $students = $entityManager->getRepository(StudentClass::class)
             ->findBy(['schoolClassPeriod' => $classes]);
+
+        // Liste ordonnée par classe puis par nom (le DataTable trie par défaut
+        // sur la colonne Classe pour conserver cet ordre).
+        usort($students, function (StudentClass $a, StudentClass $b) {
+            $classA = $a->getSchoolClassPeriod()?->getClassOccurence()?->getName() ?? '';
+            $classB = $b->getSchoolClassPeriod()?->getClassOccurence()?->getName() ?? '';
+            $byClass = strnatcasecmp($classA, $classB);
+            if ($byClass !== 0) {
+                return $byClass;
+            }
+            return strnatcasecmp($a->getStudent()?->getFullName() ?? '', $b->getStudent()?->getFullName() ?? '');
+        });
+
+        // Filtre par statut : actif / désactivé scopé par la période de la
+        // classe (même règle que les exports et les bulletins).
+        if ($status !== 'all') {
+            $students = array_filter($students, function (StudentClass $studentClass) use ($studentStatusService, $status) {
+                $student = $studentClass->getStudent();
+                $schoolClassPeriod = $studentClass->getSchoolClassPeriod();
+                if ($student === null || $schoolClassPeriod === null) {
+                    return $status === 'disabled';
+                }
+                $active = $studentStatusService->isActiveIn($student, $schoolClassPeriod);
+                return $status === 'active' ? $active : !$active;
+            });
+        }
+
         $genders = GenderEnum::cases();
         $selClass = null;
         if ($classId) {
@@ -90,6 +123,7 @@ final class UserController extends AbstractController
             'students' => $students,
             'genders' => $genders,
             'selClass' => $selClass ? $selClass->getClassOccurence()->getName() ?? null : $selClass,
+            'status' => $status,
         ]);
     }
 

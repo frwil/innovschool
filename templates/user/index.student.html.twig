@@ -30,6 +30,15 @@
 	<!-- Bloc 1 : Tableau des élèves -->
 	<div class="col-md-8">
 
+		<div class="d-flex align-items-center mb-2">
+			<label for="statusFilter" class="form-label me-2 mb-0">Statut</label>
+			<select id="statusFilter" class="form-select" style="max-width: 230px;">
+				<option value="all" {% if status == 'all' %}selected{% endif %}>Tous les élèves</option>
+				<option value="active" {% if status == 'active' %}selected{% endif %}>Actifs uniquement</option>
+				<option value="disabled" {% if status == 'disabled' %}selected{% endif %}>Désactivés uniquement</option>
+			</select>
+		</div>
+
 		<table class="table table-striped" id="studentsTable">
 			<thead>
 				<tr>
@@ -598,8 +607,9 @@ $('#parentGender').val($(this).data('gender')).trigger('change');
 		}
 		var table = $('#studentsTable').DataTable({
 			"order": [
-				[0, "asc"]
-			], // Tri par la première colonne (index)
+				[3, "asc"],
+				[1, "asc"]
+			], // Tri par classe puis par nom
 			"pageLength": 10, // Nombre de lignes par page
 			"lengthMenu": [
 				10, 25, 50, 100
@@ -620,6 +630,15 @@ $('#parentGender').val($(this).data('gender')).trigger('change');
 
 		// Sur changement du critère
 		$('#exportCriteria').on('change', updateExportCriteria);
+
+		// Filtre par statut (tous / actifs / désactivés) : rechargement de la
+		// page avec ?status=..., la liste est filtrée côté serveur et le
+		// DataTable trie/recherche ensuite sur le sous-ensemble.
+		$('#statusFilter').on('change', function () {
+			var params = new URLSearchParams(window.location.search);
+			params.set('status', $(this).val());
+			window.location.search = params.toString();
+		});
 
 
 
