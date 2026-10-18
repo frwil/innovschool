@@ -91,7 +91,10 @@ apply_retention() {
 
 apply_retention "$BACKUP_ROOT"
 # Dumps reçus de l'autre machine (réplication croisée) : même rétention.
-[[ -n "$REPLICA_DIR" ]] && apply_retention "$REPLICA_DIR"
+# Scopé au sous-dossier « hourly » : d'autres projets (GS) poussent leurs
+# dumps dans des sous-dossiers voisins (replicas/gs) et ne doivent pas
+# être écrêtés par la rétention d'innovskool.
+[[ -n "$REPLICA_DIR" ]] && apply_retention "$REPLICA_DIR/hourly"
 
 # Synchronisation (rclone) : cloud et/ou réplication croisée, si configurées.
 TARGETS=()

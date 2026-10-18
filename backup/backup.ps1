@@ -110,7 +110,10 @@ function Apply-Retention([string]$root) {
 
 Apply-Retention $BackupRoot
 # Dumps reçus de l'autre machine (réplication croisée) : même rétention.
-if ($ReplicaDir) { Apply-Retention $ReplicaDir }
+# Scopé au sous-dossier « hourly » : d'autres projets (GS) poussent leurs
+# dumps dans des sous-dossiers voisins (replicas\gs) et ne doivent pas
+# être écrêtés par la rétention d'innovskool.
+if ($ReplicaDir) { Apply-Retention (Join-Path $ReplicaDir "hourly") }
 
 # Synchronisation (rclone) : cloud et/ou réplication croisée, si configurées.
 if ($RcloneTargets.Count -gt 0) {
