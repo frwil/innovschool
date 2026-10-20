@@ -1582,11 +1582,16 @@ class EvaluationController extends AbstractController
         int $id,
         EvaluationRepository $evaluationRepo,
         EntityManagerInterface $entityManager,
-        ManagerRegistry $doctrine
+        ManagerRegistry $doctrine,
+        SessionInterface $session
     ): JsonResponse {
         if (!$this->isGranted('perm', 'evaluations.delete')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
+        $this->session = $session;
+        $this->entityManager = $entityManager;
+        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
+        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
         // Récupérer l'évaluation par son ID
         $evaluation = $evaluationRepo->find($id);
 
@@ -1613,7 +1618,7 @@ class EvaluationController extends AbstractController
                     'period' => $this->currentPeriod->getName(),
                 ]
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if (!$this->entityManager->isOpen()) {
                 $this->entityManager = $doctrine->resetManager();
             }
@@ -1643,11 +1648,16 @@ class EvaluationController extends AbstractController
         Request $request,
         EvaluationRepository $evaluationRepo,
         EntityManagerInterface $entityManager,
-        ManagerRegistry $doctrine
+        ManagerRegistry $doctrine,
+        SessionInterface $session
     ): JsonResponse {
         if (!$this->isGranted('perm', 'evaluations.save')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
+        $this->session = $session;
+        $this->entityManager = $entityManager;
+        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
+        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
         // Récupérer l'évaluation par son ID
         $evaluation = $evaluationRepo->find($id);
 
@@ -1696,7 +1706,7 @@ class EvaluationController extends AbstractController
                         'period' => $this->currentPeriod->getName(),
                     ]
                 );
-            } catch (\Exception $e) {
+            } catch (\Throwable $e) {
                 if (!$this->entityManager->isOpen()) {
                     $this->entityManager = $doctrine->resetManager();
                 }
@@ -3268,11 +3278,16 @@ class EvaluationController extends AbstractController
         Request $request,
         EntityManagerInterface $entityManager,
         SchoolClassSubjectRepository $schoolClassSubjectRepo,
-        ManagerRegistry $doctrine
+        ManagerRegistry $doctrine,
+        SessionInterface $session
     ): JsonResponse {
         if (!$this->isGranted('perm', 'evaluations.cancel')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
+        $this->session = $session;
+        $this->entityManager = $entityManager;
+        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
+        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
         $id = $request->request->get('id');
         $token = $request->request->get('_token');
 
@@ -3307,7 +3322,7 @@ class EvaluationController extends AbstractController
                     'period' => $this->currentPeriod->getName(),
                 ]
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if (!$this->entityManager->isOpen()) {
                 $this->entityManager = $doctrine->resetManager();
             }
@@ -3336,11 +3351,16 @@ class EvaluationController extends AbstractController
         Request $request,
         EntityManagerInterface $entityManager,
         SchoolClassSubjectRepository $schoolClassSubjectRepo,
-        ManagerRegistry $doctrine
+        ManagerRegistry $doctrine,
+        SessionInterface $session
     ): JsonResponse {
         if (!$this->isGranted('perm', 'evaluations.cancel')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
+        $this->session = $session;
+        $this->entityManager = $entityManager;
+        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
+        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
         $id = $request->request->get('id');
         $token = $request->request->get('_token');
 
@@ -3375,7 +3395,7 @@ class EvaluationController extends AbstractController
                     'period' => $this->currentPeriod->getName(),
                 ]
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if (!$this->entityManager->isOpen()) {
                 $this->entityManager = $doctrine->resetManager();
             }
