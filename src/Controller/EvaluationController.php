@@ -2480,17 +2480,20 @@ class EvaluationController extends AbstractController
     #[Route('/evaluation/appreciation-bareme/create', name: 'app_create_evaluation_appreciation_bareme', methods: ['POST'])]
     public function createEvaluationAppreciationBareme(
         Request $request,
-        EntityManagerInterface $entityManager
+        EntityManagerInterface $entityManager,
+        ManagerRegistry $doctrine
     ): JsonResponse {
         if (!$this->isGranted('perm', 'evaluations.templates')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
         $templateId = $request->request->get('templateId');
         $maxNote = $request->request->get('maxNote');
-        $value = strtoupper($request->request->get('value'));
-        $fullValue = strtoupper($request->request->get('fullValue'));
+        $value = strtoupper((string) $request->request->get('value'));
+        $fullValue = strtoupper((string) $request->request->get('fullValue'));
 
-        if (!$templateId || !$maxNote || !$value || !$fullValue) {
+        // is_numeric($maxNote) et non !$maxNote : la note 0 est valide
+        // (ex. barême « 0 = ABSENT ») mais falsy en PHP.
+        if (!$templateId || !is_numeric($maxNote) || !$value || !$fullValue) {
             return new JsonResponse(['error' => 'Tous les champs sont requis.'], 400);
         }
 
@@ -2534,7 +2537,7 @@ class EvaluationController extends AbstractController
                     'fullValue' => $bareme->getEvaluationAppreciationFullValue(),
                 ]
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if (!$this->entityManager->isOpen()) {
                 $this->entityManager = $doctrine->resetManager();
             }
@@ -2710,11 +2713,17 @@ class EvaluationController extends AbstractController
     public function deleteEvaluationAppreciationBareme(
         int $id,
         EntityManagerInterface $entityManager,
-        ManagerRegistry $doctrine
+        ManagerRegistry $doctrine,
+        SessionInterface $session
     ): JsonResponse {
         if (!$this->isGranted('perm', 'evaluations.templates')) {
             return new JsonResponse(['error' => 'Unauthorized'], 403);
         }
+        $this->session = $session;
+        $this->entityManager = $entityManager;
+        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
+        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
+
         $bareme = $entityManager->getRepository(\App\Entity\EvaluationAppreciationBareme::class)->find($id);
 
         if (!$bareme) {
@@ -2739,7 +2748,7 @@ class EvaluationController extends AbstractController
                     'period' => $this->currentPeriod->getName(),
                 ]
             );
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             if (!$this->entityManager->isOpen()) {
                 $this->entityManager = $doctrine->resetManager();
             }
