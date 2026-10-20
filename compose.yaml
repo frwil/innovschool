@@ -52,6 +52,7 @@ services:
         condition: service_healthy
     networks:
       - app-network
+    restart: unless-stopped
 
   database:
     image: mysql:8.0
@@ -74,6 +75,7 @@ services:
       retries: 10
       interval: 10s
       start_period: 120s
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -112,8 +114,8 @@ services:
     networks:
       - app-network
     environment:
-      APP_ENV: dev
-      APP_DEBUG: 1
+      APP_ENV: prod
+      APP_DEBUG: 0
       MESSENGER_TRANSPORT_DSN: redis://redis:6379/messages
       MEMORY_LIMIT: 4096M
       PHP_MEMORY_LIMIT: 4096M
