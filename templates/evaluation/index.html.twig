@@ -647,6 +647,16 @@ endblock %} {% block stylesheets %}
 <script>
   var modulesTable;
     $(document).ready(function () { // Initialisation de DataTable avec une source AJAX et rowGroup
+      // Select2 dans la modal d'assignation de matière : initialisation à
+      // l'ouverture (largeur réelle) + dropdownParent pour que le bloc
+      // déroulant s'affiche dans la modal (sinon il est appendé au body,
+      // derrière la modal, et reste invisible)
+      $('#editSubjectAssignmentModal').on('shown.bs.modal', function () {
+        $('#editSubjectGroup, #editSubjectTeacher, #assignTeacherMethod').select2({
+          width: '100%',
+          dropdownParent: $('#editSubjectAssignmentModal')
+        });
+      });
       modulesTable = $('#modules-table').DataTable({
         ajax: {
           url: '{{ path("app_get_modules") }}', // Remplacez par votre route pour récupérer les modules
