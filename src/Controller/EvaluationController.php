@@ -632,9 +632,14 @@ class EvaluationController extends AbstractController
     }
 
     #[Route('/get-modules', name: 'app_get_modules', methods: ['GET'])]
-    public function getModules(ClassSubjectModuleRepository $moduleRepo, EvaluationRepository $evaluationRepo): JsonResponse
+    public function getModules(ClassSubjectModuleRepository $moduleRepo, EvaluationRepository $evaluationRepo, SessionInterface $session): JsonResponse
     {
-        $modules = $moduleRepo->findAll();
+        // Scope école + période de l'utilisateur : sans filtre, la liste
+        // remontait les modules de toutes les années (et écoles).
+        $this->session = $session;
+        $this->currentSchool = $this->entityManager->getRepository(School::class)->find($this->session->get('school_id'));
+        $this->currentPeriod = $this->entityManager->getRepository(SchoolPeriod::class)->find($this->session->get('period_id'));
+        $modules = $moduleRepo->findBy(['school' => $this->currentSchool, 'period' => $this->currentPeriod]);
         $data = [];
         $countModules = [];
         foreach ($modules as $module) {
